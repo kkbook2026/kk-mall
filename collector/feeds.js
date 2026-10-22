@@ -258,16 +258,16 @@ async function collectFeeds(env) {
     }),
     accesstrade(env, stat),
   ]);
-  const offers = [], dropKeys = new Set();
+  const offers = [], dropKeys = new Set(), sample = [];  // sample: mau ban ghi chua phan loai (chi luu trong goi quan tri ma hoa)
   for (const r of [...urlRows.flat(), ...atRows]) {
     stat.items++;
     if (!r.name || r.name.length < 6 || r.price < 1000 || r.price > 2e9) { stat.bad++; continue; }
     r.grp = classify(r.name, r.cat);
-    if (!r.grp) { stat.unclassified++; dropKeys.add(normKey(r.name)); continue; }
+    if (!r.grp) { stat.unclassified++; dropKeys.add(normKey(r.name)); if (sample.length < 600 && Math.random() < 0.15) sample.push([r.src, r.name.slice(0, 120), String(r.cat || '').slice(0, 80)]); continue; }
     r.key = normKey(r.name);
     stat.valid++; offers.push(r);
   }
-  return { offers, stat, dropKeys };
+  return { offers, stat, dropKeys, unclassSample: sample };
 }
 
 module.exports = { collectFeeds, feedList, parsePrice, parseAny, normRow, classify, normKey, SOURCES };
