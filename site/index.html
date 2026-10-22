@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KK-MALL - Đại siêu thị trực tuyến tổng hợp</title>
 <meta name="description" content="KK-MALL - đại siêu thị trực tuyến với trợ lý AI riêng: tổng hợp hàng nghìn mặt hàng chính hãng từ các nền tảng lớn nhất Việt Nam, AI tối ưu giá & voucher 24/7, giá cuối cùng đã gồm giao hàng - không phụ phí ẩn, đặt hàng 1 phút, hóa đơn điện tử tự động.">
+<meta name="referrer" content="no-referrer">
 <link rel="icon" href="./logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -35,9 +36,20 @@ header.hd .wrap{display:flex;align-items:center;gap:18px;height:88px}
 .hbtn:hover{background:#F5F0FF;border-color:#D8C8F7}
 .badge{position:absolute;top:2px;right:4px;background:var(--coral);color:#fff;font-size:11px;font-weight:800;min-width:20px;height:20px;border-radius:10px;display:grid;place-items:center;padding:0 5px}
 .catnav{background:#fff;border-bottom:1px solid var(--line);box-shadow:0 4px 14px rgba(30,58,138,.05)}
-.catnav .wrap{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;height:54px;align-items:center}
+.catnav .wrap{display:flex;gap:6px;flex-wrap:wrap;min-height:54px;padding-top:8px;padding-bottom:8px;align-items:center;position:relative}
+.catnav a{white-space:nowrap;padding:8px 13px;border-radius:999px;font-size:13.5px;font-weight:700;color:#2D2650;cursor:pointer;border:1.5px solid transparent;transition:.15s;line-height:1.2}
+.catnav .cnb{display:none}
+@media(max-width:960px){
+.catnav{position:relative}
+.catnav .wrap{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;padding-left:40px;padding-right:40px;min-height:52px}
 .catnav .wrap::-webkit-scrollbar{display:none}
-.catnav a{white-space:nowrap;padding:9px 15px;border-radius:999px;font-size:14px;font-weight:700;color:#2D2650;cursor:pointer;border:1.5px solid transparent;transition:.15s}
+.catnav a{scroll-snap-align:start}
+.catnav .cnb{display:grid;place-items:center;position:absolute;top:0;bottom:0;width:40px;border:0;padding:0;background:linear-gradient(90deg,#fff 60%,rgba(255,255,255,0));z-index:2;cursor:pointer;color:#fff;font-size:0}
+.catnav .cnb::before{content:'';width:28px;height:28px;border-radius:50%;background:var(--ink) center/10px no-repeat;box-shadow:0 3px 10px rgba(30,58,138,.35);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 5l7 7-7 7'/%3E%3C/svg%3E")}
+.catnav .cnb.l::before{transform:rotate(180deg)}
+.catnav .cnb.r{right:0;background:linear-gradient(270deg,#fff 60%,rgba(255,255,255,0))}.catnav .cnb.l{left:0}
+.catnav .cnb[disabled]{opacity:0;pointer-events:none}
+}
 .catnav a:hover{background:#F5F0FF;border-color:#E4D9FB;color:var(--ink)}
 .catnav a.on{background:var(--grad);color:#fff;box-shadow:0 4px 14px rgba(124,58,237,.35)}
 .hero{margin:20px auto;display:grid;grid-template-columns:260px 1fr;gap:20px}
@@ -254,7 +266,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
 .aif .b{border:0;background:var(--ink);color:#fff;border-radius:10px;padding:0 16px;font-weight:700;font-size:13px}
 @media(max-width:1060px){.megacats{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:960px){.hero{grid-template-columns:1fr}.banner{width:100%}.sidecats{display:none}.trust{grid-template-columns:1fr 1fr}.pd,form.co{grid-template-columns:1fr}footer .cols{grid-template-columns:1fr 1fr}.banner h1{font-size:27px}.logo img{height:54px}.bigsym{display:none}.megacats{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:600px){header.hd .wrap{height:auto;flex-wrap:wrap;padding:10px 12px}.search{order:3;width:100%;flex-basis:100%}.hbtn span.t{display:none}.topbar .wrap{font-size:11px}.trust{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr);gap:10px}.megacats{grid-template-columns:repeat(3,1fr);gap:8px}.shelf{grid-auto-columns:160px}}
+@media(max-width:600px){header.hd .wrap{height:auto;flex-wrap:wrap;padding:10px 12px;gap:8px}.logo{margin-right:auto}.logo img{height:44px}.search{order:3;width:100%;flex-basis:100%}.hbtn{padding:9px 11px;font-size:16px}.hbtn span.t{display:none}.topbar .wrap{font-size:11px;height:30px;overflow:hidden}.topbar .wrap>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.topbar .wrap>div:last-child{flex:none}.trust{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr);gap:10px}.megacats{grid-template-columns:repeat(3,1fr);gap:8px}.shelf{grid-auto-columns:160px}}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"OnlineStore","name":"KK-MALL","alternateName":"Đại siêu thị trực tuyến KK-MALL","url":"https://www.kk-mall.com","logo":"https://www.kk-mall.com/logo.svg","founder":{"@type":"Person","name":"Nguyễn Duy Điển"},"areaServed":"VN","paymentAccepted":"VNPay, MoMo, ZaloPay, VietQR"}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"KK-MALL","url":"https://www.kk-mall.com","potentialAction":{"@type":"SearchAction","target":"https://www.kk-mall.com/?q={search_term_string}","query-input":"required name=search_term_string"}}</script>
@@ -264,7 +276,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
 <header class="hd"><div class="wrap">
   <a class="logo" href="./"><img src="./logo.svg" alt="KK-MALL"></a>
   <form class="search" onsubmit="doSearch(event)">
-    <input id="q" placeholder="Tìm tức thời trong 1.500+ mặt hàng (chạy ngay trên máy bạn, 0ms)..." autocomplete="off">
+    <input id="q" placeholder="Tìm tức thời trong 21.000+ mặt hàng (chạy ngay trên máy bạn, 0ms)..." autocomplete="off">
     <button type="button" class="mic" id="mic" title="Tìm bằng giọng nói">🎙️</button>
     <button class="go">Tìm kiếm</button>
     <div class="sug" id="sug"></div>
@@ -273,7 +285,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
   <button class="hbtn" onclick="openTrack()">📦 <span class="t">Đơn hàng</span></button>
   <button class="hbtn" onclick="openCart()">🛒 <span class="t">Giỏ hàng</span><span class="badge" id="cartN">0</span></button>
 </div></header>
-<nav class="catnav"><div class="wrap" id="catnav"></div></nav>
+<nav class="catnav"><button class="cnb l" aria-label="Cuộn trái" onclick="navScroll(-1)">‹</button><div class="wrap" id="catnav"></div><button class="cnb r" aria-label="Cuộn phải" onclick="navScroll(1)">›</button></nav>
 
 <main class="wrap">
   <section class="hero" id="home">
@@ -316,7 +328,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
           <h3>Vì sao chọn KK-MALL?</h3>
           <p>Đại siêu thị trực tuyến tổng hợp <b>niêm phong lịch sử giá bằng mật mã học</b> - mua đúng giá tốt, không lo "sale ảo".</p>
           <div class="vrow">
-            <span class="vfact">✓ 1.540+ mặt hàng chính hãng</span>
+            <span class="vfact">✓ <span id="vfactN">21.000</span>+ mặt hàng chính hãng</span>
             <span class="vfact">✓ Giá cuối cùng - 0đ phụ phí</span>
             <span class="vfact">✓ Hoàn tiền 100% nếu hết hàng</span>
           </div>
@@ -390,6 +402,24 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
 
 <script src="demo-shim.js"></script>
 <script>
+/* ===== ANH SAN PHAM: 3 lop du phong - anh goc -> anh SVG noi bo -> placeholder sinh tai cho (khong bao gio trong) ===== */
+const CAT_ICON={'dien-thoai-may-tinh-bang':'📱','laptop-may-tinh':'💻','thiet-bi-am-thanh-deo':'🎧','tivi-giai-tri':'📺','dien-lanh':'❄️','gia-dung':'🍳','noi-that-trang-tri':'🛋️','thoi-trang':'👗','suc-khoe-lam-dep':'💄','me-be':'🍼','bach-hoa':'🛒','the-thao-du-lich':'⚽','o-to-xe-may':'🏍️','sach-van-phong-pham':'📚','voucher-dich-vu':'🎫'};
+function phImg(name,cat){const t=String(name||'KK-MALL').replace(/[<>&"]/g,' ');const w=t.split(/\s+/).filter(Boolean);const l1=w.slice(0,4).join(' ').slice(0,26),l2=w.slice(4,8).join(' ').slice(0,26);const ic=CAT_ICON[cat]||'🛍️';
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#EEF2FF"/><stop offset="1" stop-color="#DBEAFE"/></linearGradient></defs><rect width="400" height="400" rx="28" fill="url(#g)"/><circle cx="200" cy="150" r="78" fill="#fff" opacity=".9"/><text x="200" y="178" font-size="84" text-anchor="middle">${ic}</text><text x="200" y="272" font-family="Be Vietnam Pro,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" fill="#1E3A8A" text-anchor="middle">${l1}</text><text x="200" y="300" font-family="Be Vietnam Pro,Segoe UI,Arial,sans-serif" font-size="17" fill="#3B82F6" text-anchor="middle">${l2}</text><text x="200" y="352" font-family="Be Vietnam Pro,Segoe UI,Arial,sans-serif" font-size="13" font-weight="800" fill="#64748B" text-anchor="middle" letter-spacing="2">KK-MALL</text></svg>`;
+  return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg)}
+function imgSrc(p){return p&&p.image&&/^https?:/.test(p.image)?esc(p.image):'./api/img/'+(p&&p.sku)+'.svg'}
+function imgFail(el){const sku=el.dataset.sku||'',nm=el.dataset.nm||'',cat=el.dataset.cat||'';
+  if(!el.dataset.step&&el.src&&!/\/api\/img\//.test(el.src)&&sku){el.dataset.step='1';el.src='./api/img/'+sku+'.svg';return}
+  el.onerror=null;el.dataset.step='2';el.src=phImg(nm,cat);el.classList.add('ph')}
+function imgAttrs(p){return `data-sku="${p.sku||''}" data-nm="${esc(p.name||'')}" data-cat="${p.category_id||''}" onerror="imgFail(this)" referrerpolicy="no-referrer"`}
+function hydrateImg(el,sku){if(!sku)return;api('/api/products/'+sku).then(p=>{if(p&&/^https?:/.test(p.image||'')){el.dataset.step='';el.onerror=()=>imgFail(el);el.dataset.nm=p.name||el.dataset.nm;el.dataset.cat=p.category_id||'';el.src=p.image}}).catch(()=>{})}
+/* ===== MENU NGANH HANG ===== */
+const CAT_SHORT={'Điện thoại & Máy tính bảng':'Điện thoại & Tablet','Laptop & Máy tính':'Laptop & PC','Âm thanh & Thiết bị đeo':'Âm thanh & Đồng hồ','Tivi & Thiết bị giải trí':'Tivi & Giải trí','Gia dụng & Nhà bếp':'Gia dụng','Nhà cửa & Đời sống':'Nhà cửa','Sức khỏe & Làm đẹp':'Làm đẹp','Bách hóa & Thực phẩm':'Bách hóa','Thể thao & Du lịch':'Thể thao','Ô tô, Xe máy & Phụ kiện':'Xe & Phụ kiện','Sách, Văn phòng phẩm & Quà tặng':'Sách & VPP','Voucher, Dịch vụ & Thẻ nạp':'Voucher & Thẻ nạp'};
+const shortCat=n=>CAT_SHORT[n]||n;
+function navScroll(d){const w=document.getElementById('catnav');w.scrollBy({left:d*Math.round(w.clientWidth*.7),behavior:'smooth'})}
+function navArrows(){const w=document.getElementById('catnav');if(!w)return;const l=document.querySelector('.catnav .cnb.l'),r=document.querySelector('.catnav .cnb.r');const upd=()=>{if(!l||!r)return;l.disabled=w.scrollLeft<=2;r.disabled=w.scrollLeft+w.clientWidth>=w.scrollWidth-2};w.addEventListener('scroll',upd,{passive:true});addEventListener('resize',upd);upd();
+  navFocus()}
+function navFocus(){const w=document.getElementById('catnav');if(!w||innerWidth>960)return;const on=w.querySelector('a.on');if(!on)return;const r=on.getBoundingClientRect(),wr=w.getBoundingClientRect();if(r.left<wr.left+40||r.right>wr.right-40)w.scrollTo({left:on.offsetLeft-w.clientWidth/2+on.offsetWidth/2,behavior:'smooth'})}
 const $=s=>document.querySelector(s); const vnd=n=>Number(n||0).toLocaleString('vi-VN')+' đ'; const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let META={}, state={cat:'',group:'',q:'',page:1,items:[]}, cart=[]; try{cart=JSON.parse(localStorage.getItem('kk_cart')||'[]')}catch{}
 cart=cart.filter(c=>c&&c.sku);setTimeout(()=>cart.forEach(c=>{if(!c.kk_price||c.name===c.sku)fixCartItem(c.sku)}),1500);
@@ -442,10 +472,10 @@ async function init(){
   META=await api('/api/meta');
   $('#syncMin').textContent=META.syncMinutes; $('#lastSync').textContent=META.lastSync?new Date(META.lastSync).toLocaleTimeString('vi-VN'):'-';
   $('#ledgerSeq').textContent=(META.ledgerHead&&META.ledgerHead.seq||0).toLocaleString('vi-VN');
-  $('#totalProducts').textContent=META.totalProducts.toLocaleString('vi-VN'); $('#hotline').textContent=META.company.phone;
+  $('#totalProducts').textContent=META.totalProducts.toLocaleString('vi-VN');try{$('#vfactN').textContent=(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN');$('#q').placeholder=`Tìm tức thời trong ${(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN')}+ mặt hàng (chạy ngay trên máy bạn, 0ms)...`}catch{} $('#hotline').textContent=META.company.phone;
   $('#coName').textContent=META.company.name;$('#coAddr').textContent=META.company.address;$('#coTax').textContent=META.company.taxCode;$('#coEmail').textContent=META.company.email;
   if(META.company.moit)$('#moit').textContent='Số đăng ký Bộ Công Thương: '+META.company.moit;
-  $('#catnav').innerHTML='<a class="on" data-c="" onclick="goHome()">🏠 Trang chủ</a>'+META.categories.map(c=>`<a data-c="${c.id}" onclick="setCat('${c.id}')">${c.icon} ${esc(c.name)}</a>`).join('');
+  $('#catnav').innerHTML='<a class="on" data-c="" onclick="goHome()">🏠 Trang chủ</a>'+META.categories.map(c=>`<a data-c="${c.id}" title="${esc(c.name)}" onclick="setCat('${c.id}')">${c.icon} ${esc(shortCat(c.name))}</a>`).join('');navArrows();
   $('#sidecats').innerHTML=META.categories.map(c=>`<a onclick="setCat('${c.id}')"><span>${c.icon}</span>${esc(c.name)}<span class="n">${c.count}</span></a>`).join('');
   $('#megacats').innerHTML=META.categories.map(c=>`<div class="mc" onclick="setCat('${c.id}')"><div class="i">${c.icon}</div><b>${esc(c.name)}</b><small>${c.count} mặt hàng · ${c.groups.length} nhóm</small></div>`).join('');
   loadSDUI(); initLocalSearch(); revealObserve();
@@ -471,9 +501,9 @@ function revealObserve(){
   document.querySelectorAll('.reveal:not(.in)').forEach(el=>_ro.observe(el));
 }
 addEventListener('scroll',()=>{$('#top').classList.toggle('show',scrollY>700)},{passive:true});
-function goHome(){$('#shop').style.display='none';$('#shelves').style.display='';$('#cats').style.display='';$('#home').style.display='';document.querySelectorAll('#catnav a').forEach(a=>a.classList.toggle('on',a.dataset.c===''));scrollTo({top:0,behavior:'smooth'})}
+function goHome(){$('#shop').style.display='none';$('#shelves').style.display='';$('#cats').style.display='';$('#home').style.display='';document.querySelectorAll('#catnav a').forEach(a=>a.classList.toggle('on',a.dataset.c===''));navFocus();scrollTo({top:0,behavior:'smooth'})}
 function showShop(){$('#shop').style.display='';$('#shelves').style.display='none';$('#cats').style.display='none';$('#home').style.display='none'}
-function setCat(id,group=''){state.cat=id;state.group=group;state.q='';$('#q').value='';$('#brand').innerHTML='<option value="">Tất cả thương hiệu</option>';document.querySelectorAll('#catnav a').forEach(a=>a.classList.toggle('on',a.dataset.c===id));
+function setCat(id,group=''){state.cat=id;state.group=group;state.q='';$('#q').value='';$('#brand').innerHTML='<option value="">Tất cả thương hiệu</option>';document.querySelectorAll('#catnav a').forEach(a=>a.classList.toggle('on',a.dataset.c===id));navFocus();
   const c=META.categories.find(x=>x.id===id); $('#secTitle').textContent=c?c.icon+' '+c.name+(group?' › '+group:''):'Tất cả sản phẩm';
   $('#groups').innerHTML=c?c.groups.map(g=>`<button class="chip ${g===group?'on':''}" onclick="setCat('${id}','${esc(g)}')">${esc(g)}</button>`).join(''):'';
   showShop(); scrollTo({top:0,behavior:'smooth'}); reload();}
@@ -489,7 +519,7 @@ async function loadMore(fresh){
   $('#more').style.display=state.items.length<d.total?'block':'none';
 }
 function card(p){const off=p.base_price>p.kk_price?Math.round((1-p.kk_price/p.base_price)*100):0;
-  return `<div class="card">${!p.in_stock?'<span class="tag out">Hết hàng</span>':off>0?`<span class="tag">-${off}%</span>`:''}<img class="im" src="${p.image&&!p.image.startsWith('/api/img')?esc(p.image):'./api/img/'+p.sku+'.svg'}" alt="${esc(p.name)}" loading="lazy" onerror="this.onerror=null;this.src='./api/img/${p.sku}.svg'" onclick="openProduct('${p.sku}')">
+  return `<div class="card">${!p.in_stock?'<span class="tag out">Hết hàng</span>':off>0?`<span class="tag">-${off}%</span>`:''}<img class="im" src="${imgSrc(p)}" alt="${esc(p.name)}" loading="lazy" ${imgAttrs(p)} onclick="openProduct('${p.sku}')">
   <div class="bd"><div class="nm" onclick="openProduct('${p.sku}')">${esc(p.name)}</div>
   <div class="src"><span class="dot" style="background:var(--ok)"></span>KK-MALL cung cấp · AI đã tối ưu giá</div>
   <div class="price">${p.kk_price?vnd(p.kk_price):'-'}${off>0?` <s style="color:var(--muted);font-size:12px;font-weight:500">${vnd(p.base_price)}</s>`:''}<small>Giá cuối cùng - đã gồm giao hàng</small></div>
@@ -505,7 +535,7 @@ function spark(entries){
 
 async function openProduct(sku){closeAll();const p=await api('/api/products/'+sku);
   const realImg=p.image&&p.image.startsWith('http');
-  $('#pmBox').innerHTML=`<div class="pd"><div><div class="im" style="position:relative;cursor:zoom-in" onclick="openLightbox(this.querySelector('img').src)"><img src="${p.image}" alt="${esc(p.name)}" onerror="this.onerror=null;this.src='./api/img/${p.sku}.svg';this.parentElement.querySelector('.imb').textContent='Ảnh minh họa'">
+  $('#pmBox').innerHTML=`<div class="pd"><div><div class="im" style="position:relative;cursor:zoom-in" onclick="openLightbox(this.querySelector('img').src)"><img src="${imgSrc(p)}" alt="${esc(p.name)}" ${imgAttrs(p)} onerror="imgFail(this);this.parentElement.querySelector('.imb').textContent='Ảnh minh họa'">
   <span class="imb" style="position:absolute;left:10px;bottom:10px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;background:${realImg?'#ECFDF5':'#F1F5F9'};color:${realImg?'#065F46':'#475569'};border:1px solid ${realImg?'#A7F3D0':'#E2E8F0'}">${realImg?'✓ Ảnh chính hãng':'Ảnh minh họa'}</span>
   <span style="position:absolute;right:10px;bottom:10px;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.9);color:#1E3A8A">🔍 Phóng to</span></div>
   <div class="note ok" style="margin-top:16px">🏪 <b>KK-MALL cung cấp & bảo đảm</b><br>Hàng chính hãng từ hệ thống kho đối tác toàn quốc. Một đầu mối duy nhất: đặt hàng, giao nhận, hóa đơn, bảo hành, đổi trả - tất cả do KK-MALL phục vụ bạn.</div>
@@ -537,7 +567,7 @@ function initFlashDeal(d){
   const list=deals(d).slice(0,6);const box=$('#flashDeal');if(!box)return;
   if(!list.length){box.innerHTML='<div style="font-size:12px;color:var(--muted)">Đang cập nhật ưu đãi...</div>'}
   else{let i=0;const draw=()=>{const p=list[i%list.length];const off=Math.round((1-p.kk_price/p.base_price)*100);
-    box.innerHTML=`<img src="${p.image&&!p.image.startsWith('/api/img')?esc(p.image):'./api/img/'+p.sku+'.svg'}" onerror="this.onerror=null;this.src='./api/img/${p.sku}.svg'" alt=""><div><div class="fn">${esc(p.name)}</div><div class="fp">${vnd(p.kk_price)}<span class="off">-${off}%</span></div></div>`;
+    box.innerHTML=`<img src="${imgSrc(p)}" ${imgAttrs(p)} alt=""><div><div class="fn">${esc(p.name)}</div><div class="fp">${vnd(p.kk_price)}<span class="off">-${off}%</span></div></div>`;
     box.onclick=()=>openProduct(p.sku);i++};
     draw();setInterval(draw,5000);
     const nx=$('#flashNext');
@@ -585,7 +615,7 @@ async function openCompare(sku){
   $('#cpBox').innerHTML=`<button class="x" onclick="closeAll();openProduct('${sku}')">✕</button>
   <div style="padding:26px"><h2 style="margin:0 0 4px;color:var(--ink)">⚖️ So sánh ${full.length} sản phẩm cùng loại</h2>
   <div style="font-size:12px;color:var(--muted);margin-bottom:12px">${esc(base.grp)} · tự động chọn các sản phẩm tương đồng để bạn quyết định nhanh</div>
-  <div style="overflow-x:auto"><table class="cmp" style="min-width:560px"><tr><th style="width:120px"></th>${full.map(p=>`<th><img src="${p.image&&!p.image.startsWith('/api/img')?esc(p.image):'./api/img/'+p.sku+'.svg'}" alt="" style="width:84px;height:84px;object-fit:contain;background:#fff;border-radius:10px" onerror="this.onerror=null;this.src='./api/img/${p.sku}.svg'"><div style="font-size:12px;margin-top:4px">${esc(p.name)}</div></th>`).join('')}</tr>
+  <div style="overflow-x:auto"><table class="cmp" style="min-width:560px"><tr><th style="width:120px"></th>${full.map(p=>`<th><img src="${imgSrc(p)}" alt="" style="width:84px;height:84px;object-fit:contain;background:#fff;border-radius:10px" ${imgAttrs(p)}><div style="font-size:12px;margin-top:4px">${esc(p.name)}</div></th>`).join('')}</tr>
   <tr><td><b>Giá KK-MALL</b></td>${full.map(p=>`<td style="color:var(--coral);font-weight:900">${vnd(p.kk_price)}</td>`).join('')}</tr>
   <tr><td><b>Đánh giá</b></td>${full.map(p=>`<td>⭐ ${p.rating} · bán ${p.sold}</td>`).join('')}</tr>
   ${keys.map(k=>`<tr><td><b>${esc(k)}</b></td>${full.map(p=>`<td>${esc((p.specs||{})[k]||'-')}</td>`).join('')}</tr>`).join('')}
@@ -593,18 +623,18 @@ async function openCompare(sku){
   closeAll();show('#cpm')}
 
 /* ===== VUA XEM GAN DAY ===== */
-function trackViewed(p){try{let v=JSON.parse(localStorage.getItem('kk_viewed')||'[]');v=v.filter(x=>x.sku!==p.sku);v.unshift({sku:p.sku,name:p.name,image:p.image,kk_price:p.kk_price,rating:p.rating});localStorage.setItem('kk_viewed',JSON.stringify(v.slice(0,12)));}catch{}}
+function trackViewed(p){try{let v=JSON.parse(localStorage.getItem('kk_viewed')||'[]');v=v.filter(x=>x.sku!==p.sku);v.unshift({sku:p.sku,name:p.name,image:p.image,kk_price:p.kk_price,rating:p.rating,category_id:p.category_id});localStorage.setItem('kk_viewed',JSON.stringify(v.slice(0,12)));}catch{}}
 function renderViewed(){try{const v=JSON.parse(localStorage.getItem('kk_viewed')||'[]');const sec=$('#viewedSec');if(!v.length||!sec)return;sec.style.display='block';
-  $('#viewedRow').innerHTML=v.map(x=>`<div class="card" style="min-width:170px;max-width:170px;cursor:pointer" onclick="openProduct('${x.sku}')"><img class="im" style="height:120px" src="${x.image&&!x.image.startsWith('/api/img')?esc(x.image):'./api/img/'+x.sku+'.svg'}" onerror="this.onerror=null;this.src='./api/img/${x.sku}.svg'" alt=""><div class="bd" style="padding:8px 10px"><div class="n" style="font-size:12px;max-height:2.8em;overflow:hidden">${esc(x.name)}</div><div style="color:var(--coral);font-weight:800;font-size:13px">${vnd(x.kk_price)}</div></div></div>`).join('')}catch{}}
+  $('#viewedRow').innerHTML=v.map(x=>(x.image&&/^https?:/.test(x.image))||x._h?x:(x._h=1,setTimeout(()=>{const im=document.querySelector(`#viewedRow img[data-sku="${x.sku}"]`);if(im)hydrateImg(im,x.sku)},0),x)).map(x=>`<div class="card" style="min-width:170px;max-width:170px;cursor:pointer" onclick="openProduct('${x.sku}')"><img class="im" style="height:120px" src="${imgSrc(x)}" ${imgAttrs(x)} alt=""><div class="bd" style="padding:8px 10px"><div class="n" style="font-size:12px;max-height:2.8em;overflow:hidden">${esc(x.name)}</div><div style="color:var(--coral);font-weight:800;font-size:13px">${vnd(x.kk_price)}</div></div></div>`).join('')}catch{}}
 
 async function sendReview(sku){try{const r=await api('/api/reviews',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sku,order_code:$('#rvOrder').value.trim(),phone:$('#rvPhone').value.trim(),rating:$('#rvStar').value,content:$('#rvText').value,device:navigator.userAgent})});toast(r.note)}catch(e){toast(e.message)}}
 function qd(d){const i=$('#pq');i.value=Math.max(1,Math.min(20,(+i.value||1)+d))}
-function packRow(sku){try{const rows=JSON.parse(localStorage.getItem('kk_pack')).rows;const r=rows.find(x=>x[0]===sku);if(r)return{name:r[1],kk_price:r[6],image:'./api/img/'+sku+'.svg'}}catch{}return null}
+function packRow(sku){try{const rows=JSON.parse(localStorage.getItem('kk_pack')).rows;const r=rows.find(x=>x[0]===sku);if(r)return{name:r[1],kk_price:r[6],category_id:r[3],image:phImg(r[1],r[3])}}catch{}return null}
 function fixCartItem(sku){api('/api/products/'+sku).then(p=>{const c=cart.find(x=>x.sku===sku);if(c){c.name=p.name;c.kk_price=p.kk_price;c.image=p.image;c.category_id=p.category_id;save();renderCart()}}).catch(()=>{cart=cart.filter(x=>x.sku!==sku||x.kk_price>0);save();renderCart()})}
 function addCart(sku,qty=1){const it=cart.find(c=>c.sku===sku);
   if(it)it.qty=Math.min(20,it.qty+qty);
-  else{const src=state.items.find(i=>i.sku===sku)||packRow(sku)||{name:'Đang tải...',kk_price:0,image:'./api/img/'+sku+'.svg'};
-    cart.push({sku,qty,name:src.name,image:src.image||'./api/img/'+sku+'.svg',kk_price:src.kk_price||0,category_id:src.category_id||''})}
+  else{const src=state.items.find(i=>i.sku===sku)||packRow(sku)||{name:'Đang tải...',kk_price:0,image:phImg('Đang tải...','')};
+    cart.push({sku,qty,name:src.name,image:src.image||phImg(src.name,src.category_id),kk_price:src.kk_price||0,category_id:src.category_id||''})}
   fixCartItem(sku);
   save();renderCart();toast('Đã thêm vào giỏ hàng')}
 function setQty(sku,q){const it=cart.find(c=>c.sku===sku);if(!it)return;it.qty=Math.max(0,Math.min(20,q));if(!it.qty)cart=cart.filter(c=>c.sku!==sku);save();renderCart()}
@@ -618,7 +648,7 @@ async function refreshOptimize(){
     else{$('#cDiscRow').style.display='none';$('#optBox').innerHTML='';$('#cTot').textContent=vnd(totals().tot)}
   }catch{}}
 function renderCart(){const t=totals();$('#cartN').textContent=t.n;$('#cSub').textContent=vnd(t.tot);$('#cTot').textContent=vnd(t.tot);$('#coBtn').disabled=!t.n;
-  $('#cartBody').innerHTML=cart.length?cart.map(c=>`<div class="ci"><img src="${c.image}" alt="" onerror="this.onerror=null;this.src='./api/img/${c.sku}.svg'"><div class="n">${esc(c.name)}<div style="color:var(--coral);font-weight:800;margin-top:2px">${vnd(c.kk_price)}</div><div class="q"><button onclick="setQty('${c.sku}',${c.qty-1})">−</button><b>${c.qty}</b><button onclick="setQty('${c.sku}',${c.qty+1})">+</button><button style="margin-left:auto;width:auto;padding:0 8px;color:#B91C1C" onclick="setQty('${c.sku}',0)">Xóa</button></div></div></div>`).join(''):'<div class="empty">Giỏ hàng trống. Hãy chọn sản phẩm bạn thích!</div>';
+  $('#cartBody').innerHTML=cart.length?cart.map(c=>`<div class="ci"><img src="${imgSrc(c)}" alt="" ${imgAttrs(c)}><div class="n">${esc(c.name)}<div style="color:var(--coral);font-weight:800;margin-top:2px">${vnd(c.kk_price)}</div><div class="q"><button onclick="setQty('${c.sku}',${c.qty-1})">−</button><b>${c.qty}</b><button onclick="setQty('${c.sku}',${c.qty+1})">+</button><button style="margin-left:auto;width:auto;padding:0 8px;color:#B91C1C" onclick="setQty('${c.sku}',0)">Xóa</button></div></div></div>`).join(''):'<div class="empty">Giỏ hàng trống. Hãy chọn sản phẩm bạn thích!</div>';
   refreshOptimize()}
 function show(sel){closeAll();$('#ov').classList.add('show');$(sel).classList.add('show');document.body.style.overflow='hidden'}
 function closeAll(){document.querySelectorAll('.ov,.drawer,.modal').forEach(e=>e.classList.remove('show'));document.body.style.overflow=''}
@@ -706,8 +736,8 @@ function aiToggle(){aiOpen=!aiOpen;$('#aiPanel').classList.toggle('show',aiOpen)
 function aiMsg(who,text){const d=document.createElement('div');d.className='aim '+who;d.textContent=text;$('#aiBody').appendChild(d);$('#aiBody').scrollTop=1e9;return d}
 function aiProducts(items){const w=document.createElement('div');w.style.cssText='display:flex;flex-direction:column;gap:6px;align-self:stretch';
   for(const r of items){const d=document.createElement('div');d.className='aip';d.onclick=()=>openProduct(r.sku);
-    d.innerHTML=`<img src="../api/img/${r.sku}.svg" onerror="this.onerror=null;this.src='./api/img/${r.sku}.svg'" alt=""><div class="t"><div style="font-weight:600;overflow:hidden;max-height:2.6em">${esc(r.name)}</div><span style="color:var(--muted)">⭐ ${r.rating} · ${esc(r.grp)}</span></div><b class="pr">${vnd(r.price)}</b>`;
-    w.appendChild(d)}
+    d.innerHTML=`<img src="${phImg(r.name,'')}" data-sku="${r.sku}" data-nm="${esc(r.name)}" alt="" referrerpolicy="no-referrer"><div class="t"><div style="font-weight:600;overflow:hidden;max-height:2.6em">${esc(r.name)}</div><span style="color:var(--muted)">⭐ ${r.rating} · ${esc(r.grp)}</span></div><b class="pr">${vnd(r.price)}</b>`;
+    w.appendChild(d);hydrateImg(d.querySelector('img'),r.sku)}
   $('#aiBody').appendChild(w);$('#aiBody').scrollTop=1e9}
 function aiChips(arr){$('#aiChips').innerHTML=arr.map(c=>`<button onclick="aiAsk('${c.replace(/'/g,"\\'")}')">${c}</button>`).join('')}
 function aiAsk(q){$('#aiIn').value=q;aiSend(new Event('submit'))}

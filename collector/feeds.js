@@ -122,6 +122,31 @@ const nd = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-
 const W = alt => new RegExp('(^|[^\\p{L}\\p{N}])(' + alt + ')(?![\\p{L}\\p{N}])', 'u'); // nguyen tu, ho tro chu co dau
 const EXCLUDE = /\b(bao cao su|gel boi tron|do choi nguoi lon|sextoy|thuoc la|vape|pod dien tu|ruou|bia \d|thuoc ke don)\b/;
 const RULES = [
+  /* --- Bo sung tu phan tich du lieu feed that (mau ban ghi chua phan loai) --- */
+  ['Thiết bị làm đẹp & sức khỏe', /\b(kem cat da|kem mong|kem nghia|dua mong|sui da|bam mong|cat mong|son mong|may lam mong)\b/],
+  ['Chăm sóc da', /\b(tham dau|phim tham|giay tham)\b/],
+  ['Sách', /\b(bach khoa|ngu phap|ngu ngon|cuon sach|tu sach|thai giao|an dam kieu|tu dien|sach to mau|vo tap to)\b/],
+  ['Chăm sóc nhà cửa', /\b(cay lau nha|bo lau nha|choi quet|ro rac|thung rac|tham lau chan|moc phoi|gian phoi)\b/],
+  ['Đồ dùng nhà bếp', /\b(ly giu nhiet|coc giu nhiet|binh nuoc|tumbler|hop com)\b/],
+  ['Trang trí & Cây cảnh', /\b(khan trai ban|decal|giay dan tuong|rem cua|tham trai san|tranh dan|guong trang tri|den led day trang tri)\b/],
+  ['Dụng cụ thể thao', /\b(dai ho tro|bang quan|van truot|patin|giay truot|bao ho dau goi|bong tap)\b/],
+  ['Văn phòng phẩm', /\b(cap tai lieu|file tai lieu|kep tai lieu|so con|lich ban|bang trang)\b/],
+  ['Thực phẩm chức năng', /\b(saffron|nhuy hoa nghe tay|yen sao|to yen|dong trung|nhung huou)\b/],
+  ['An ninh & Nhà thông minh', /\bkhoa\b/, W('khóa|khoá')],
+  ['Thiết bị làm đẹp & sức khỏe', /\b(khau trang|bang gau|bang gac|bang dan vet thuong|nuoc muoi sinh ly|gay chong|tam chan giot ban|que thu|may do spo2|dai lung|nep co dinh)\b/],
+  ['Thời trang nữ', /\b(ao bau|vay bau|dam bau|quan bau|do bau|quan dui bau|vay ngu|do ngu nu|ao nguc|quan lot nu)\b/],
+  ['Đồ chơi & Giáo dục', /\b(sieu nhan|khung long|xe sat|xe do choi|o to do choi|bo do choi|tro choi|dat set|but sap|to mau)\b/],
+  ['Sách', /\b(combo \d* ?(cuon|quyen|tap)|\d+ (cuon|quyen)|tron bo \d+|truyen (tranh|ngan|co tich|song ngu|cho tre)|song ngu|tac gia|luyen thi|cambridge|ky nang song|tieu su|hoi ky|tuyen tap|giao khoa)\b/],
+  ['Chăm sóc tóc & cơ thể', /\b(u toc|xa toc|duong toc|thuoc nhuom|xa phong|soap|da tam|tay da chet|tinh dau|dau lan|dau gio|lan khu mui|sap thom|muoi tam)\b/],
+  ['Thực phẩm chức năng', /\b(\d+ vien|vien (sui|ngam|uong|bo|nang)|thao duoc|glucosamine|curcumin|ho tro (dieu tri|xuong|gan|than|tieu|tim|tri nho|giam can)|bo gan|bo nao|giai doc|mat gan|tao xoan|spirulina|nam lim|hoa anh thao|q10|probiotic|sam to|cao ich mau)\b/],
+  ['Thực phẩm khô & Gia vị', /\b(say kho|\d+ ?(kg|gram)\b.*\bkho\b|\bkho\b.*\b\d+ ?(kg|gram|g)\b|tinh bot|ngu coc|bot san|nam (ngoc cau|huong|meo)|tra hoa|hat (sen|ky tu))\b/],
+  ['Bánh kẹo & Snack', /\b(sun ga|chan ga|an vat|kho ga la chanh|bim bim|ca vien|thit kho)\b/],
+  ['Đồ dùng nhà bếp', /\b(coc thuy tinh|coc dong|ly thuy tinh|phieu|khuon (silicon|banh|3d|lam banh)|binh thuy tinh|hu thuy tinh|bat trang)\b/],
+  ['Trang điểm', /\bson\b/, W('son|son tint|son dưỡng')],
+  ['Mắt kính & Phụ kiện', /\b(bang do|headband|kep toc|cot toc|khan choang)\b/],
+  ['Dụng cụ & Sửa chữa', /\b(gang tay (chong cat|bao ho|lao dong)|bao ho lao dong|kinh bao ho|ung bao ho)\b/],
+  ['Máy tập & Gym', /\b(don ta|banh ta|ghe tap|xa kep)\b/],
+  ['Văn phòng phẩm', /\b(dap ghim|bam kim|ghim bam|bang keo|bang dinh|hop ghim|giay note|but highlight)\b/],
   ['Thiết bị làm đẹp & sức khỏe', /\b(may do huyet ap|nhiet ke|may do duong huyet|may xong|may massage|may say toc|may duoi toc|may uon toc|may cao rau|may rua mat|ban chai dien|may tam nuoc|may xong mui|may tri lieu)\b/],
   ['Đồ chơi & Giáo dục', /\b(do choi|lego|xep hinh|bup be|xe mo hinh|mo hinh|robot do choi|slime|rubik|bo xep|dat nan|board game|boardgame)\b/],
   ['Sách', /^(sach|combo sach|bo sach|truyen)\b|\b(tieu thuyet|truyen tranh|giao trinh|nxb|nha xuat ban|tai ban|ielts|toeic|tieng anh lop|sach giao khoa|light novel|manga)\b/],
@@ -198,12 +223,14 @@ function classifyOne(text) {
   return null;
 }
 /* Uu tien TEN san pham; danh muc goc cua san (cate) dung de du phong khi ten khong ro */
+const CATE_DEFAULT = { health_and_beauty: 'Thực phẩm chức năng', groceries: 'Thực phẩm khô & Gia vị', mother_and_baby: 'Đồ dùng cho bé', toys_and_games: 'Đồ chơi & Giáo dục', home_and_living: 'Đồ dùng nhà bếp', sports_and_outdoors: 'Dụng cụ thể thao', fashion: 'Thời trang nữ', stationery: 'Văn phòng phẩm', books: 'Sách' };
 function classify(name, cat) {
   const byName = classifyOne(name);
   if (byName === 'EXCLUDE') return null;
   if (byName) return byName;
   const byCat = classifyOne(cat);
-  return byCat === 'EXCLUDE' ? null : byCat;
+  if (byCat === 'EXCLUDE') return null;
+  return byCat || CATE_DEFAULT[String(cat || '').trim().toLowerCase()] || null;
 }
 const normKey = s => nd(s).replace(/\[[^\]]*\]|\([^)]*\)/g, ' ').replace(/hang chinh hang|chinh hang|hang nhap khau|freeship|mien phi van chuyen|bao hanh \d+ thang/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 90);
 

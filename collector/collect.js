@@ -21,6 +21,9 @@ const sha = s => crypto.createHash('sha256').update(s).digest('hex');
 const rj = f => JSON.parse(fs.readFileSync(path.join(API, f), 'utf8'));
 const wj = (f, d) => fs.writeFileSync(path.join(API, f), JSON.stringify(d));
 const round1000 = v => Math.round(v / 1000) * 1000;
+// URL anh dung duoc: https + KHONG phai host test/staging cua san (hay chet, khong hien tren web)
+const BAD_IMG_HOST = /^https:\/\/(vn-test-\d+\.slatic\.net|lzd-staging[^/]*|[^/]*staging[^/]*\.oss-[^/]*\.aliyuncs\.com|[^/]*sandbox[^/]*)\//i;
+const goodImg = u => typeof u === 'string' && /^https:\/\//.test(u) && !BAD_IMG_HOST.test(u);
 
 // PRNG deterministic theo chu ky - gia nguon dao dong nhu thi truong that
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -58,7 +61,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       if (!sku) {
         if (feed.stat.added >= MAX_NEW || nowFeedTotal + feed.stat.added >= MAX_TOTAL) { feed.stat.capped++; continue; }
         const best = offs.filter(o => o.stock).sort((a, b) => a.price - b.price)[0] || offs[0];
-        const withImg = offs.find(o => /^https:\/\//.test(o.image));
+        const withImg = offs.find(o => goodImg(o.image));
         if (!withImg) { feed.stat.capped++; continue; }                 // chi nhan hang co anh that
         const [cid, cname] = g2c[best.grp] || ['khac', 'Khác'];
         sku = 'KK' + String(nextId++).padStart(6, '0');
@@ -164,9 +167,11 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   /* ===== KIEM TRA ANH THAT (xoay vong ~300 anh/lan) + thay anh hong bang anh nguon khac ===== */
   fidx.broken = fidx.broken || {};
   const imgList = full.filter(p => /^https:\/\//.test(p.image || ''));
-  const IMG_N = parseInt(process.env.IMG_CHECK_PER_RUN || '300', 10);
+  // Uu tien kiem ngay nhung SP dang tro vao host test/staging (chac chan hong) - khong cho xoay vong
+  const badHostList = imgList.filter(p => !goodImg(p.image));
+  const IMG_N = parseInt(process.env.IMG_CHECK_PER_RUN || '1000', 10);
   const start = (fidx.imgPtr || 0) % Math.max(1, imgList.length);
-  const batch = imgList.slice(start, start + IMG_N).concat(start + IMG_N > imgList.length ? imgList.slice(0, start + IMG_N - imgList.length) : []);
+  const batch = badHostList.concat(imgList.slice(start, start + IMG_N).concat(start + IMG_N > imgList.length ? imgList.slice(0, start + IMG_N - imgList.length) : [])).filter((p, i, a) => a.indexOf(p) === i);
   fidx.imgPtr = start + IMG_N;
   const okImg = async u => { const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 8000);
     try { const r = await fetch(u, { headers: { range: 'bytes=0-0', 'user-agent': 'KK-MALL-ImageCheck/1.0' }, signal: ac.signal }); return r.status < 400 && /image|octet/.test(r.headers.get('content-type') || 'image'); } catch { return null; } finally { clearTimeout(t); } };
@@ -174,11 +179,11 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   if (process.env.IMG_CHECK !== '0') {
     let i = 0;
     await Promise.all(Array.from({ length: 12 }, async () => { while (i < batch.length) { const p = batch[i++];
-      const ok = await okImg(p.image); imgStat.checked++;
+      const ok = goodImg(p.image) ? await okImg(p.image) : false; imgStat.checked++;
       if (ok === null) { imgStat.unreach++; continue; }          // mang loi: khong ket luan
       if (ok) { delete fidx.broken[p.sku]; continue; }
       imgStat.broken++;
-      const alt = (feedBySku[p.sku] || []).map(o => o.image).find(u => u && u !== p.image && /^https:\/\//.test(u));
+      const alt = (feedBySku[p.sku] || []).map(o => o.image).find(u => u && u !== p.image && goodImg(u));
       if (alt && await okImg(alt)) {
         p.image = alt; imgStat.swapped++; delete fidx.broken[p.sku];
         const pf = path.join(API, 'products', p.sku + '.json'); const pd = JSON.parse(fs.readFileSync(pf, 'utf8')); pd.image = alt; fs.writeFileSync(pf, JSON.stringify(pd));
@@ -188,9 +193,9 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   }
 
   /* ===== DANH MUC CONG KHAI: chi SP co anh that khi nhom da du hang that ===== */
-  const realN = {}; for (const p of full) if (/^https:\/\//.test(p.image || '') && !fidx.broken[p.sku]) realN[p.grp] = (realN[p.grp] || 0) + 1;
-  const MIN_REAL = parseInt(process.env.MIN_REAL_PER_GROUP || '12', 10);
-  const pub = full.filter(p => !fidx.broken[p.sku] && (/^https:\/\//.test(p.image || '') || (realN[p.grp] || 0) < MIN_REAL));
+  const realN = {}; for (const p of full) if (goodImg(p.image) && !fidx.broken[p.sku]) realN[p.grp] = (realN[p.grp] || 0) + 1;
+  const MIN_REAL = parseInt(process.env.MIN_REAL_PER_GROUP || '8', 10);
+  const pub = full.filter(p => !fidx.broken[p.sku] && !(/^https:\/\//.test(p.image || '') && !goodImg(p.image)) && (/^https:\/\//.test(p.image || '') || (realN[p.grp] || 0) < MIN_REAL));
   const hiddenSynthetic = full.length - pub.length;
   wj('catalog-full.json', pub);
 
