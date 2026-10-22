@@ -21,6 +21,37 @@
 
   async function loadFull() { if (!FULL) FULL = await realFetch('api/catalog-full.json').then(r => r.json()); return FULL; }
 
+  /* ---------- TAI DU LIEU THEO NGANH (nhe cho dien thoai) ----------
+   * api/cat/index.json  : danh sach nganh + so luong + nhom
+   * api/cat/<nganh>.json: san pham cua 1 nganh (chi tai khi xem nganh do)
+   * catalog-pack.json   : chi muc gon de tim kiem / sap xep toan site
+   * products/<sku>.json : chi tiet tung SP (gio hang, the san pham) */
+  let CATIDX = null, PACK = null; const CHUNK = {}, PROD = {};
+  async function catIndex() {
+    if (CATIDX === null) { try { const r = await realFetch('api/cat/index.json', { cache: 'no-cache' }); CATIDX = r.ok ? await r.json() : false; } catch { CATIDX = false; } }
+    return CATIDX;
+  }
+  function loadCat(id) {
+    if (!CHUNK[id]) CHUNK[id] = realFetch('api/cat/' + encodeURIComponent(id) + '.json?v=' + encodeURIComponent((CATIDX && CATIDX.v) || '')).then(r => r.ok ? r.json() : []).catch(() => []);
+    return CHUNK[id];
+  }
+  async function getPack() {
+    if (!PACK) PACK = realFetch('api/catalog-pack.json').then(r => r.json());
+    return PACK;
+  }
+  function getProd(sku) {
+    if (!PROD[sku]) PROD[sku] = realFetch('api/products/' + sku + '.json').then(r => r.ok ? r.json() : null).catch(() => null);
+    return PROD[sku];
+  }
+  async function bySkus(skus) {
+    const ix = await catIndex();
+    if (!ix) { const full = await loadFull(); return Object.fromEntries(full.map(r => [r.sku, r])); }
+    const out = {}; await Promise.all([...new Set(skus)].map(async s => { const d = await getProd(s); if (d) out[s] = d; }));
+    return out;
+  }
+  const toRow = d => ({ sku: d.sku, name: d.name, slug: d.slug, category_id: d.category_id, category_name: d.category_name, grp: d.grp, brand: d.brand, variant: d.variant || '',
+    image: d.image, base_price: d.base_price, kk_price: d.kk_price, in_stock: d.in_stock, stock_qty: d.stock_qty, rating: d.rating, sold: d.sold, updated_at: d.updated_at });
+
   // ---------- VOUCHER (chay tren thiet bi) ----------
   const VOUCHERS = [
     { code: 'KKWELCOME', title: 'Giảm 10% tối đa 50K cho đơn từ 200K', type: 'percent', value: 10, max_discount: 50000, min_order: 200000, scope: 'all', group: 'order' },
@@ -30,7 +61,7 @@
     { code: 'GIADUNG30', title: 'Giảm 30K nhóm Gia dụng, đơn từ 300K', type: 'fixed', value: 30000, min_order: 300000, scope: 'gia-dung', group: 'category' },
   ];
   async function optimize(items, extraCodes) {
-    const full = await loadFull(); const bySku = Object.fromEntries(full.map(r => [r.sku, r]));
+    const bySku = await bySkus(items.map(i => i.sku));
     const lines = items.map(i => ({ ...i, qty: Math.max(1, Math.min(20, +i.qty || 1)), p: bySku[i.sku] })).filter(l => l.p && l.p.kk_price);
     const subtotal = lines.reduce((a, l) => a + l.p.kk_price * l.qty, 0);
     const cand = [];
@@ -56,7 +87,7 @@
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return err('Email không hợp lệ (dùng để nhận hóa đơn)');
     if (addr.length < 10) return err('Địa chỉ nhận hàng chưa đầy đủ');
     if (!b.consent) return err('Bạn cần đồng ý Chính sách bảo vệ dữ liệu cá nhân để đặt hàng');
-    const full = await loadFull(); const bySku = Object.fromEntries(full.map(r => [r.sku, r]));
+    const bySku = await bySkus((b.items || []).map(i => i.sku));
     const items = (b.items || []).map(i => { const p = bySku[i.sku]; if (!p || !p.in_stock) return null;
       const qty = Math.max(1, Math.min(20, +i.qty || 1));
       return { sku: p.sku, name: p.name, image: p.image, qty, unit: p.kk_price, line_total: p.kk_price * qty }; }).filter(Boolean);
@@ -76,21 +107,39 @@
     return jr({ order, applied: opt, payment: { type: 'instant', note: 'Thanh toán thử nghiệm thành công' } }, 201);
   }
 
-  async function listProducts(qs) {
-    const q = Object.fromEntries(new URLSearchParams(qs));
-    let rows = (await loadFull()).slice();
-    if (q.cat) rows = rows.filter(r => r.category_id === q.cat);
+  const SORTERS = { price_asc: (a, b) => a.kk_price - b.kk_price, price_desc: (a, b) => b.kk_price - a.kk_price, sold: (a, b) => b.sold - a.sold, rating: (a, b) => b.rating - a.rating, new: (a, b) => b.sku.localeCompare(a.sku) };
+  const DEF_SORT = (a, b) => (b.in_stock - a.in_stock) || (b.sold - a.sold);
+  function filterRows(rows, q) {
     if (q.group) rows = rows.filter(r => r.grp === q.group);
     if (q.brand) rows = rows.filter(r => r.brand === q.brand);
     if (q.q) { const t = fold(q.q).split(/\s+/).filter(Boolean); rows = rows.filter(r => { const h = fold(r.name + ' ' + r.brand + ' ' + r.grp + ' ' + r.sku); return t.every(x => h.includes(x)); }); }
     if (q.min) rows = rows.filter(r => r.kk_price >= +q.min);
     if (q.max) rows = rows.filter(r => r.kk_price <= +q.max);
     if (q.stock === '1') rows = rows.filter(r => r.in_stock);
-    const brandCount = {};
-    if (q.cat) for (const r of (await loadFull()).filter(r => r.category_id === q.cat)) brandCount[r.brand] = (brandCount[r.brand] || 0) + 1;
-    const sorters = { price_asc: (a, b) => a.kk_price - b.kk_price, price_desc: (a, b) => b.kk_price - a.kk_price, sold: (a, b) => b.sold - a.sold, rating: (a, b) => b.rating - a.rating, new: (a, b) => b.sku.localeCompare(a.sku) };
-    rows.sort(sorters[q.sort] || ((a, b) => (b.in_stock - a.in_stock) || (b.sold - a.sold)));
+    return rows.sort(SORTERS[q.sort] || DEF_SORT);
+  }
+  async function listProducts(qs) {
+    const q = Object.fromEntries(new URLSearchParams(qs));
     const limit = Math.min(60, +q.limit || 24); const page = Math.max(1, +q.page || 1);
+    const ix = await catIndex();
+    let rows, brandSrc = null;
+    if (!ix) {                                   // du phong: ban cu chua tach nganh
+      rows = (await loadFull()).slice(); if (q.cat) rows = rows.filter(r => r.category_id === q.cat);
+      if (q.cat) brandSrc = rows.slice();
+      rows = filterRows(rows, q);
+    } else if (q.cat) {                          // xem 1 nganh: chi tai file nganh do
+      const all = await loadCat(q.cat); brandSrc = all;
+      rows = filterRows(all.slice(), q);
+    } else {                                     // tim kiem / tat ca: loc tren chi muc gon, roi lay chi tiet dung trang can xem
+      const pk = await getPack();
+      const lite = pk.rows.map(r => ({ sku: r[0], name: r[1], brand: r[2], category_id: r[3], category_name: r[4], grp: r[5], kk_price: r[6], in_stock: r[7], rating: r[8], sold: r[9] }));
+      const hit = filterRows(lite, q);
+      const slice = hit.slice((page - 1) * limit, page * limit);
+      const det = await bySkus(slice.map(r => r.sku));
+      return jr({ total: hit.length, page, limit, items: slice.map(r => det[r.sku] ? fixImg(toRow(det[r.sku])) : r), brands: [] });
+    }
+    const brandCount = {};
+    if (brandSrc) for (const r of brandSrc) brandCount[r.brand] = (brandCount[r.brand] || 0) + 1;
     return jr({ total: rows.length, page, limit, items: rows.slice((page - 1) * limit, page * limit),
       brands: Object.entries(brandCount).sort((a, b) => b[1] - a[1]).slice(0, 30).map(([brand, n]) => ({ brand, n })) });
   }

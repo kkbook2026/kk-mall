@@ -91,7 +91,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       }
       fidx.map[key] = sku;
       const per = {}; for (const o of offs) if (!per[o.src] || (o.stock && o.price < per[o.src].price)) per[o.src] = o;
-      feedBySku[sku] = Object.values(per).map(o => ({ source: o.src, price: o.price, in_stock: o.stock, url: o.url, fetched_at: now }));
+      feedBySku[sku] = Object.values(per).map(o => ({ source: o.src, price: o.price, in_stock: o.stock, url: o.url, image: o.image, fetched_at: now }));
     }
   }
   if (feed.dropKeys && feed.dropKeys.size) {
@@ -161,8 +161,54 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       best: best ? { s: bestSrc, p: best } : null, margin: best ? d.kk_price - best : null,
       offers: offerState.map(o => ({ s: o.source, p: o.price, k: o.in_stock, u: o.url || '' })).sort((a, b) => a.p - b.p), feed: feedBySku[p.sku] ? 1 : 0 });
   }
-  wj('catalog-full.json', full);
-  if (feed.stat.sources || Object.keys(fidx.map).length) fs.writeFileSync(FIDX_FILE, JSON.stringify(fidx));
+  /* ===== KIEM TRA ANH THAT (xoay vong ~300 anh/lan) + thay anh hong bang anh nguon khac ===== */
+  fidx.broken = fidx.broken || {};
+  const imgList = full.filter(p => /^https:\/\//.test(p.image || ''));
+  const IMG_N = parseInt(process.env.IMG_CHECK_PER_RUN || '300', 10);
+  const start = (fidx.imgPtr || 0) % Math.max(1, imgList.length);
+  const batch = imgList.slice(start, start + IMG_N).concat(start + IMG_N > imgList.length ? imgList.slice(0, start + IMG_N - imgList.length) : []);
+  fidx.imgPtr = start + IMG_N;
+  const okImg = async u => { const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 8000);
+    try { const r = await fetch(u, { headers: { range: 'bytes=0-0', 'user-agent': 'KK-MALL-ImageCheck/1.0' }, signal: ac.signal }); return r.status < 400 && /image|octet/.test(r.headers.get('content-type') || 'image'); } catch { return null; } finally { clearTimeout(t); } };
+  const imgStat = { checked: 0, broken: 0, swapped: 0, unreach: 0 };
+  if (process.env.IMG_CHECK !== '0') {
+    let i = 0;
+    await Promise.all(Array.from({ length: 12 }, async () => { while (i < batch.length) { const p = batch[i++];
+      const ok = await okImg(p.image); imgStat.checked++;
+      if (ok === null) { imgStat.unreach++; continue; }          // mang loi: khong ket luan
+      if (ok) { delete fidx.broken[p.sku]; continue; }
+      imgStat.broken++;
+      const alt = (feedBySku[p.sku] || []).map(o => o.image).find(u => u && u !== p.image && /^https:\/\//.test(u));
+      if (alt && await okImg(alt)) {
+        p.image = alt; imgStat.swapped++; delete fidx.broken[p.sku];
+        const pf = path.join(API, 'products', p.sku + '.json'); const pd = JSON.parse(fs.readFileSync(pf, 'utf8')); pd.image = alt; fs.writeFileSync(pf, JSON.stringify(pd));
+      } else fidx.broken[p.sku] = now;
+    } }));
+    console.log(`Kiem anh: ${imgStat.checked} anh · hong ${imgStat.broken} · da thay ${imgStat.swapped} · khong ket noi ${imgStat.unreach} · tong dang hong ${Object.keys(fidx.broken).length}`);
+  }
+
+  /* ===== DANH MUC CONG KHAI: chi SP co anh that khi nhom da du hang that ===== */
+  const realN = {}; for (const p of full) if (/^https:\/\//.test(p.image || '') && !fidx.broken[p.sku]) realN[p.grp] = (realN[p.grp] || 0) + 1;
+  const MIN_REAL = parseInt(process.env.MIN_REAL_PER_GROUP || '12', 10);
+  const pub = full.filter(p => !fidx.broken[p.sku] && (/^https:\/\//.test(p.image || '') || (realN[p.grp] || 0) < MIN_REAL));
+  const hiddenSynthetic = full.length - pub.length;
+  wj('catalog-full.json', pub);
+
+  /* ===== TACH THEO NGANH: web chi tai file cua nganh dang xem ===== */
+  fs.mkdirSync(path.join(API, 'cat'), { recursive: true });
+  const byCat = {}; for (const p of pub) (byCat[p.category_id] = byCat[p.category_id] || []).push(p);
+  for (const f of fs.readdirSync(path.join(API, 'cat'))) if (f !== 'index.json' && !byCat[f.replace(/\.json$/, '')]) fs.unlinkSync(path.join(API, 'cat', f));
+  const catIdx = [];
+  for (const [cid, rows] of Object.entries(byCat)) {
+    wj('cat/' + cid + '.json', rows);
+    catIdx.push({ id: cid, name: rows[0].category_name, n: rows.length, groups: [...new Set(rows.map(r => r.grp))] });
+  }
+  wj('cat/index.json', { v: now, total: pub.length, cats: catIdx });
+  // dem lai so luong theo nganh cho menu trang chu
+  for (const c of (meta.categories || [])) { const b = byCat[c.id] || []; c.count = b.length; for (const g of new Set(b.map(r => r.grp))) if (!c.groups.includes(g)) c.groups.push(g); }
+  meta.totalProducts = pub.length;
+  console.log(`Danh muc cong khai: ${pub.length} SP (${Object.keys(byCat).length} file nganh) · an ${hiddenSynthetic} SP mau/anh hong`);
+  fs.writeFileSync(FIDX_FILE, JSON.stringify(fidx));
 
   // ---- GOI DU LIEU QUAN TRI MA HOA (cong /admin) ----
   // Chi sinh khi co khoa (GitHub Secret ADMIN_PORTAL_KEY); nguoi ngoai khong giai ma duoc.
@@ -177,10 +223,10 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       at: now, dur: Date.now() - t0,
       trig: process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' ? 'Chạy tay' : 'Lịch 30 phút',
       mode: feed.stat.ok ? 'Feed chính thức (' + feed.stat.ok + '/' + feed.stat.sources + ' nguồn) + mô phỏng phần chưa có feed' : (FEEDK.length ? 'Đã cấu hình feed nhưng chưa tải được' : 'Mô phỏng thị trường (chưa nối feed)'),
-      offers: adminRows.reduce((a, r) => a + r.offers.length, 0), feed: feed.stat.sources ? feed.stat : undefined, ledger: [seqFrom + 1, seq], price_ok: Number.isFinite(OFFSET),
+      offers: adminRows.reduce((a, r) => a + r.offers.length, 0), feed: feed.stat.sources ? feed.stat : undefined, img: imgStat, pub: pub.length, hidden: hiddenSynthetic, ledger: [seqFrom + 1, seq], price_ok: Number.isFinite(OFFSET),
     });
     const updates = ULOG.append(prev && prev.updates, entry);
-    const encObj = ULOG.encrypt({ v: 1, generated_at: now, total: adminRows.length, sources: SRCMETA, rows: adminRows, updates }, AKEY);
+    const encObj = ULOG.encrypt({ v: 1, generated_at: now, total: adminRows.length, sources: SRCMETA, rows: adminRows, updates, unclassSample: feed.unclassSample || [] }, AKEY);
     fs.mkdirSync(path.join(SITE, 'admin'), { recursive: true });
     fs.writeFileSync(ENC, JSON.stringify(encObj));
     const ct = Buffer.from(encObj.ct, 'base64');
@@ -191,16 +237,16 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   }
 
   // catalog-pack cho tim kiem local-first: [sku,name,brand,cat,catName,grp,kk,stock,rating,sold]
-  wj('catalog-pack.json', { v: now, rows: full.map(r => [r.sku, r.name, r.brand, r.category_id, r.category_name, r.grp, r.kk_price, r.in_stock, r.rating, r.sold]) });
+  wj('catalog-pack.json', { v: now, rows: pub.map(r => [r.sku, r.name, r.brand, r.category_id, r.category_name, r.grp, r.kk_price, r.in_stock, r.rating, r.sold]) });
 
   // SDUI trang chu dung lai tu du lieu moi
   const sdui = rj('sdui-home.json');
   const pick = (arr, n) => arr.slice(0, n);
   for (const sct of sdui.sections) {
     if (sct.type !== 'shelf') continue;
-    if (/Giảm sâu/.test(sct.title)) sct.items = pick(full.filter(r => r.in_stock && r.kk_price < r.base_price).sort((a, b) => (1 - a.kk_price / a.base_price) < (1 - b.kk_price / b.base_price) ? 1 : -1), 12);
-    else if (/Bán chạy/.test(sct.title)) sct.items = pick(full.filter(r => r.in_stock).sort((a, b) => b.sold - a.sold), 12);
-    else if (sct.cat) sct.items = pick(full.filter(r => r.category_id === sct.cat).sort((a, b) => (b.in_stock - a.in_stock) || (b.sold - a.sold)), 12);
+    if (/Giảm sâu/.test(sct.title)) sct.items = pick(pub.filter(r => r.in_stock && r.kk_price < r.base_price).sort((a, b) => (1 - a.kk_price / a.base_price) < (1 - b.kk_price / b.base_price) ? 1 : -1), 12);
+    else if (/Bán chạy/.test(sct.title)) sct.items = pick(pub.filter(r => r.in_stock).sort((a, b) => b.sold - a.sold), 12);
+    else if (sct.cat) sct.items = pick(pub.filter(r => r.category_id === sct.cat).sort((a, b) => (b.in_stock - a.in_stock) || (b.sold - a.sold)), 12);
   }
   sdui.v = now; wj('sdui-home.json', sdui);
 
