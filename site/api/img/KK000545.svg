@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><defs>
+<linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#EA580C"/><stop offset="1" stop-color="#DB2777"/></linearGradient>
+<radialGradient id="r" cx="0.5" cy="0.38" r="0.55"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity=".78"/></radialGradient></defs>
+<rect width="400" height="400" fill="url(#g)"/>
+<circle cx="340" cy="60" r="110" fill="#fff" opacity=".1"/><circle cx="40" cy="360" r="90" fill="#fff" opacity=".08"/>
+<circle cx="200" cy="158" r="112" fill="url(#r)"/>
+<text x="200" y="208" font-size="128" text-anchor="middle">🍳</text>
+<rect x="60" y="292" width="280" height="44" rx="22" fill="#fff" opacity=".93"/>
+<text x="200" y="321" font-family="Arial" font-size="24" font-weight="800" fill="#EA580C" text-anchor="middle">Bluestone</text>
+<text x="200" y="362" font-family="Arial" font-size="14.5" font-weight="600" fill="#fff" text-anchor="middle">Nồi chiên không dầu BlueStone 7 lít…</text>
+<text x="200" y="384" font-family="Arial" font-size="10.5" fill="#fff" opacity=".75" text-anchor="middle">KK-MALL · Ảnh minh họa - ảnh gốc của hãng sẽ hiển thị khi kết nối nguồn</text>
+</svg>
