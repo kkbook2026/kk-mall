@@ -500,6 +500,12 @@ function adminRmaUpdate_(b) {
   var s = session_(b.token, true), r = find_('RMA', 'rma_id', b.rma_id); if (!r) throw err_('Không tìm thấy yêu cầu', 404);
   var d = parseData_(r), o = loadOrder_(r.order_code);
   ['return_tracking', 'pickup', 'supplier_rma_id', 'note'].forEach(function (k) { if (b[k] !== undefined) d[k] = str_(b[k], 300); });
+  var sr = Math.round(Number(b.supplier_refund) || 0);
+  if (sr > 0) { // NCC hoan tien hang tra lai ve KK-MALL: No 1121 / Co 3388 (doi ung khoan da hoan khach / chi ho truoc do)
+    d.supplier_refund = (Number(d.supplier_refund) || 0) + sr; d.supplier_refund_at = nowIso_();
+    ledger_(o.code, d.supplier_rma_id || r.rma_id, '1121', '', sr, 'Nhà cung cấp hoàn tiền hàng trả lại (' + r.rma_id + ')');
+    ledger_(o.code, d.supplier_rma_id || r.rma_id, '', '3388', sr, 'Ghi giảm khoản chi hộ - hàng trả lại nhà cung cấp');
+  }
   update_('RMA', r._row, { status: b.status || r.status, data: JSON.stringify(d), updated_at: nowIso_() });
   if (b.status === 'pickup_scheduled') mail_(o.customer.email, 'Lịch lấy hàng đổi trả ' + r.rma_id, '<p>Yêu cầu trả hàng <b>' + r.rma_id + '</b> đã được nhà cung cấp duyệt.</p><p>Bưu tá sẽ đến lấy hàng tại địa chỉ của bạn: <b>' + esc_(d.pickup) + '</b><br>Mã vận đơn thu hồi: <b>' + esc_(d.return_tracking) + '</b></p><p>Bạn chỉ cần đóng gói lại sản phẩm và giao cho bưu tá - không mất phí vận chuyển.</p>');
   if (b.status === 'rejected') mail_(o.customer.email, 'Kết quả yêu cầu ' + r.rma_id, '<p>Rất tiếc, nhà cung cấp chưa chấp nhận yêu cầu <b>' + r.rma_id + '</b>: ' + esc_(d.note) + '. KK-MALL sẽ tiếp tục hỗ trợ bạn.</p>');
