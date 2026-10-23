@@ -1,0 +1,17 @@
+# KK-MALL - Đại siêu thị trực tuyến
+
+> KK-MALL (www.kk-mall.com) tổng hợp hơn 21.000 mặt hàng chính hãng từ các nền tảng thương mại điện tử lớn tại Việt Nam, 15 ngành hàng. Giá hiển thị là giá cuối cùng: đã gồm thuế GTGT và giao hàng tận cửa, không phụ phí. Giá cập nhật tự động mỗi 3 giờ; mọi thay đổi giá được niêm phong bằng chuỗi SHA-256 và Merkle root công khai, ai cũng tự kiểm chứng được.
+
+## Trang chính
+- [Trang chủ](https://www.kk-mall.com/): tìm kiếm, bộ lọc Săn Deal (giảm giá đã xác minh), Đáy Giá Lịch Sử, Xả Kho Chính Hãng, Combo Tiết Kiệm
+- [Sitemap](https://www.kk-mall.com/sitemap.xml): toàn bộ trang ngành, nhóm và chi tiết sản phẩm (HTML tĩnh, có JSON-LD Product/Offer)
+- [Pháp lý & chính sách](https://www.kk-mall.com/phap-ly): điều khoản, đổi trả 7 ngày, bảo vệ dữ liệu cá nhân, hóa đơn điện tử
+
+## Minh bạch giá
+- Bộ lọc Tin cậy: % giảm chỉ hiển thị khi đã đối chiếu giá tham chiếu tin cậy và lịch sử niêm phong (tối đa 50%); hàng đã qua sử dụng không so với giá máy mới; giá bất thường (phụ kiện đăng chung link, lỗi giá) bị tạm giữ xác minh.
+- [Sổ cái giá - Merkle root](https://www.kk-mall.com/api/ledger-verify.json) · [Nhật ký root](https://www.kk-mall.com/api/ledger-roots.json)
+
+## Thanh toán
+VNPay, Ví MoMo, ZaloPay, chuyển khoản VietQR. Không hỗ trợ COD. Hoàn tiền 100% tự động nếu hết hàng sau khi thanh toán.
+
+© 2026 KK-MALL - Bản quyền thuộc Nguyễn Duy Điển (KK-2026).
