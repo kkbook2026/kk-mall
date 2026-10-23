@@ -177,6 +177,7 @@ function renderRMA() {
 }
 async function rmaAct(rma_id, status, id) {
   const b = { rma_id, status, return_tracking: $('#rt_' + id).value.trim(), pickup: $('#rp_' + id).value.trim(), supplier_rma_id: $('#rs_' + id).value.trim() };
+  if (status === 'returned' || status === 'refunded') { const v = prompt('Số tiền nhà cung cấp ĐÃ HOÀN về tài khoản KK-MALL cho hàng trả lại (để 0 nếu chưa hoàn):', '0'); if (v === null) return; b.supplier_refund = Number(String(v).replace(/\D/g, '')) || 0; }
   if (status === 'pickup_scheduled' && (!b.return_tracking || !b.pickup)) return alert('Nhập mã vận đơn thu hồi và lịch lấy hàng');
   if (status === 'rejected') { b.note = prompt('Lý do (gửi cho khách):') || ''; if (!b.note) return; }
   try { await OPS.call('admin.rma.update', b); const r = await OPS.call('admin.rmas'); OPS.rmas = r.rows; renderRMA(); if (status === 'refunded') alert('Nhớ ghi nhận "Hoàn tiền" ở tab Đơn hàng để hạch toán.'); } catch (e) { alert(e.message); }
