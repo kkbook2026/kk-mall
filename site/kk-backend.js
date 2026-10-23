@@ -19,8 +19,10 @@ const KKB = {
   token() { const s = KKB.sess(); return s && s.token; }
 };
 const CONSENT_FALLBACK = 'UQ-2026-10';
+// bang phi cong khai mac dinh (dung ngay khi trang vua mo, truoc khi may chu tra cau hinh)
+const FEE_FALLBACK = [{ from: 0, to: 199999, fee: 18000 }, { from: 200000, to: 500000, fee: 26000 }, { from: 500001, to: null, fee: 32000 }];
 function feeOf(kk) { // phi dich vu theo khung (bang phi cong khai) - de hien thi minh bach tren the SP
-  const T = (KKB.cfg && KKB.cfg.fee_table) || [];
+  const T = (KKB.cfg && KKB.cfg.fee_table) || FEE_FALLBACK;
   for (const t of T) { const c = kk - t.fee; if (c >= t.from && (t.to == null || c <= t.to)) return t.fee; }
   return 0;
 }
@@ -43,7 +45,7 @@ if (KKB.on) {
   const _sv = window.singleVoucher;
   window.singleVoucher = function (p) {
     const v = _sv(p); const fee = feeOf(p.kk_price || 0);
-    if (!KKB.cfg || !fee) return v;
+    if (!fee) return v;
     const pct = (KKB.cfg && KKB.cfg.voucher_fee_cap_pct != null) ? KKB.cfg.voucher_fee_cap_pct : 50;
     const d = Math.min(v.d, Math.floor(fee * pct / 100 / 1000) * 1000); return { codes: d > 0 ? v.codes : [], d, after: (p.kk_price || 0) - d };
   };

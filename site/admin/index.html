@@ -886,7 +886,7 @@ async function renderSys(){
   if(lc)lc.innerHTML='<b style="color:var(--ink)">Nhật ký quản trị trên thiết bị này (100 gần nhất)</b><table style="margin-top:8px"><tr><th>Thời gian</th><th>Hành động</th></tr>'+log.slice(0,20).map(l=>`<tr><td style="white-space:nowrap">${new Date(l.t).toLocaleString('vi-VN')}</td><td>${esc(l.act)}</td></tr>`).join('')+'</table>';
 }
 </script>
-<script src="../config.js"></script>
-<script src="ops.js"></script>
+<script src="../config.js?v=2610230941"></script>
+<script src="ops.js?v=2610230941"></script>
 </body>
 </html>
