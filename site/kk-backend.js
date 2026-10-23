@@ -44,7 +44,8 @@ if (KKB.on) {
   window.singleVoucher = function (p) {
     const v = _sv(p); const fee = feeOf(p.kk_price || 0);
     if (!KKB.cfg || !fee) return v;
-    const d = Math.min(v.d, fee); return { codes: d > 0 ? v.codes : [], d, after: (p.kk_price || 0) - d };
+    const pct = (KKB.cfg && KKB.cfg.voucher_fee_cap_pct != null) ? KKB.cfg.voucher_fee_cap_pct : 50;
+    const d = Math.min(v.d, Math.floor(fee * pct / 100 / 1000) * 1000); return { codes: d > 0 ? v.codes : [], d, after: (p.kk_price || 0) - d };
   };
 
   /* ================= THÀNH VIÊN: OTP EMAIL (không mật khẩu) ================= */
