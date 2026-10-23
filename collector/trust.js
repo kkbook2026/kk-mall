@@ -1,7 +1,7 @@
 'use strict';
 /*
  * KK-MALL TRUST ENGINE - Bo loc Tin cay gia (Anomaly Detection) + So cai mat ma (Merkle)
- * Dung chung cho: collector (30 phut/lan), trust-pass (chay doc lap), build-seo (trang tinh).
+ * Dung chung cho: collector (3 gio/lan), trust-pass (chay doc lap), build-seo (trang tinh).
  *
  * Nguyen tac:
  *  1. Loc offer ngoai lai TRUOC khi chon gia re nhat: offer < 50% trung vi lich su niem phong,
@@ -68,9 +68,9 @@ function histRef(d) {
  * Tra ve { valid, dropped:[{...offer, why}] }
  */
 function filterOffers(d, offers, offset) {
-  const off = Number.isFinite(offset) ? offset : 0;
+  const toCost = typeof offset === 'function' ? offset : (v => v - (Number.isFinite(offset) ? offset : 0));
   const H = histRef(d);                       // gia ban niem phong trung vi
-  const Hsrc = H ? H - off : 0;               // quy ve gia nguon
+  const Hsrc = H ? toCost(H) : 0;             // quy ve gia nguon (theo bieu loi tung bac)
   const live = offers.filter(o => o.in_stock && o.price > 0);
   const M = live.length >= 2 ? median(live.map(o => o.price)) : 0;
   const floor = FLOOR[d.grp] && looksMain(d.name, d.grp) ? FLOOR[d.grp] : 0;

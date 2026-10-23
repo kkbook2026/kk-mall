@@ -19,7 +19,7 @@ và câu hỏi của bạn không bị gửi đi bất cứ đâu.
 
 ### 💰 Giá cuối cùng - 0đ phụ phí ẩn
 Hệ thống AI quét và tối ưu hàng nghìn mặt hàng chính hãng từ các nền tảng lớn nhất Việt Nam
-**mỗi 30 phút**. Mức giá bạn thấy là mức giá bạn trả: đã gồm thuế GTGT, đã gồm giao hàng tận cửa.
+**mỗi 3 giờ**. Mức giá bạn thấy là mức giá bạn trả: đã gồm thuế GTGT, đã gồm giao hàng tận cửa.
 Không phí ship bất ngờ ở bước cuối. Không "khuyến mãi ảo".
 
 ### 🎟️ Voucher? Để AI lo

@@ -262,14 +262,14 @@ tr:hover td{background:#F8FAFC}
 
 <section class="sec" id="t-upd">
   <h2>Lịch sử cập nhật hàng hóa · thông tin · giá <span style="font-weight:600;font-size:12px;color:var(--muted)">(cập nhật khi nào - bao nhiêu mặt hàng - vào mục nào)</span></h2>
-  <div class="note">Mỗi lần bộ thu thập chạy (tự động <b>30 phút/lần</b> trên GitHub Actions) hoặc mỗi đợt <b>cập nhật catalog</b> (thêm ảnh thật, sửa giá, thêm hàng) đều được ghi lại: thời điểm, số mặt hàng được làm mới, số lượt <b>tăng / giảm giá</b>, <b>hết hàng / có hàng lại</b>, phân rã theo <b>ngành và nhóm hàng</b> và danh sách thay đổi lớn nhất. Nhật ký nằm trong gói dữ liệu mã hóa, chỉ xem được tại đây. Bấm vào một dòng để xem chi tiết.</div>
+  <div class="note">Mỗi lần bộ thu thập chạy (tự động <b>3 giờ/lần</b> trên GitHub Actions) hoặc mỗi đợt <b>cập nhật catalog</b> (thêm ảnh thật, sửa giá, thêm hàng) đều được ghi lại: thời điểm, số mặt hàng được làm mới, số lượt <b>tăng / giảm giá</b>, <b>hết hàng / có hàng lại</b>, phân rã theo <b>ngành và nhóm hàng</b> và danh sách thay đổi lớn nhất. Nhật ký nằm trong gói dữ liệu mã hóa, chỉ xem được tại đây. Bấm vào một dòng để xem chi tiết.</div>
   <div id="updAlert"></div>
   <div class="cards" id="updCards"></div>
   <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><b style="color:var(--ink)">Diễn biến các lần cập nhật gần nhất</b>
     <span class="legend" style="margin:0"><span><i style="background:#EF4444"></i>Tăng giá</span><span><i style="background:#10B981"></i>Giảm giá</span><span><i style="background:#F59E0B"></i>Tồn kho thay đổi</span><span><i style="background:#EA580C"></i>Cập nhật catalog</span></span></div>
     <div class="tl" id="updTl"></div><div class="tlx" id="updTlx"></div></div>
   <div class="row">
-    <select id="uType" onchange="renderUpd()"><option value="">Tất cả loại cập nhật</option><option value="auto">Tự động 30 phút (giá & tồn kho)</option><option value="catalog">Cập nhật catalog (hàng, ảnh, thông tin)</option></select>
+    <select id="uType" onchange="renderUpd()"><option value="">Tất cả loại cập nhật</option><option value="auto">Tự động 3 giờ (giá & tồn kho)</option><option value="catalog">Cập nhật catalog (hàng, ảnh, thông tin)</option></select>
     <select id="uRange" onchange="renderUpd()"><option value="1">24 giờ qua</option><option value="7" selected>7 ngày qua</option><option value="0">Toàn bộ lịch sử</option></select>
     <select id="uCat" onchange="renderUpd()"><option value="">Tất cả ngành hàng</option></select>
     <label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#374151;width:auto"><input type="checkbox" id="uChg" style="width:auto" onchange="renderUpd()"> Chỉ lần có thay đổi</label>
@@ -286,7 +286,7 @@ tr:hover td{background:#F8FAFC}
   <div class="card" style="line-height:1.7">
     <b style="color:var(--ink)">Kiến trúc đang vận hành</b><br>
     · Website tĩnh phát hành qua GitHub Pages, tên miền <b>www.kk-mall.com</b> (HTTPS bắt buộc).<br>
-    · Bộ thu thập đám mây chạy <b>30 phút/lần, 24/7</b> (GitHub Actions) - cập nhật giá, tồn kho, sổ cái giá hash-chain và <b>tự làm mới gói dữ liệu quản trị mã hóa</b> của trang này.<br>
+    · Bộ thu thập đám mây chạy <b>3 giờ/lần, 24/7</b> (GitHub Actions) - cập nhật giá, tồn kho, sổ cái giá hash-chain và <b>tự làm mới gói dữ liệu quản trị mã hóa</b> của trang này.<br>
     · Hệ số định giá nội bộ và khóa quản trị nằm trong <b>GitHub Secrets</b> (PRICING_OFFSET, ADMIN_PORTAL_KEY) - không có trong mã nguồn hay dữ liệu công khai.<br>
     · Sổ cái giá công khai để khách tự kiểm chứng: <a href="../api/ledger-verify.json" target="_blank">api/ledger-verify.json</a> (chỉ chứa giá KK, không chứa nguồn).<br>
     · Mã nguồn đầy đủ (máy chủ động Node.js: đơn hàng thật, thanh toán, hóa đơn, điều phối, Passkey...) lưu tại OneDrive + Google Drive của chủ sở hữu.<br><br>
@@ -784,13 +784,13 @@ function renderUpd(){
   const sum=(L,k)=>L.reduce((a,e)=>a+(e[k]||0),0);
   // canh bao do tre
   const late=last?(Date.now()-new Date(last.at))/60000:null;
-  $('#updAlert').innerHTML=!last?'<div class="note" style="background:#FFF7ED;border-color:#FED7AA;color:#9A3412">⏳ Bộ thu thập chưa ghi lần chạy nào kể từ khi bật nhật ký. Lần chạy tự động kế tiếp (tối đa 30 phút) sẽ xuất hiện tại đây.</div>'
-    :late>75?`<div class="note" style="background:#FEE2E2;border-color:#FECACA;color:#991B1B">⚠️ Lần cập nhật tự động gần nhất cách đây <b>${Math.round(late)} phút</b> (quá chu kỳ 30 phút) - kiểm tra workflow "Auto collect prices" trên GitHub.</div>`:'';
+  $('#updAlert').innerHTML=!last?'<div class="note" style="background:#FFF7ED;border-color:#FED7AA;color:#9A3412">⏳ Bộ thu thập chưa ghi lần chạy nào kể từ khi bật nhật ký. Lần chạy tự động kế tiếp (tối đa 3 giờ) sẽ xuất hiện tại đây.</div>'
+    :late>240?`<div class="note" style="background:#FEE2E2;border-color:#FECACA;color:#991B1B">⚠️ Lần cập nhật tự động gần nhất cách đây <b>${Math.round(late)} phút</b> (quá chu kỳ 3 giờ) - kiểm tra workflow "Auto collect prices" trên GitHub.</div>`:'';
   const lf=autos.find(e=>e.feed);
   $('#updCards').innerHTML=[
     ['Nguồn dữ liệu giá',lf?`<span class="good">Feed chính thức</span><br><small>${lf.feed.ok}/${lf.feed.sources} nguồn · ${DATA.rows.filter(r=>r.feed).length.toLocaleString('vi-VN')} SP giá thật</small>`:'<span class="warn">Mô phỏng</span><br><small>chưa nối datafeed</small>'],
     ['Cập nhật gần nhất',lastAny?fmtT(lastAny.at)+'<br><small>'+ago(lastAny.at)+'</small>':'-'],
-    ['Tự động kế tiếp (dự kiến)',last?new Date(new Date(last.at).getTime()+30*60000).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})+'<br><small>chu kỳ 30 phút</small>':'-'],
+    ['Tự động kế tiếp (dự kiến)',last?new Date(new Date(last.at).getTime()+180*60000).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})+'<br><small>chu kỳ 3 giờ</small>':'-'],
     ['Số lần chạy 24h',a1.length+' <small>tự động</small> · '+d1.filter(e=>e.t==='catalog').length+' <small>catalog</small>'],
     ['Lượt SP được làm mới 24h',sum(a1,'n').toLocaleString('vi-VN')],
     ['Đổi giá 24h',`<span class="up">↑${sum(a1,'up').toLocaleString('vi-VN')}</span> <span class="dn">↓${sum(a1,'down').toLocaleString('vi-VN')}</span>`],
@@ -855,7 +855,7 @@ function exportUpd(){
   const L=updFiltered();if(!L.length)return alert('Không có bản ghi để xuất.');
   const head=['Thời gian','Loại','Nội dung','Chế độ','Số mặt hàng','Tăng giá','Giảm giá','Hết hàng','Có hàng lại','Ngành hàng được cập nhật','Nhóm hàng được cập nhật'];
   const lines=[head.map(csvq).join(',')];
-  for(const e of L)lines.push([new Date(e.at).toLocaleString('vi-VN'),e.t==='catalog'?'Cập nhật catalog':'Tự động 30 phút',e.t==='catalog'?e.title:'Quét giá & tồn kho',e.t==='catalog'?(e.kind||''):(e.mode||''),e.n||0,e.up||'',e.down||'',e.oos||'',e.back||'',
+  for(const e of L)lines.push([new Date(e.at).toLocaleString('vi-VN'),e.t==='catalog'?'Cập nhật catalog':'Tự động 3 giờ',e.t==='catalog'?e.title:'Quét giá & tồn kho',e.t==='catalog'?(e.kind||''):(e.mode||''),e.n||0,e.up||'',e.down||'',e.oos||'',e.back||'',
     ecats(e).map(([c,v,u,d,o,b])=>c+': '+(e.t==='catalog'?v:(u+d+o+b))).join('; '),Object.entries(e.grps||{}).map(([g,c])=>g+': '+c).join('; ')].map(csvq).join(','));
   dl('﻿'+lines.join('\r\n'),`kk-mall-lich-su-cap-nhat-${new Date().toISOString().slice(0,10)}.csv`,'text/csv;charset=utf-8');
   logAdmin('Xuất lịch sử cập nhật - '+L.length+' bản ghi');

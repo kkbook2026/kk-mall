@@ -55,7 +55,7 @@ function publish({ API, pub, meta, now, seq, mk, recent, log = console.log }) {
   /* ---- so cai: head cam ket Merkle root ---- */
   const headHash = T.sha('HEAD|' + seq + '|' + mk.root + '|' + now);
   meta.lastSync = now; meta.ledgerHead = { seq, hash: headHash, root: mk.root, n: mk.n, at: now };
-  meta.installment = meta.installment || { min: 3000000, months: [6, 12], note: 'Trả góp 0% lãi suất qua thẻ tín dụng của ngân hàng liên kết cổng thanh toán. Phí chuyển đổi (nếu có) theo biểu phí ngân hàng phát hành thẻ.' };
+  delete meta.installment;                                   // tam bo tra gop
   wj('meta.json', meta);
   wj('ledger-verify.json', { ok: true, checked: seq, head_seq: seq, head_hash: headHash, merkle_root: mk.root, leaves: mk.n, at: now,
     algo: { entry: 'sha256(seq|sku|kk_price|in_stock|at|prev_hash)', leaf: 'sha256(LEAF|sku|last_entry_hash)', node: 'sha256(left+right), nút lẻ nhân đôi', head: 'sha256(HEAD|seq|merkle_root|at)' },

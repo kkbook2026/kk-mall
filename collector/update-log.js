@@ -1,6 +1,6 @@
 'use strict';
 /*
- * NHAT KY CAP NHAT HANG HOA - dung chung cho bo thu thap 30' va cong cu phat hanh thu cong.
+ * NHAT KY CAP NHAT HANG HOA - dung chung cho bo thu thap 3 gio va cong cu phat hanh thu cong.
  * Lich su nam TRONG goi quan tri ma hoa (site/admin/data.enc): moi lan chay giai ma goi cu,
  * noi them 1 ban ghi, ma hoa lai. Nguoi ngoai khong doc duoc.
  * (c) Nguyen Duy Dien (KK-2026). All rights reserved.
@@ -8,7 +8,7 @@
 const fs = require('fs');
 const crypto = require('crypto');
 
-const MAX_ENTRIES = 1500;   // ~31 ngay o chu ky 30 phut
+const MAX_ENTRIES = 1500;   // ~6 thang o chu ky 3 gio
 const KEEP_TOP = 96;        // giu danh sach "thay doi lon nhat" cho 96 ban ghi gan nhat (~2 ngay)
 
 function encrypt(obj, key) {

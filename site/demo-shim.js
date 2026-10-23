@@ -132,13 +132,11 @@
   /* ---------- BO LOC HANH VI MUA SAM (chay tren chi muc gon, da qua Bo loc Tin cay) ---------- */
   const GENERIC = /^(kk select|no ?brand|oem|khác|không thương hiệu|generic|)$/i;
   const BLOCK = 1 | 2 | 16; // tam giu | hang cu | gia goc ao
-  const ELEC = new Set(['dien-thoai-may-tinh-bang', 'laptop-may-tinh', 'thiet-bi-am-thanh-deo', 'tivi-giai-tri', 'dien-lanh', 'gia-dung', 'noi-that-trang-tri', 'the-thao-du-lich']);
   const SMART = {
     deal: { test: r => r.in_stock && r.disc >= 20 && !(r.fl & BLOCK), sort: (a, b) => (b.disc - a.disc) || (b.sold - a.sold) },
     low: { test: r => r.in_stock && (r.fl & 4) && !(r.fl & 3), sort: (a, b) => (b.sold - a.sold) },
     clear: { test: r => r.in_stock && r.disc >= 10 && !(r.fl & BLOCK) && !GENERIC.test(String(r.brand || '').trim()) && r.rating >= 4.5, sort: (a, b) => (b.disc * Math.log(b.sold + 2)) - (a.disc * Math.log(a.sold + 2)) },
     combo: { test: r => r.in_stock && (r.fl & 8) && !(r.fl & 3), sort: (a, b) => (b.disc - a.disc) || (b.sold - a.sold) },
-    tragop: { test: r => r.in_stock && r.kk_price >= 3000000 && ELEC.has(r.category_id) && !(r.fl & 3), sort: (a, b) => (b.sold - a.sold) || (a.kk_price - b.kk_price) },
   };
   async function listProducts(qs) {
     const q = Object.fromEntries(new URLSearchParams(qs));

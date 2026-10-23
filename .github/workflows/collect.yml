@@ -1,9 +1,9 @@
 # THU THAP HANG HOA & GIA TU DONG - chay tren may chu dam may cua GitHub
-# moi 30 phut, 24/7, KHONG phu thuoc may tinh / trinh duyet cua chu shop.
-name: Auto collect prices (30 min)
+# moi 3 gio (phut 17), 24/7, KHONG phu thuoc may tinh / trinh duyet cua chu shop.
+name: Auto collect prices (3h)
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '17 */3 * * *'   # 3 gio/lan, phut 17 (UTC) - tranh dinh tai cron :00 cua GitHub
   workflow_dispatch:
     inputs:
       indexnow_all:

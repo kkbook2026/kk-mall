@@ -1,6 +1,6 @@
 'use strict';
 /*
- * BO NAP DATAFEED CHINH THUC - chay song song trong bo thu thap 30 phut.
+ * BO NAP DATAFEED CHINH THUC - chay song song trong bo thu thap 3 gio/lan.
  * Nguon hop phap: file/API danh sach san pham ma san TMDT / mang affiliate cap cho doi tac
  * (AccessTrade, Shopee/Lazada/Tiki/TikTok Affiliate, feed doi tac B2B cua TGDD/DMX/FPT/CellphoneS...).
  * KHONG quet trang web cua san bang bot.
