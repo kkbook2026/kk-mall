@@ -375,11 +375,11 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
         <div class="pf">🎁</div>
         <div style="min-width:0;flex:1">
           <h3>Khuyến mại hôm nay - AI tự áp, không cần nhớ mã</h3>
-          <p>Mọi voucher đủ điều kiện được <b>tự động xếp tổ hợp tối ưu</b> vào giỏ hàng. Bấm mã để sao chép nếu muốn nhập tay:</p>
+          <p>Mọi voucher đủ điều kiện được <b>tự động xếp tổ hợp tối ưu</b> vào giỏ hàng. Voucher giảm trên phí dịch vụ KK-MALL, tối đa 50% phí dịch vụ của đơn. Bấm mã để sao chép nếu muốn nhập tay:</p>
           <div class="vrow">
-            <button class="vcode" onclick="copyVoucher('KKWELCOME')">KKWELCOME <span>giảm đến 50K phí dịch vụ</span></button>
-            <button class="vcode" onclick="copyVoucher('KK50')">KK50 <span>giảm đến 50K phí DV, đơn từ 1tr</span></button>
-            <button class="vcode" onclick="copyVoucher('KK150')">KK150 <span>giảm đến 150K phí DV, đơn từ 5tr</span></button>
+            <button class="vcode" onclick="copyVoucher('KKWELCOME')">KKWELCOME <span>giảm phí DV, đơn từ 200K</span></button>
+            <button class="vcode" onclick="copyVoucher('KK50')">KK50 <span>giảm phí DV, đơn từ 1tr</span></button>
+            <button class="vcode" onclick="copyVoucher('KK150')">KK150 <span>giảm phí DV, đơn từ 5tr</span></button>
           </div>
         </div>
       </div>
@@ -830,7 +830,7 @@ const AI_FAQ=[
  [/đổi trả|hoàn (hàng|tiền)|bảo hành/i,'↩️ Đổi trả trong 7 ngày nếu hàng lỗi do nhà sản xuất, sai mẫu, thiếu phụ kiện - KK-MALL chịu phí vận chuyển. Bảo hành chính hãng theo nhà sản xuất. Nếu hết hàng sau khi bạn thanh toán, hệ thống TỰ ĐỘNG hoàn tiền 100% trong 3-5 ngày. Chi tiết: mục "Đổi trả & bảo hành" cuối trang.'],
  [/thanh toán|momo|vnpay|zalopay|chuyển khoản|cod/i,'💳 KK-MALL nhận: VNPay (ATM/thẻ quốc tế/QR), Ví MoMo, ZaloPay và chuyển khoản VietQR 24/7. Không hỗ trợ COD - nhờ vậy đơn của bạn được xử lý ngay khi thanh toán. KK-MALL không lưu thông tin thẻ; mọi giao dịch qua cổng được NHNN cấp phép.'],
  [/tra cứu|đơn hàng của tôi|kiểm tra đơn|mã đơn/i,'📦 Bạn bấm "Đơn hàng" trên thanh menu (hoặc tôi mở giúp ngay đây), nhập MÃ ĐƠN (bắt đầu bằng KK...) và số điện thoại đặt hàng là xem được trạng thái, vận đơn và hóa đơn điện tử.|TRACK'],
- [/voucher|mã giảm|khuyến mãi/i,'🎟️ Voucher KK-MALL giảm trên PHÍ DỊCH VỤ của đơn (tối đa bằng phí dịch vụ). Bạn không cần nhập mã: hệ thống tự áp tổ hợp tốt nhất (mỗi nhóm một mã) ngay khi bạn đặt hàng.'],
+ [/voucher|mã giảm|khuyến mãi/i,'🎟️ Voucher KK-MALL giảm trên PHÍ DỊCH VỤ của đơn, tối đa 50% phí dịch vụ. Bạn không cần nhập mã: hệ thống tự áp tổ hợp tốt nhất (mỗi nhóm một mã) ngay khi bạn đặt hàng.'],
  [/hóa đơn|invoice|vat/i,'🧾 Đơn có 2 hóa đơn GTGT: (1) hóa đơn TIỀN HÀNG do nhà cung cấp xuất trực tiếp cho bạn; (2) hóa đơn PHÍ DỊCH VỤ mua hộ & xử lý đơn do KK-MALL xuất. Cần hóa đơn công ty, bạn tích "Xuất hóa đơn GTGT" khi đặt hàng và nhập mã số thuế - hệ thống chỉ đặt tại nguồn có xuất hóa đơn điện tử.'],
  [/giá (có )?(thật|ảo|đúng)|sale ảo|minh bạch/i,'🔗 Mọi thay đổi giá tại KK-MALL được "niêm phong" bằng chuỗi mã hóa SHA-256 + Merkle - kể cả quản trị viên cũng không sửa lùi được lịch sử giá. Bạn mở bất kỳ sản phẩm nào sẽ thấy biểu đồ "Lịch sử giá đã niêm phong" và có thể tự kiểm chứng công khai.'],
  [/bảo mật|dữ liệu|thông tin cá nhân/i,'🛡️ Thông tin của bạn chỉ dùng để giao hàng và xuất hóa đơn: truyền qua HTTPS, lưu trên hạ tầng đám mây được mã hóa, số điện thoại được che khi tra cứu đơn. Đăng nhập bằng mã OTP qua email, không cần mật khẩu. KK-MALL tuân thủ Luật Bảo vệ dữ liệu cá nhân 2025 - xem chính sách ở cuối trang.'],

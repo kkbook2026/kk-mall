@@ -32,15 +32,16 @@ var DEFAULTS = {
   TOLERANCE: '5000',                 // bien dung sai truot gia KK-MALL tu bu (đ/đơn vị)
   UNPAID_HOURS: '24',
   RETURN_DAYS: '7',
+  VOUCHER_FEE_CAP_PCT: '50',        // voucher giam toi da % phi dich vu cua don (KK-MALL luon con lai)
   BANK_BIN: '', BANK_ACC: '', BANK_NAME: '', BANK_LABEL: '',
   COMPANY_JSON: '{}'
 };
-var VOUCHERS = [ // giam tren PHI DICH VU (khong vuot phi dich vu cua don) - dong bo voi site
-  { code: 'KKWELCOME', title: 'Giảm 10% tối đa 50K cho đơn từ 200K', type: 'percent', value: 10, max: 50000, min: 200000, scope: 'all', group: 'order' },
-  { code: 'KK50', title: 'Giảm 50K cho đơn từ 1 triệu', type: 'fixed', value: 50000, min: 1000000, scope: 'all', group: 'order' },
-  { code: 'KK150', title: 'Giảm 150K cho đơn từ 5 triệu', type: 'fixed', value: 150000, min: 5000000, scope: 'all', group: 'order' },
-  { code: 'DIENLANH5', title: 'Giảm 5% tối đa 300K ngành Điện lạnh', type: 'percent', value: 5, max: 300000, min: 2000000, scope: 'dien-lanh', group: 'category' },
-  { code: 'GIADUNG30', title: 'Giảm 30K nhóm Gia dụng, đơn từ 300K', type: 'fixed', value: 30000, min: 300000, scope: 'gia-dung', group: 'category' }
+var VOUCHERS = [ // giam tren PHI DICH VU, tong giam toi da VOUCHER_FEE_CAP_PCT% phi dich vu cua don - dong bo voi site
+  { code: 'KKWELCOME', title: 'Giảm phí dịch vụ cho đơn từ 200K', type: 'percent', value: 10, max: 50000, min: 200000, scope: 'all', group: 'order' },
+  { code: 'KK50', title: 'Giảm phí dịch vụ cho đơn từ 1 triệu', type: 'fixed', value: 50000, min: 1000000, scope: 'all', group: 'order' },
+  { code: 'KK150', title: 'Giảm phí dịch vụ cho đơn từ 5 triệu', type: 'fixed', value: 150000, min: 5000000, scope: 'all', group: 'order' },
+  { code: 'DIENLANH5', title: 'Giảm phí dịch vụ ngành Điện lạnh, đơn từ 2 triệu', type: 'percent', value: 5, max: 300000, min: 2000000, scope: 'dien-lanh', group: 'category' },
+  { code: 'GIADUNG30', title: 'Giảm phí dịch vụ ngành Gia dụng, đơn từ 300K', type: 'fixed', value: 30000, min: 300000, scope: 'gia-dung', group: 'category' }
 ];
 // Nguon co he thong xuat hoa don GTGT dien tu on dinh (sieu thi / chuoi ban le / gian hang chinh hang)
 var VAT_SOURCES = ['dienmayxanh', 'thegioididong', 'fptshop', 'cellphones', 'dienmaycholon', 'tiki'];
@@ -153,7 +154,9 @@ function quote_(items, codes, fresh) {
     if (d > 0 && (!best[v.group] || d > best[v.group].d)) best[v.group] = { code: v.code, title: v.title, d: d };
   });
   var vouchers = Object.keys(best).map(function (g) { return best[g]; });
-  var disc = Math.min(fee, vouchers.reduce(function (a, v) { return a + v.d; }, 0));
+  var cap = Math.floor(fee * Math.max(0, Math.min(100, Number(cfg_('VOUCHER_FEE_CAP_PCT')))) / 100 / 1000) * 1000; // lam tron nghin
+  var disc = Math.min(cap, vouchers.reduce(function (a, v) { return a + v.d; }, 0));
+  if (!disc) vouchers = [];
   var feeNet = fee - disc, feePre = Math.round(feeNet / (1 + vat)), feeVat = feeNet - feePre;
   return { lines: lines, unavailable: bad, goods: goods, fee: fee, discount: disc, vouchers: vouchers.map(function (v) { return { code: v.code, title: v.title }; }),
     fee_net: feeNet, fee_pre_tax: feePre, fee_vat: feeVat, vat_rate: vat * 100, total: goods + feeNet, fee_table: feeTable_() };
@@ -507,11 +510,11 @@ function adminList_(b, name, outFn) { session_(b.token, true); return { rows: ro
 function adminConfig_(b) {
   var s = session_(b.token, true);
   if (b.set) {
-    var allow = ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON'];
+    var allow = ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'VOUCHER_FEE_CAP_PCT'];
     Object.keys(b.set).forEach(function (k) { if (allow.indexOf(k) >= 0) P_().setProperty(k, str_(b.set[k], 2000)); });
     log_('admin_config', s.email, Object.keys(b.set).join(','));
   }
-  var out = {}; ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'ADMIN_EMAILS'].forEach(function (k) { out[k] = cfg_(k); });
+  var out = {}; ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'ADMIN_EMAILS', 'VOUCHER_FEE_CAP_PCT'].forEach(function (k) { out[k] = cfg_(k); });
   out.WEBHOOK_URL = ScriptApp.getService().getUrl() + '?a=webhook&key=' + P_().getProperty('WEBHOOK_KEY');
   out.SHEET_URL = ss_().getUrl(); out.fee_table = feeTable_();
   return out;
@@ -558,7 +561,7 @@ function doGet(e) {
 }
 function publicConfig_() {
   var c = company_(), b = bank_();
-  return { version: VERSION, consent_version: CONSENT_VERSION, company: c, bank_ready: b.ready, fee_table: feeTable_(), vat_rate: Number(cfg_('VAT_RATE')), return_days: Number(cfg_('RETURN_DAYS')), unpaid_hours: Number(cfg_('UNPAID_HOURS')), vouchers: VOUCHERS.map(function (v) { return { code: v.code, title: v.title }; }) };
+  return { version: VERSION, consent_version: CONSENT_VERSION, company: c, bank_ready: b.ready, fee_table: feeTable_(), vat_rate: Number(cfg_('VAT_RATE')), return_days: Number(cfg_('RETURN_DAYS')), unpaid_hours: Number(cfg_('UNPAID_HOURS')), vouchers: VOUCHERS.map(function (v) { return { code: v.code, title: v.title }; }), voucher_fee_cap_pct: Number(cfg_('VOUCHER_FEE_CAP_PCT')) };
 }
 function doPost(e) {
   var b = {}, a = (e && e.parameter && e.parameter.a) || '';
