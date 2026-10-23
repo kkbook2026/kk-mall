@@ -57,6 +57,8 @@ jobs:
             git commit -m "auto-data: cap nhat gia & ton kho"
             git push origin main
           fi
+      - name: SEO - sinh trang tinh SP/nganh/nhom + sitemap (khong commit)
+        run: node collector/build-seo.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

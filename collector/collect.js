@@ -12,6 +12,8 @@ const path = require('path');
 const crypto = require('crypto');
 const ULOG = require('./update-log'); // nhat ky cap nhat (ma hoa trong goi quan tri)
 const FEEDS = require('./feeds');      // datafeed chinh thuc (affiliate/doi tac) - nap song song
+const TRUST = require('./trust');      // Bo loc Tin cay gia (anomaly detection) + Merkle
+const { publish } = require('./publish');
 
 const SITE = path.join(__dirname, '..', 'site');
 const API = path.join(SITE, 'api');
@@ -65,7 +67,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
         if (!withImg) { feed.stat.capped++; continue; }                 // chi nhan hang co anh that
         const [cid, cname] = g2c[best.grp] || ['khac', 'Khác'];
         sku = 'KK' + String(nextId++).padStart(6, '0');
-        const name = best.name.replace(/\s*[-–|]\s*(hàng chính hãng|chính hãng|hàng nhập khẩu)\s*$/i, '').slice(0, 140);
+        const name = TRUST.cleanText(best.name).replace(/\s*[-–|]\s*(hàng chính hãng|chính hãng|hàng nhập khẩu)\s*$/i, '').slice(0, 140);
         const brand = (offs.find(o => o.brand) || {}).brand || name.split(' ').find(w => /^[A-Z][A-Za-z0-9&.-]{1,}$/.test(w)) || 'KK Select';
         const base = offs.map(o => o.list || o.price).sort((a, b) => a - b)[Math.floor(offs.length / 2)];
         const initKK = Number.isFinite(OFFSET) ? Math.min(...offs.map(o => o.price)) + OFFSET : base; // khong bao gio de 0d
@@ -94,7 +96,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       }
       fidx.map[key] = sku;
       const per = {}; for (const o of offs) if (!per[o.src] || (o.stock && o.price < per[o.src].price)) per[o.src] = o;
-      feedBySku[sku] = Object.values(per).map(o => ({ source: o.src, price: o.price, in_stock: o.stock, url: o.url, image: o.image, fetched_at: now }));
+      feedBySku[sku] = Object.values(per).map(o => ({ source: o.src, price: o.price, in_stock: o.stock, url: o.url, image: o.image, name: o.name, fetched_at: now }));
     }
   }
   if (feed.dropKeys && feed.dropKeys.size) {
@@ -114,6 +116,8 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
    *  - Chua co khoa -> che do MO PHONG thi truong: gia tung nguon dao dong deterministic quanh gia tham chieu,
    *    giu he thong song that 30'/lan; khi dien Secrets la chay du lieu that, khong doi ma.
    */
+  const docs = new Map(), leaves = [], recent = [];
+  const trustStat = { dropped: 0, hold: 0 };
   for (const p of full) {
     const f = path.join(API, 'products', p.sku + '.json');
     if (!fs.existsSync(f)) continue;
@@ -133,6 +137,15 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       offerState.push({ source: src, price, in_stock: inStock, fetched_at: now });
       if (inStock && (!best || price < best)) { best = price; bestSrc = src; }
     }
+    /* ===== BO LOC TIN CAY: loai offer ngoai lai truoc khi chon gia ===== */
+    const flt = TRUST.filterOffers(d, offerState, OFFSET);
+    const hadLive = offerState.some(o => o.in_stock);
+    best = null; bestSrc = null;
+    for (const o of flt.valid) if (o.in_stock && (!best || o.price < best)) { best = o.price; bestSrc = o.source; }
+    for (const o of flt.dropped) o.x = o.why;
+    trustStat.dropped += flt.dropped.length;
+    if (hadLive && !best) { d.hold = 1; d.hold_why = flt.dropped[0] ? flt.dropped[0].why : 'Không còn nguồn giá hợp lệ'; trustStat.hold++; }
+    else { delete d.hold; delete d.hold_why; }
     let kk = d.kk_price;
     if (best && Number.isFinite(OFFSET)) kk = best + OFFSET;          // cong thuc noi bo (Secret)
     else if (best && !Number.isFinite(OFFSET)) kk = d.kk_price;       // thieu Secret: giu gia, van cap nhat ton kho
@@ -152,18 +165,35 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       const prev = d.ledger.length ? d.ledger[d.ledger.length - 1].hash : 'GENESIS-' + p.sku;
       seq++;
       const h = sha(`${seq}|${p.sku}|${kk}|${inStock}|${now}|${prev}`);
-      d.ledger.push({ seq, kk_price: kk, at: now, hash: h });
+      const oldKK = d.ledger.length ? d.ledger[d.ledger.length - 1].kk_price : null;
+      d.ledger.push({ seq, kk_price: kk, s: inStock, at: now, hash: h });
       if (d.ledger.length > 60) d.ledger = d.ledger.slice(-60);
+      recent.push({ sku: p.sku, name: p.name, kk, prev: oldKK, s: inStock, seq, hash: h, at: now });
     }
-    fs.writeFileSync(f, JSON.stringify(d));
+    /* lich su 90 ngay + danh gia tin cay cong khai */
+    { const cn = TRUST.cleanText(d.name); if (cn !== d.name) { d.name = cn; p.name = cn; } }
+    TRUST.updateD90(d, now);
+    const ev = TRUST.evaluate(d);
+    d.trust = { disc: ev.disc, fl: ev.fl, why: ev.why };
+  if ((ev.fl & TRUST.FL.USED) && /mới 100%/i.test(d.description || '')) d.description = String(d.description).replace(/chính hãng, mới 100%(, đầy đủ phụ kiện)?/i, 'đã qua sử dụng, tình trạng đúng như tên gọi').replace(/mới 100%/ig, 'đã qua sử dụng');
+    p.disc = ev.disc; p.fl = ev.fl;
+    const lastE = d.ledger && d.ledger.length ? d.ledger[d.ledger.length - 1].hash : 'GENESIS-' + p.sku;
+    leaves.push({ sku: p.sku, head: lastE });
+    docs.set(p.sku, { f, d });
     p.kk_price = d.kk_price; p.in_stock = inStock; p.updated_at = now;
     adminRows.push({ sku: p.sku, name: p.name, brand: p.brand, cat: p.category_id, catName: p.category_name, grp: p.grp,
       base: d.base_price, kk: d.kk_price, stock: inStock, rating: p.rating, sold: p.sold,
       img: (d.image || '').startsWith('http') ? d.image : '',
       sp: Object.keys(d.specs || {}).length,
       best: best ? { s: bestSrc, p: best } : null, margin: best ? d.kk_price - best : null,
-      offers: offerState.map(o => ({ s: o.source, p: o.price, k: o.in_stock, u: o.url || '' })).sort((a, b) => a.p - b.p), feed: feedBySku[p.sku] ? 1 : 0 });
+      offers: offerState.map(o => ({ s: o.source, p: o.price, k: o.in_stock, u: o.url || '', x: o.x || '' })).sort((a, b) => a.p - b.p), feed: feedBySku[p.sku] ? 1 : 0,
+      hold: d.hold ? d.hold_why : '', fl: ev.fl, disc: ev.disc });
   }
+  /* ===== MERKLE ROOT toan so cai + proof tung SP, roi moi ghi file ===== */
+  const mk = TRUST.merkle(leaves);
+  for (const [sku, { f, d }] of docs) { d.mp = mk.proofs[sku]; d.mr = mk.root; d.mat = now; fs.writeFileSync(f, JSON.stringify(d)); }
+  docs.clear();
+  console.log(`Bo loc tin cay: loai ${trustStat.dropped} offer ngoai lai · tam giu ${trustStat.hold} SP · Merkle root ${mk.root.slice(0, 16)}… (${mk.n} la)`);
   /* ===== KIEM TRA ANH THAT (xoay vong ~300 anh/lan) + thay anh hong bang anh nguon khac ===== */
   fidx.broken = fidx.broken || {};
   const imgList = full.filter(p => /^https:\/\//.test(p.image || ''));
@@ -197,22 +227,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   const MIN_REAL = parseInt(process.env.MIN_REAL_PER_GROUP || '8', 10);
   const pub = full.filter(p => !fidx.broken[p.sku] && !(/^https:\/\//.test(p.image || '') && !goodImg(p.image)) && (/^https:\/\//.test(p.image || '') || (realN[p.grp] || 0) < MIN_REAL));
   const hiddenSynthetic = full.length - pub.length;
-  wj('catalog-full.json', pub);
-
-  /* ===== TACH THEO NGANH: web chi tai file cua nganh dang xem ===== */
-  fs.mkdirSync(path.join(API, 'cat'), { recursive: true });
-  const byCat = {}; for (const p of pub) (byCat[p.category_id] = byCat[p.category_id] || []).push(p);
-  for (const f of fs.readdirSync(path.join(API, 'cat'))) if (f !== 'index.json' && !byCat[f.replace(/\.json$/, '')]) fs.unlinkSync(path.join(API, 'cat', f));
-  const catIdx = [];
-  for (const [cid, rows] of Object.entries(byCat)) {
-    wj('cat/' + cid + '.json', rows);
-    catIdx.push({ id: cid, name: rows[0].category_name, n: rows.length, groups: [...new Set(rows.map(r => r.grp))] });
-  }
-  wj('cat/index.json', { v: now, total: pub.length, cats: catIdx });
-  // dem lai so luong theo nganh cho menu trang chu
-  for (const c of (meta.categories || [])) { const b = byCat[c.id] || []; c.count = b.length; for (const g of new Set(b.map(r => r.grp))) if (!c.groups.includes(g)) c.groups.push(g); }
-  meta.totalProducts = pub.length;
-  console.log(`Danh muc cong khai: ${pub.length} SP (${Object.keys(byCat).length} file nganh) · an ${hiddenSynthetic} SP mau/anh hong`);
+  console.log(`Danh muc cong khai: ${pub.length} SP · an ${hiddenSynthetic} SP mau/anh hong`);
   fs.writeFileSync(FIDX_FILE, JSON.stringify(fidx));
 
   // ---- GOI DU LIEU QUAN TRI MA HOA (cong /admin) ----
@@ -241,25 +256,8 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     console.log('Bo qua goi quan tri (chua dat ADMIN_PORTAL_KEY) - giu ban cu.');
   }
 
-  // catalog-pack cho tim kiem local-first: [sku,name,brand,cat,catName,grp,kk,stock,rating,sold]
-  wj('catalog-pack.json', { v: now, rows: pub.map(r => [r.sku, r.name, r.brand, r.category_id, r.category_name, r.grp, r.kk_price, r.in_stock, r.rating, r.sold]) });
-
-  // SDUI trang chu dung lai tu du lieu moi
-  const sdui = rj('sdui-home.json');
-  const pick = (arr, n) => arr.slice(0, n);
-  for (const sct of sdui.sections) {
-    if (sct.type !== 'shelf') continue;
-    if (/Giảm sâu/.test(sct.title)) sct.items = pick(pub.filter(r => r.in_stock && r.kk_price < r.base_price).sort((a, b) => (1 - a.kk_price / a.base_price) < (1 - b.kk_price / b.base_price) ? 1 : -1), 12);
-    else if (/Bán chạy/.test(sct.title)) sct.items = pick(pub.filter(r => r.in_stock).sort((a, b) => b.sold - a.sold), 12);
-    else if (sct.cat) sct.items = pick(pub.filter(r => r.category_id === sct.cat).sort((a, b) => (b.in_stock - a.in_stock) || (b.sold - a.sold)), 12);
-  }
-  sdui.v = now; wj('sdui-home.json', sdui);
-
-  // meta + chung thuc so cai
-  const headHash = sha('HEAD|' + seq + '|' + now);
-  meta.lastSync = now; meta.ledgerHead = { seq, hash: headHash, at: now };
-  wj('meta.json', meta);
-  wj('ledger-verify.json', { ok: true, checked: seq, head_seq: seq, head_hash: headHash, at: now, note: 'Chuỗi niêm phong theo từng sản phẩm; kiểm chứng chi tiết trong trang mỗi sản phẩm.' });
+  // ---- XUAT BAN CONG KHAI (catalog, nganh, pack, SDUI, meta + Merkle root, nhat ky root) ----
+  publish({ API, pub, meta, now, seq, mk, recent: recent.sort((a, b) => b.seq - a.seq) });
 
   console.log(`✔ Thu thập xong lúc ${now}: ${full.length} SP · ${changed} đổi giá · ${outOfStock} tạm hết hàng · sổ cái #${seq}` + (Number.isFinite(OFFSET) ? '' : ' · (chưa có PRICING_OFFSET - giữ nguyên giá bán)'));
 })().catch(e => { console.error('COLLECTOR LỖI:', e); process.exit(1); });

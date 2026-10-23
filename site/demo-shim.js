@@ -50,7 +50,8 @@
     return out;
   }
   const toRow = d => ({ sku: d.sku, name: d.name, slug: d.slug, category_id: d.category_id, category_name: d.category_name, grp: d.grp, brand: d.brand, variant: d.variant || '',
-    image: d.image, base_price: d.base_price, kk_price: d.kk_price, in_stock: d.in_stock, stock_qty: d.stock_qty, rating: d.rating, sold: d.sold, updated_at: d.updated_at });
+    image: d.image, base_price: d.base_price, kk_price: d.kk_price, in_stock: d.in_stock, stock_qty: d.stock_qty, rating: d.rating, sold: d.sold, updated_at: d.updated_at,
+    disc: d.trust ? d.trust.disc : (d.disc || 0), fl: d.trust ? d.trust.fl : (d.fl || 0) });
 
   // ---------- VOUCHER (chay tren thiet bi) ----------
   const VOUCHERS = [
@@ -60,6 +61,7 @@
     { code: 'DIENLANH5', title: 'Giảm 5% tối đa 300K ngành Điện lạnh', type: 'percent', value: 5, max_discount: 300000, min_order: 2000000, scope: 'dien-lanh', group: 'category' },
     { code: 'GIADUNG30', title: 'Giảm 30K nhóm Gia dụng, đơn từ 300K', type: 'fixed', value: 30000, min_order: 300000, scope: 'gia-dung', group: 'category' },
   ];
+  window.KK_VOUCHERS = VOUCHERS.map(v => ({ ...v }));
   async function optimize(items, extraCodes) {
     const bySku = await bySkus(items.map(i => i.sku));
     const lines = items.map(i => ({ ...i, qty: Math.max(1, Math.min(20, +i.qty || 1)), p: bySku[i.sku] })).filter(l => l.p && l.p.kk_price);
@@ -87,8 +89,16 @@
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return err('Email không hợp lệ (dùng để nhận hóa đơn)');
     if (addr.length < 10) return err('Địa chỉ nhận hàng chưa đầy đủ');
     if (!b.consent) return err('Bạn cần đồng ý Chính sách bảo vệ dữ liệu cá nhân để đặt hàng');
-    const bySku = await bySkus((b.items || []).map(i => i.sku));
-    const items = (b.items || []).map(i => { const p = bySku[i.sku]; if (!p || !p.in_stock) return null;
+    // PRICE LOCK: doi chieu gia da chot luc bam Thanh toan voi du lieu moi nhat
+    const fresh = {}; await Promise.all((b.items || []).map(async i => { try { const r = await realFetch('api/products/' + i.sku + '.json?lc=' + Date.now(), { cache: 'no-store' }); if (r.ok) fresh[i.sku] = await r.json(); } catch { } }));
+    for (const s in fresh) PROD[s] = Promise.resolve(fresh[s]);
+    if (b.lock) {
+      if (!b.lock.exp || Date.now() > b.lock.exp) return err('Hết thời gian giữ giá 15 phút - hệ thống sẽ kiểm tra lại giá & tồn kho', 409);
+      const changed = (b.lock.items || []).filter(l => { const p = fresh[l.sku]; return !p || p.kk_price !== l.price || !p.in_stock || (p.trust && (p.trust.fl & 1)); });
+      if (changed.length) return err('Giá hoặc tồn kho vừa thay đổi ở ' + changed.length + ' sản phẩm - vui lòng xác nhận lại giá mới', 409);
+    }
+    const bySku = { ...(await bySkus((b.items || []).filter(i => !fresh[i.sku]).map(i => i.sku))), ...fresh };
+    const items = (b.items || []).map(i => { const p = bySku[i.sku]; if (!p || !p.in_stock || (p.trust && (p.trust.fl & 1))) return null;
       const qty = Math.max(1, Math.min(20, +i.qty || 1));
       return { sku: p.sku, name: p.name, image: p.image, qty, unit: p.kk_price, line_total: p.kk_price * qty }; }).filter(Boolean);
     if (!items.length) return err('Giỏ hàng trống hoặc sản phẩm vừa hết hàng');
@@ -98,6 +108,7 @@
     const t = nowIso();
     const order = { code, customer_name: name, customer_phone: phone, customer_email: email, customer_address: addr, note: String(b.note || ''),
       items, discount: opt.discount, vouchers: opt.vouchers, total, payment_method: b.payment_method || 'vnpay',
+      price_lock: b.lock ? { at: new Date(b.lock.at).toISOString(), checked_ms: b.lock.ms || null } : null,
       payment_status: 'paid', payment_ref: 'PAY-TEST-' + Math.random().toString(36).slice(2, 10).toUpperCase(),
       status: 'sourced', created_at: t, updated_at: t };
     const ff = items.map((it, i) => ({ sku: it.sku, product_name: it.name, qty: it.qty, status: 'shipping',
@@ -118,6 +129,17 @@
     if (q.stock === '1') rows = rows.filter(r => r.in_stock);
     return rows.sort(SORTERS[q.sort] || DEF_SORT);
   }
+  /* ---------- BO LOC HANH VI MUA SAM (chay tren chi muc gon, da qua Bo loc Tin cay) ---------- */
+  const GENERIC = /^(kk select|no ?brand|oem|khác|không thương hiệu|generic|)$/i;
+  const BLOCK = 1 | 2 | 16; // tam giu | hang cu | gia goc ao
+  const ELEC = new Set(['dien-thoai-may-tinh-bang', 'laptop-may-tinh', 'thiet-bi-am-thanh-deo', 'tivi-giai-tri', 'dien-lanh', 'gia-dung', 'noi-that-trang-tri', 'the-thao-du-lich']);
+  const SMART = {
+    deal: { test: r => r.in_stock && r.disc >= 20 && !(r.fl & BLOCK), sort: (a, b) => (b.disc - a.disc) || (b.sold - a.sold) },
+    low: { test: r => r.in_stock && (r.fl & 4) && !(r.fl & 3), sort: (a, b) => (b.sold - a.sold) },
+    clear: { test: r => r.in_stock && r.disc >= 10 && !(r.fl & BLOCK) && !GENERIC.test(String(r.brand || '').trim()) && r.rating >= 4.5, sort: (a, b) => (b.disc * Math.log(b.sold + 2)) - (a.disc * Math.log(a.sold + 2)) },
+    combo: { test: r => r.in_stock && (r.fl & 8) && !(r.fl & 3), sort: (a, b) => (b.disc - a.disc) || (b.sold - a.sold) },
+    tragop: { test: r => r.in_stock && r.kk_price >= 3000000 && ELEC.has(r.category_id) && !(r.fl & 3), sort: (a, b) => (b.sold - a.sold) || (a.kk_price - b.kk_price) },
+  };
   async function listProducts(qs) {
     const q = Object.fromEntries(new URLSearchParams(qs));
     const limit = Math.min(60, +q.limit || 24); const page = Math.max(1, +q.page || 1);
@@ -132,8 +154,10 @@
       rows = filterRows(all.slice(), q);
     } else {                                     // tim kiem / tat ca: loc tren chi muc gon, roi lay chi tiet dung trang can xem
       const pk = await getPack();
-      const lite = pk.rows.map(r => ({ sku: r[0], name: r[1], brand: r[2], category_id: r[3], category_name: r[4], grp: r[5], kk_price: r[6], in_stock: r[7], rating: r[8], sold: r[9] }));
-      const hit = filterRows(lite, q);
+      const lite = pk.rows.map(r => ({ sku: r[0], name: r[1], brand: r[2], category_id: r[3], category_name: r[4], grp: r[5], kk_price: r[6], in_stock: r[7], rating: r[8], sold: r[9], disc: r[10] || 0, fl: r[11] || 0 }));
+      let hit;
+      if (q.f && SMART[q.f]) { const F = SMART[q.f]; const sq = { ...q }; delete sq.sort; hit = filterRows(lite.filter(F.test), sq); if (!q.sort) hit.sort(F.sort); }
+      else hit = filterRows(lite, q);
       const slice = hit.slice((page - 1) * limit, page * limit);
       const det = await bySkus(slice.map(r => r.sku));
       return jr({ total: hit.length, page, limit, items: slice.map(r => det[r.sku] ? fixImg(toRow(det[r.sku])) : r), brands: [] });
@@ -155,6 +179,8 @@
       if (path === '/api/sdui/home') return jr(fixImg(await realFetch('api/sdui-home.json').then(r => r.json())));
       if (path === '/api/catalog-pack') return jr(await realFetch('api/catalog-pack.json').then(r => r.json()));
       if (path === '/api/vouchers') return jr(VOUCHERS.map(v => ({ ...v })));
+      if (path === '/api/ledger-roots') return jr(await realFetch('api/ledger-roots.json', { cache: 'no-cache' }).then(r => r.json()).catch(() => []));
+      if (path === '/api/ledger-recent') return jr(await realFetch('api/ledger-recent.json', { cache: 'no-cache' }).then(r => r.json()).catch(() => ({ items: [] })));
       if (path === '/api/ledger-verify') return jr(await realFetch('api/ledger-verify.json').then(r => r.json()).catch(() => ({ ok: true })));
       let m;
       if ((m = path.match(/^\/api\/products\/([A-Za-z0-9-]+)$/))) {
