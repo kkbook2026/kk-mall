@@ -5,6 +5,11 @@ on:
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch:
+    inputs:
+      indexnow_all:
+        description: 'Gui toan bo URL cho IndexNow (Bing, Yandex...)'
+        required: false
+        default: 'false'
 permissions:
   contents: write
   pages: write
@@ -65,3 +70,9 @@ jobs:
           path: site
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: IndexNow - bao Bing/Yandex... trang vua thay doi
+        if: success()
+        continue-on-error: true
+        env:
+          INDEXNOW_ALL: ${{ github.event.inputs.indexnow_all }}
+        run: node collector/indexnow.js

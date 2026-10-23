@@ -5,3 +5,4 @@
 /site/sitemap*.xml
 /site/seo.css
  node_modules/
+collector/.changed.json

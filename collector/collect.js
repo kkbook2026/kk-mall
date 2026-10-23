@@ -116,7 +116,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
    *  - Chua co khoa -> che do MO PHONG thi truong: gia tung nguon dao dong deterministic quanh gia tham chieu,
    *    giu he thong song that 30'/lan; khi dien Secrets la chay du lieu that, khong doi ma.
    */
-  const docs = new Map(), leaves = [], recent = [];
+  const docs = new Map(), leaves = [], recent = [], changedSlugs = [];
   const trustStat = { dropped: 0, hold: 0 };
   for (const p of full) {
     const f = path.join(API, 'products', p.sku + '.json');
@@ -169,6 +169,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       d.ledger.push({ seq, kk_price: kk, s: inStock, at: now, hash: h });
       if (d.ledger.length > 60) d.ledger = d.ledger.slice(-60);
       recent.push({ sku: p.sku, name: p.name, kk, prev: oldKK, s: inStock, seq, hash: h, at: now });
+      changedSlugs.push(/^[a-z0-9-]+$/.test(p.slug || '') ? p.slug : '');
     }
     /* lich su 90 ngay + danh gia tin cay cong khai */
     { const cn = TRUST.cleanText(d.name); if (cn !== d.name) { d.name = cn; p.name = cn; } }
@@ -258,6 +259,9 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
 
   // ---- XUAT BAN CONG KHAI (catalog, nganh, pack, SDUI, meta + Merkle root, nhat ky root) ----
   publish({ API, pub, meta, now, seq, mk, recent: recent.sort((a, b) => b.seq - a.seq) });
+  // danh sach trang SP vua doi gia/ton kho -> IndexNow (chay sau deploy)
+  const pubSet = new Set(pub.map(r => r.slug));
+  fs.writeFileSync(path.join(__dirname, '.changed.json'), JSON.stringify(changedSlugs.filter(s => s && pubSet.has(s))));
 
   console.log(`✔ Thu thập xong lúc ${now}: ${full.length} SP · ${changed} đổi giá · ${outOfStock} tạm hết hàng · sổ cái #${seq}` + (Number.isFinite(OFFSET) ? '' : ' · (chưa có PRICING_OFFSET - giữ nguyên giá bán)'));
 })().catch(e => { console.error('COLLECTOR LỖI:', e); process.exit(1); });
