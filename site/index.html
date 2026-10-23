@@ -327,6 +327,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
 .seolinks{font-size:12px;line-height:1.9;margin:14px 0 4px;opacity:.85}.seolinks a{color:inherit;text-decoration:none}.seolinks a:hover{text-decoration:underline}
 @media(max-width:960px){.mega-g{grid-template-columns:1fr 1fr}.sem-row{grid-template-columns:1fr 1fr}.lghead{grid-template-columns:1fr 1fr}.lgrec{grid-template-columns:1fr}.mega{max-height:70vh}}
 @media(max-width:600px){.mega-g{grid-template-columns:1fr}.hstat{grid-template-columns:1fr 1fr}.lgw{padding:18px}.lghead b{font-size:15px}}
+@media(max-width:700px){form.co,form.co>div{min-width:0}form.co{padding:18px 14px!important}form.co [style*="grid-template-columns:1fr 1fr"],.rmaf [style*="grid-template-columns:1fr 1fr 1fr"],.payg{grid-template-columns:1fr!important}.step{flex-wrap:wrap;row-gap:4px;font-size:11.5px}.mbox{border-radius:16px}.sum .row span{min-width:0}}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"OnlineStore","name":"KK-MALL","alternateName":"Đại siêu thị trực tuyến KK-MALL","url":"https://www.kk-mall.com","logo":"https://www.kk-mall.com/logo.svg","founder":{"@type":"Person","name":"Nguyễn Duy Điển"},"areaServed":"VN","paymentAccepted":"VNPay, MoMo, ZaloPay, VietQR"}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"KK-MALL","url":"https://www.kk-mall.com","potentialAction":{"@type":"SearchAction","target":"https://www.kk-mall.com/?q={search_term_string}","query-input":"required name=search_term_string"}}</script>
@@ -376,9 +377,9 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
           <h3>Khuyến mại hôm nay - AI tự áp, không cần nhớ mã</h3>
           <p>Mọi voucher đủ điều kiện được <b>tự động xếp tổ hợp tối ưu</b> vào giỏ hàng. Bấm mã để sao chép nếu muốn nhập tay:</p>
           <div class="vrow">
-            <button class="vcode" onclick="copyVoucher('KKWELCOME')">KKWELCOME <span>-10% tối đa 50K</span></button>
-            <button class="vcode" onclick="copyVoucher('KK50')">KK50 <span>-50K đơn từ 1 triệu</span></button>
-            <button class="vcode" onclick="copyVoucher('KK150')">KK150 <span>-150K đơn từ 5 triệu</span></button>
+            <button class="vcode" onclick="copyVoucher('KKWELCOME')">KKWELCOME <span>giảm đến 50K phí dịch vụ</span></button>
+            <button class="vcode" onclick="copyVoucher('KK50')">KK50 <span>giảm đến 50K phí DV, đơn từ 1tr</span></button>
+            <button class="vcode" onclick="copyVoucher('KK150')">KK150 <span>giảm đến 150K phí DV, đơn từ 5tr</span></button>
           </div>
         </div>
       </div>
@@ -400,7 +401,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
     <div><span class="ic">💰</span><div><b>Giá cuối cùng - 0đ phụ phí</b>Đã gồm giao hàng tận cửa; voucher được AI tự áp tổ hợp tối ưu</div></div>
     <div><span class="ic">🔗</span><div><b>Không "Flash Sale ảo"</b>Lịch sử giá niêm phong mật mã học - không ai sửa lùi được</div></div>
     <div><span class="ic">🤖</span><div><b>Trợ lý AI riêng của KK-MALL</b>Hỏi bằng tiếng Việt tự nhiên, gợi ý đúng món - đúng ngân sách</div></div>
-    <div><span class="ic">🛡️</span><div><b>Dữ liệu mã hóa cấp trường</b>SĐT/địa chỉ mã hóa AES-256, đối tác chỉ thấy số ẩn danh</div></div>
+    <div><span class="ic">🛡️</span><div><b>Bảo mật & minh bạch</b>Đăng nhập OTP không mật khẩu, mã hóa HTTPS; tách rõ tiền hàng và phí dịch vụ</div></div>
     </section>
     </div>
   </section>
@@ -461,6 +462,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
   <form class="aif" onsubmit="aiSend(event)"><input id="aiIn" placeholder="Hỏi tôi: 'tủ lạnh dưới 12 triệu'..." autocomplete="off"><button class="b" type="submit">Gửi</button></form>
 </div>
 
+<script src="config.js"></script>
 <script src="demo-shim.js"></script>
 <script src="kk-smart.js"></script>
 <script>
@@ -590,11 +592,11 @@ async function loadMore(fresh){
 function card(p){const off=discOf(p),hold=isHold(p),buy=canBuy(p);
   return `<div class="card${hold?' is-hold':''}">${p._need?`<span class="need">${esc(p._need)}</span>`:''}${!p.in_stock&&!hold?'<span class="tag out">Hết hàng</span>':hold?'<span class="tag out">Đang xác minh</span>':off>0?`<span class="tag" title="Mức giảm đã xác minh với giá tham chiếu tin cậy">-${off}%</span>`:''}<img class="im" src="${imgSrc(p)}" alt="${esc(p.name)}" loading="lazy" ${imgAttrs(p)} onclick="openProduct('${p.sku}')">
   <div class="bd"><div class="nm" onclick="openProduct('${p.sku}')">${esc(p.name)}</div>
-  <div class="src">${trustBadges(p)||'<span class="dot" style="background:var(--ok)"></span>KK-MALL cung cấp · AI đã tối ưu giá'}</div>
+  <div class="src">${trustBadges(p)||'<span class="dot" style="background:var(--ok)"></span>Mua hộ từ nguồn giá tốt nhất · AI tối ưu'}</div>
   <div class="price">${p.kk_price?vnd(p.kk_price):'-'}${off>0&&p.base_price>p.kk_price?` <s style="color:var(--muted);font-size:12px;font-weight:500">${vnd(Math.round(p.kk_price/(1-off/100)/1000)*1000)}</s>`:''}<small>Giá cuối cùng - đã gồm giao hàng</small></div>
   ${proofLine(p)}
   <div class="meta"><span>⭐ ${p.rating}</span><span>Đã bán ${p.sold}</span></div>
-  <button class="add" ${buy?'':'disabled'} onclick="addCart('${p.sku}')">${hold?'⏸ Đang xác minh giá':'+ Thêm vào giỏ'}</button></div></div>`}
+  <button class="add" ${buy?'':'disabled'} onclick="addCart('${p.sku}')">${hold?'⏸ Đang xác minh giá':noSource(p)?'⏳ Đang kết nối nguồn':'+ Thêm vào giỏ'}</button></div></div>`}
 
 // ===== SPARKLINE lich su gia tu so cai =====
 function spark(entries){
@@ -608,7 +610,7 @@ async function openProduct(sku){closeAll();const p=await api('/api/products/'+sk
   $('#pmBox').innerHTML=`<div class="pd"><div><div class="im" style="position:relative;cursor:zoom-in" onclick="openLightbox(this.querySelector('img').src)"><img src="${imgSrc(p)}" alt="${esc(p.name)}" ${imgAttrs(p)} onerror="imgFail(this);this.parentElement.querySelector('.imb').textContent='Ảnh minh họa'">
   <span class="imb" style="position:absolute;left:10px;bottom:10px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;background:${realImg?'#ECFDF5':'#F1F5F9'};color:${realImg?'#065F46':'#475569'};border:1px solid ${realImg?'#A7F3D0':'#E2E8F0'}">${realImg?'✓ Ảnh chính hãng':'Ảnh minh họa'}</span>
   <span style="position:absolute;right:10px;bottom:10px;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.9);color:#1E3A8A">🔍 Phóng to</span></div>
-  <div class="note ok" style="margin-top:16px">🏪 <b>KK-MALL cung cấp & bảo đảm</b><br>Hàng chính hãng từ hệ thống kho đối tác toàn quốc. Một đầu mối duy nhất: đặt hàng, giao nhận, hóa đơn, bảo hành, đổi trả - tất cả do KK-MALL phục vụ bạn.</div>
+  <div class="note ok" style="margin-top:16px">🤝 <b>KK-MALL mua hộ - bạn không phải tự dò giá</b><br>AI chọn nhà cung cấp chính hãng có giá tốt nhất, đặt hàng thay bạn và giao thẳng đến bạn. Nhà cung cấp xuất hóa đơn tiền hàng & bảo hành theo hãng; KK-MALL lo trọn quy trình đặt hàng, theo dõi, đổi trả.</div>
   <div class="phist"><div class="ph-h"><b>📈 Lịch sử giá niêm phong</b><span class="ledger-badge">🔗 SHA-256 + Merkle</span></div>
   <div class="ctabs"><button class="on" onclick="pmRange(this,30)">30 ngày</button><button onclick="pmRange(this,90)">90 ngày</button></div>
   <div id="pmChart">${priceChart(p,30,'pmc')}</div>${(()=>{const st=histStats(p);return st?`<div class="hstat sm"><div><span>Thấp nhất</span><b>${vnd(st.min)}</b></div><div><span>Trung vị</span><b>${vnd(st.med)}</b></div><div><span>Cao nhất</span><b>${vnd(st.max)}</b></div></div>`:''})()}
@@ -746,7 +748,7 @@ async function openCheckout(){if(!cart.length)return toast('Giỏ hàng trống'
   <div class="f"><label>Ghi chú giao hàng</label><input name="note" placeholder="Giờ nhận hàng, gọi trước khi giao..."></div>
   <div class="f"><label>Mã giảm giá thêm (hệ thống đã tự áp tổ hợp tối ưu)</label><div style="display:flex;gap:8px"><input name="extra_code" placeholder="Nhập mã nếu có" style="flex:1"><button type="button" class="vbtn" onclick="tryCode(this.form)">Áp dụng</button></div><div id="codeMsg" style="font-size:12px"></div></div>
   <div class="f"><label>Phương thức thanh toán * (không hỗ trợ COD)</label><div class="pm">${META.paymentMethods.map((m,i)=>`<label><input type="radio" name="payment_method" value="${m.id}" ${i===0?'checked':''}> ${m.icon} ${esc(m.name)}<span class="lv">${m.live?'● Trực tuyến':'○ Sandbox'}</span></label>`).join('')}</div></div>
-  <label class="consent"><input type="checkbox" name="consent" required style="margin-top:2px"><span>${esc(META.consentText)} <a href="./phap-ly#bao-mat" target="_blank" style="color:var(--ink);font-weight:700">Xem chính sách</a>. SĐT/địa chỉ của bạn được <b>mã hóa AES-256</b>; nhân viên vận hành chỉ thấy số ẩn danh.</span></label>
+  <label class="consent"><input type="checkbox" name="consent" required style="margin-top:2px"><span>${esc(META.consentText)} <a href="./phap-ly#bao-mat" target="_blank" style="color:var(--ink);font-weight:700">Xem chính sách</a>. Dữ liệu chỉ dùng để giao hàng & xuất hóa đơn, mã hóa khi truyền (HTTPS).</span></label>
   <div class="err" id="coErr"></div><button class="btn" style="font-size:16px" id="coSubmit">Xác nhận & thanh toán ${vnd(t.tot-disc)}</button></div>
   <div><div class="sum"><h3 style="margin:0 0 10px;color:var(--ink)">Đơn hàng (${t.n} sản phẩm)</h3>${cart.filter(c=>!c.unavailable).map(c=>`<div class="row"><span style="flex:1;padding-right:8px;font-size:13px">${esc(c.name)} × ${c.qty}</span><b>${vnd(c.qty*c.kk_price)}</b></div>`).join('')}<hr style="border:0;border-top:1px dashed var(--line)"><div class="row"><span>Tạm tính</span><b>${vnd(t.tot)}</b></div><div class="row"><span>Phí giao hàng</span><b style="color:var(--ok)">Đã bao gồm ✓</b></div>${disc?`<div class="row" style="color:var(--ok)"><span>Voucher (${lastOpt.vouchers.map(v=>v.code).join('+')})</span><b>-${vnd(disc)}</b></div>`:''}<div class="row t"><span>Tổng thanh toán</span><span style="color:var(--coral)" id="sumTot">${vnd(t.tot-disc)}</span></div>
   <div class="note" style="margin-top:14px">🔐 Thanh toán qua cổng được cấp phép. KK-MALL không lưu thông tin thẻ. Chống đặt trùng bằng Idempotency-Key - bấm nhiều lần vẫn chỉ 1 đơn, trừ tiền 1 lần.</div></div></div></form>`;
@@ -828,10 +830,10 @@ const AI_FAQ=[
  [/đổi trả|hoàn (hàng|tiền)|bảo hành/i,'↩️ Đổi trả trong 7 ngày nếu hàng lỗi do nhà sản xuất, sai mẫu, thiếu phụ kiện - KK-MALL chịu phí vận chuyển. Bảo hành chính hãng theo nhà sản xuất. Nếu hết hàng sau khi bạn thanh toán, hệ thống TỰ ĐỘNG hoàn tiền 100% trong 3-5 ngày. Chi tiết: mục "Đổi trả & bảo hành" cuối trang.'],
  [/thanh toán|momo|vnpay|zalopay|chuyển khoản|cod/i,'💳 KK-MALL nhận: VNPay (ATM/thẻ quốc tế/QR), Ví MoMo, ZaloPay và chuyển khoản VietQR 24/7. Không hỗ trợ COD - nhờ vậy đơn của bạn được xử lý ngay khi thanh toán. KK-MALL không lưu thông tin thẻ; mọi giao dịch qua cổng được NHNN cấp phép.'],
  [/tra cứu|đơn hàng của tôi|kiểm tra đơn|mã đơn/i,'📦 Bạn bấm "Đơn hàng" trên thanh menu (hoặc tôi mở giúp ngay đây), nhập MÃ ĐƠN (bắt đầu bằng KK...) và số điện thoại đặt hàng là xem được trạng thái, vận đơn và hóa đơn điện tử.|TRACK'],
- [/voucher|mã giảm|khuyến mãi/i,'🎟️ Bạn không cần săn voucher! AI của KK-MALL tự động thử mọi voucher hợp lệ và áp TỔ HỢP TỐI ƯU NHẤT vào giỏ hàng của bạn (mỗi nhóm một mã - đúng luật xếp chồng). Cứ thêm hàng vào giỏ, phần giảm giá hiện ngay bên dưới.'],
- [/hóa đơn|invoice|vat/i,'🧾 Sau khi thanh toán, hóa đơn điện tử được lập, ký số và gửi tự động vào email của bạn (theo NĐ 123/2020 & 70/2025). Giá đã bao gồm thuế GTGT.'],
+ [/voucher|mã giảm|khuyến mãi/i,'🎟️ Voucher KK-MALL giảm trên PHÍ DỊCH VỤ của đơn (tối đa bằng phí dịch vụ). Bạn không cần nhập mã: hệ thống tự áp tổ hợp tốt nhất (mỗi nhóm một mã) ngay khi bạn đặt hàng.'],
+ [/hóa đơn|invoice|vat/i,'🧾 Đơn có 2 hóa đơn GTGT: (1) hóa đơn TIỀN HÀNG do nhà cung cấp xuất trực tiếp cho bạn; (2) hóa đơn PHÍ DỊCH VỤ mua hộ & xử lý đơn do KK-MALL xuất. Cần hóa đơn công ty, bạn tích "Xuất hóa đơn GTGT" khi đặt hàng và nhập mã số thuế - hệ thống chỉ đặt tại nguồn có xuất hóa đơn điện tử.'],
  [/giá (có )?(thật|ảo|đúng)|sale ảo|minh bạch/i,'🔗 Mọi thay đổi giá tại KK-MALL được "niêm phong" bằng chuỗi mã hóa SHA-256 + Merkle - kể cả quản trị viên cũng không sửa lùi được lịch sử giá. Bạn mở bất kỳ sản phẩm nào sẽ thấy biểu đồ "Lịch sử giá đã niêm phong" và có thể tự kiểm chứng công khai.'],
- [/bảo mật|dữ liệu|thông tin cá nhân/i,'🛡️ SĐT, email, địa chỉ của bạn được mã hóa AES-256 ngay trong cơ sở dữ liệu; nhân viên vận hành và đối tác giao hàng chỉ thấy số điện thoại ẨN DANH. KK-MALL tuân thủ Luật Bảo vệ dữ liệu cá nhân 2025 - xem chính sách ở cuối trang.'],
+ [/bảo mật|dữ liệu|thông tin cá nhân/i,'🛡️ Thông tin của bạn chỉ dùng để giao hàng và xuất hóa đơn: truyền qua HTTPS, lưu trên hạ tầng đám mây được mã hóa, số điện thoại được che khi tra cứu đơn. Đăng nhập bằng mã OTP qua email, không cần mật khẩu. KK-MALL tuân thủ Luật Bảo vệ dữ liệu cá nhân 2025 - xem chính sách ở cuối trang.'],
 ];
 function aiBudget(t){
   t=t.replace(/,/g,'.');let m;
@@ -873,5 +875,6 @@ async function aiSend(e){e.preventDefault&&e.preventDefault();const q=$('#aiIn')
   aiChips(['Rẻ hơn nữa','Cao cấp hơn','Chính sách đổi trả']);
   window._aiLast=q}
 </script>
+<script src="kk-backend.js"></script>
 </body>
 </html>

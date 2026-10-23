@@ -131,7 +131,7 @@
   }
   /* ---------- BO LOC HANH VI MUA SAM (chay tren chi muc gon, da qua Bo loc Tin cay) ---------- */
   const GENERIC = /^(kk select|no ?brand|oem|khác|không thương hiệu|generic|)$/i;
-  const BLOCK = 1 | 2 | 16; // tam giu | hang cu | gia goc ao
+  const BLOCK = 1 | 2 | 16 | 32; // tam giu | hang cu | gia goc ao | chua co nguon that
   const SMART = {
     deal: { test: r => r.in_stock && r.disc >= 20 && !(r.fl & BLOCK), sort: (a, b) => (b.disc - a.disc) || (b.sold - a.sold) },
     low: { test: r => r.in_stock && (r.fl & 4) && !(r.fl & 3), sort: (a, b) => (b.sold - a.sold) },
