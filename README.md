@@ -36,7 +36,7 @@ Tìm kiếm tức thời 0ms ngay trên máy bạn (kể cả offline), tìm b�
 đặt hàng trọn vẹn trong **1 phút** với form một trang.
 
 ### 🛡️ An toàn tuyệt đối
-- SĐT, địa chỉ của bạn được **mã hóa AES-256**; đối tác giao hàng chỉ thấy số ẩn danh
+- Đăng nhập bằng **mã OTP qua email**, không mật khẩu; dữ liệu chỉ dùng để giao hàng & xuất hóa đơn
 - Thanh toán qua VNPay / MoMo / ZaloPay / VietQR - cổng được NHNN cấp phép, KK-MALL không lưu số thẻ
 - Chống bot không cần CAPTCHA phiền phức
 - **Hoàn tiền 100% tự động** nếu hết hàng sau khi bạn thanh toán

@@ -176,6 +176,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     if (/30 phút\/lần/.test(d.description || '')) d.description = d.description.replace(/30 phút\/lần/g, '3 giờ/lần');
     TRUST.updateD90(d, now);
     const ev = TRUST.evaluate(d);
+    if (!(feedBySku[p.sku] || fidx.origin[p.sku])) ev.fl |= TRUST.FL.NO_SOURCE;   // SP mo phong: khong co nguon mua ho that
     d.trust = { disc: ev.disc, fl: ev.fl, why: ev.why };
   if ((ev.fl & TRUST.FL.USED) && /mới 100%/i.test(d.description || '')) d.description = String(d.description).replace(/chính hãng, mới 100%(, đầy đủ phụ kiện)?/i, 'đã qua sử dụng, tình trạng đúng như tên gọi').replace(/mới 100%/ig, 'đã qua sử dụng');
     p.disc = ev.disc; p.fl = ev.fl;

@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const T = require('./trust');
 
-const DEAL_BLOCK = T.FL.HOLD | T.FL.USED | T.FL.REF_INFLATED;
+const DEAL_BLOCK = T.FL.HOLD | T.FL.USED | T.FL.REF_INFLATED | T.FL.NO_SOURCE;
 const isDeal = r => r.in_stock && (r.disc || 0) >= 5 && !((r.fl || 0) & DEAL_BLOCK);
 
 function publish({ API, pub, meta, now, seq, mk, recent, log = console.log }) {
@@ -38,7 +38,7 @@ function publish({ API, pub, meta, now, seq, mk, recent, log = console.log }) {
 
   /* ---- SDUI trang chu: ke "Giam sau" CHI lay deal da qua Bo loc Tin cay ---- */
   const sdui = rj('sdui-home.json');
-  const ok = r => !((r.fl || 0) & T.FL.HOLD);
+  const ok = r => !((r.fl || 0) & (T.FL.HOLD | T.FL.NO_SOURCE));
   for (const sct of sdui.sections) {
     if (sct.type !== 'shelf') continue;
     if (/Giảm sâu/.test(sct.title)) sct.items = pub.filter(isDeal).sort((a, b) => (b.disc - a.disc) || (b.sold - a.sold)).slice(0, 12);

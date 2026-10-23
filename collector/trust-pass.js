@@ -15,6 +15,7 @@ const now = new Date().toISOString();
 const meta = rj('meta.json');
 const pub = rj('catalog-full.json');
 const seq = (meta.ledgerHead && meta.ledgerHead.seq) || 0;
+const FIDX = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'feed-index.json'), 'utf8')); } catch { return { origin: {} }; } })();
 const docs = new Map(), leaves = [], recent = [];
 for (const p of pub) {
   const f = path.join(API, 'products', p.sku + '.json');
@@ -23,6 +24,7 @@ for (const p of pub) {
   const cn = T.cleanText(d.name); if (cn !== d.name || cn !== p.name) { d.name = cn; p.name = cn; }
   if (!Array.isArray(d.d90) || !d.d90.length) d.d90 = T.seedD90(d);
   const ev = T.evaluate(d);
+  if (!FIDX.origin[p.sku]) ev.fl |= T.FL.NO_SOURCE;
   d.trust = { disc: ev.disc, fl: ev.fl, why: ev.why };
   if ((ev.fl & T.FL.USED) && /mới 100%/i.test(d.description || '')) d.description = String(d.description).replace(/chính hãng, mới 100%(, đầy đủ phụ kiện)?/i, 'đã qua sử dụng, tình trạng đúng như tên gọi').replace(/mới 100%/ig, 'đã qua sử dụng');
   p.disc = ev.disc; p.fl = ev.fl;

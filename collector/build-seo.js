@@ -63,7 +63,7 @@ const foot = `</main><footer><div class="w"><p><b>KK-MALL - Đại siêu thị t
 const footP = `</main><footer><div class="w">KK-MALL · Giá cuối cùng đã gồm giao hàng, không phụ phí · <a href="/?ledger=1">Sổ cái giá</a> · <a href="/phap-ly">Chính sách</a> · © 2026 KK-MALL - Nguyễn Duy Điển (KK-2026)</div></footer></body></html>`;
 const ORG = { '@type': 'Organization', name: 'KK-MALL', url: ORIGIN };
 const crumbs = list => ({ '@type': 'BreadcrumbList', itemListElement: list.map((x, i) => ({ '@type': 'ListItem', position: i + 1, name: x[0], item: ORIGIN + x[1] })) });
-const li = r => `<li><a href="/p/${pslug(r)}.html">${esc(r.name)}</a><b>${vnd(r.kk_price)}</b><small>${r.in_stock && !((r.fl || 0) & 1) ? '✓ Còn hàng · gồm giao hàng' : 'Tạm hết hàng'}</small></li>`;
+const li = r => `<li><a href="/p/${pslug(r)}.html">${esc(r.name)}</a><b>${vnd(r.kk_price)}</b><small>${r.in_stock && !((r.fl || 0) & 33) ? '✓ Còn hàng · gồm giao hàng' : 'Tạm ngừng bán'}</small></li>`;
 
 /* ---------- trang san pham ---------- */
 const byGrp = {}; for (const r of full) (byGrp[r.category_id + '|' + r.grp] = byGrp[r.category_id + '|' + r.grp] || []).push(r);
@@ -73,7 +73,7 @@ for (const r of full) {
   const f = path.join(API, 'products', r.sku + '.json'); if (!fs.existsSync(f)) continue;
   const d = JSON.parse(fs.readFileSync(f, 'utf8'));
   const fl = (d.trust && d.trust.fl) || 0, disc = (d.trust && d.trust.disc) || 0;
-  const used = !!(fl & 2), hold = !!(fl & 1), buy = d.in_stock && !hold;
+  const used = !!(fl & 2), hold = !!(fl & 1) || !!(fl & 32), buy = d.in_stock && !hold;
   const slug = pslug(r), url = `${ORIGIN}/p/${slug}.html`, cat = catById[d.category_id] || { name: d.category_name, id: d.category_id };
   const specs = Object.entries(d.specs || {}).filter(([k, v]) => k && v);
   const desc = `${T.cleanText(d.name)} - ${used ? 'hàng đã qua sử dụng' : 'chính hãng'}, thương hiệu ${d.brand}, giá ${vnd(d.kk_price)} tại KK-MALL, đã gồm giao hàng tận cửa, không phụ phí. ${specs.slice(0, 3).map(([k, v]) => k + ': ' + v).join(', ')}.`;

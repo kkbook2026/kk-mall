@@ -14,7 +14,8 @@ const flOf = p => (p && (p.fl != null ? p.fl : p.trust ? p.trust.fl : 0)) || 0;
 const discOf = p => (p && (p.disc != null ? p.disc : p.trust ? p.trust.disc : 0)) || 0;
 const isHold = p => !!(flOf(p) & KFL.HOLD);
 const isUsedP = p => !!(flOf(p) & KFL.USED);
-const canBuy = p => !!(p && p.in_stock && p.kk_price && !isHold(p));
+const noSource = p => !!(flOf(p) & 32);
+const canBuy = p => !!(p && p.in_stock && p.kk_price && !isHold(p) && !noSource(p));
 
 /* ===================== 1. BANG CHUNG GIA CUOI CUNG ===================== */
 // Voucher AI se tu ap khi mua RIENG san pham nay (dung y thuat toan gio hang: moi nhom 1 ma tot nhat)
@@ -32,6 +33,7 @@ function singleVoucher(p) {
 function proofLine(p, big) {
   if (!p.kk_price) return '';
   if (isHold(p)) return `<div class="proof hold">⏸ Đang xác minh giá với nguồn - tạm ngừng đặt</div>`;
+  if (noSource(p)) return `<div class="proof hold">⏳ Đang kết nối nguồn hàng - tạm ngừng đặt</div>`;
   const v = singleVoucher(p);
   const cls = big ? 'proof big' : 'proof';
   const tip = 'Giá thanh toán khi mua riêng sản phẩm này: đã gồm giao hàng tận cửa, voucher được AI tự áp trong giỏ hàng';

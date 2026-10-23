@@ -90,7 +90,7 @@ function filterOffers(d, offers, offset) {
 }
 
 /* Danh gia tin cay cong khai cho 1 SP (sau khi da co kk_price). Khong doi gia. */
-const FL = { HOLD: 1, USED: 2, LOW: 4, COMBO: 8, REF_INFLATED: 16 };
+const FL = { HOLD: 1, USED: 2, LOW: 4, COMBO: 8, REF_INFLATED: 16, NO_SOURCE: 32 }; // NO_SOURCE: chua co nguon hang that (gia mo phong) -> khong cho dat
 function evaluate(d) {
   let fl = 0; const why = [];
   const kk = d.kk_price || 0, base = d.base_price || 0;
