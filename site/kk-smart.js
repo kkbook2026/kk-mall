@@ -45,12 +45,7 @@ function trustBadges(p) {
   if (f & KFL.LOW) h += '<span class="tbadge low">📉 Đáy giá lịch sử</span>';
   return h;
 }
-function installmentOf(p) {
-  const I = (window.META && META.installment) || { min: 3000000, months: [6, 12] };
-  if (!p.kk_price || p.kk_price < I.min) return null;
-  const m = Math.max(...(I.months || [12]));
-  return { months: m, per: Math.ceil(p.kk_price / m / 1000) * 1000, note: I.note || '' };
-}
+const installmentOf = () => null;                            // tam bo tra gop
 
 /* ===================== 3. MENU HANH VI + MEGA MENU ===================== */
 const SMART_F = {
@@ -58,7 +53,6 @@ const SMART_F = {
   low: { icon: '📉', label: 'Đáy Giá Lịch Sử', title: '📉 Đáy Giá Lịch Sử - giá thấp nhất từng niêm phong', desc: 'Giá hiện tại thấp nhất trong toàn bộ lịch sử giá đã niêm phong SHA-256 của sản phẩm. Bấm vào sản phẩm để xem biểu đồ và tự kiểm chứng.' },
   clear: { icon: '⚡', label: 'Xả Kho Chính Hãng', title: '⚡ Xả Kho Chính Hãng - thương hiệu thật, giá xả thật', desc: 'Hàng thương hiệu chính hãng, đánh giá từ 4.5★, đang giảm ≥ 10% đã xác minh. Ưu tiên món giảm sâu và bán chạy.' },
   combo: { icon: '🎁', label: 'Combo Tiết Kiệm', title: '🎁 Combo Tiết Kiệm - mua theo bộ, giá tốt hơn', desc: 'Combo, bộ, set, lốc, thùng - mua nhiều đơn vị một lần với đơn giá thấp hơn. Giá đã gồm giao hàng.' },
-  tragop: { icon: '💳', label: 'Trả Góp 0%', title: '💳 Trả Góp 0% lãi suất - từ 3 triệu', desc: 'Sản phẩm từ 3.000.000 đ đủ điều kiện trả góp 0% lãi suất qua thẻ tín dụng ngân hàng liên kết cổng thanh toán. Phí chuyển đổi (nếu có) theo ngân hàng phát hành thẻ.' },
 };
 function renderNav() {
   const cats = (META.categories || []);
@@ -185,7 +179,7 @@ async function ledgerPanel(sku, box) {
     ${r.rows.slice().reverse().slice(0, 40).map(x => `<tr><td>${x.seq.toLocaleString('vi-VN')}</td><td>${new Date(x.at).toLocaleString('vi-VN')}</td><td>${vnd(x.kk_price)}</td><td><code title="${x.hash}">${x.hash.slice(0, 20)}…</code></td><td>${lab[x.st]}</td></tr>`).join('')}</table></div>
     <details class="algo"><summary>Thuật toán & cách tự kiểm chứng độc lập</summary>
     <ol><li>Mỗi lần giá/tồn kho đổi: <code>hash = SHA256(seq|SKU|giá|còn_hàng|thời_điểm|hash_trước)</code> - sửa 1 bản ghi cũ sẽ làm gãy toàn bộ chuỗi phía sau.</li>
-    <li>Đầu chuỗi của mọi sản phẩm gộp thành <b>Merkle root</b> duy nhất, công bố mỗi 30 phút và lưu nhật ký tại <a href="./api/ledger-roots.json" target="_blank">ledger-roots.json</a>.</li>
+    <li>Đầu chuỗi của mọi sản phẩm gộp thành <b>Merkle root</b> duy nhất, công bố mỗi chu kỳ thu thập (3 giờ/lần) và lưu nhật ký tại <a href="./api/ledger-roots.json" target="_blank">ledger-roots.json</a>.</li>
     <li>Dữ liệu gốc công khai: <a href="./api/products/${p.sku}.json" target="_blank">products/${p.sku}.json</a> (ledger, mp = Merkle proof, mr = root) - tự tính lại bằng bất kỳ công cụ SHA-256 nào.</li>
     <li>"⚓ neo": bản ghi cũ hơn đã xoay vòng (giữ 60 bản ghi gần nhất + chuỗi theo ngày 90 ngày). "◇ khởi tạo": lô dữ liệu đầu tiên khi mở sổ cái.</li></ol></details>`;
 }

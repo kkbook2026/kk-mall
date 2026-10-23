@@ -1,6 +1,6 @@
 'use strict';
 /*
- * KK-MALL CLOUD COLLECTOR - chay tren GitHub Actions moi 30 phut, 24/7,
+ * KK-MALL CLOUD COLLECTOR - chay tren GitHub Actions moi 3 gio, 24/7,
  * khong phu thuoc may tinh hay trinh duyet cua chu shop.
  * Nhiem vu: thu thap/cap nhat gia & ton kho cho toan bo catalog cua site,
  * tinh lai gia ban va NOI DAI SO CAI GIA (hash-chain) roi xuat ra site/.
@@ -17,8 +17,8 @@ const { publish } = require('./publish');
 
 const SITE = path.join(__dirname, '..', 'site');
 const API = path.join(SITE, 'api');
-const OFFSET = parseInt(process.env.PRICING_OFFSET || '', 10); // bi mat kinh doanh - tu GitHub Secret
-const CYCLE_MIN = 30;
+const PRICING = require('./pricing').create(process.env); // bieu loi theo bac gia - bi mat kinh doanh, tu GitHub Secret
+const CYCLE_MIN = 180;                                   // chu ky thu thap: 3 gio/lan
 const sha = s => crypto.createHash('sha256').update(s).digest('hex');
 const rj = f => JSON.parse(fs.readFileSync(path.join(API, f), 'utf8'));
 const wj = (f, d) => fs.writeFileSync(path.join(API, f), JSON.stringify(d));
@@ -70,10 +70,10 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
         const name = TRUST.cleanText(best.name).replace(/\s*[-–|]\s*(hàng chính hãng|chính hãng|hàng nhập khẩu)\s*$/i, '').slice(0, 140);
         const brand = (offs.find(o => o.brand) || {}).brand || name.split(' ').find(w => /^[A-Z][A-Za-z0-9&.-]{1,}$/.test(w)) || 'KK Select';
         const base = offs.map(o => o.list || o.price).sort((a, b) => a - b)[Math.floor(offs.length / 2)];
-        const initKK = Number.isFinite(OFFSET) ? Math.min(...offs.map(o => o.price)) + OFFSET : base; // khong bao gio de 0d
+        const initKK = PRICING.ok ? PRICING.sell(Math.min(...offs.map(o => o.price))) : base; // khong bao gio de 0d
         const slug = FEEDS.normKey(name).replace(/ /g, '-').slice(0, 80) + '-' + sku.toLowerCase();
         const d = { id: nextId - 1, sku, spu_id: nextId - 1, variant: '', name, slug, category_id: cid, category_name: cname, grp: best.grp, brand,
-          image: withImg.image, description: name + ' chính hãng, mới 100%. Giá được KK-MALL so sánh và cập nhật tự động 30 phút/lần.',
+          image: withImg.image, description: name + ' chính hãng, mới 100%. Giá được KK-MALL so sánh và cập nhật tự động 3 giờ/lần.',
           specs: { 'Thương hiệu': brand, 'Bảo hành': 'Theo chính sách của hãng' }, base_price: base, rating: 4.6, sold: 0, stock_qty: 50,
           kk_price: initKK, in_stock: 0, active: 1, updated_at: now, ledger: [], related: [], variants: [{ sku, variant: '', kk_price: initKK, in_stock: 0 }], reviews: [], reviewStat: { n: 0, avg: null } };
         fs.writeFileSync(path.join(API, 'products', sku + '.json'), JSON.stringify(d));
@@ -114,7 +114,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
    *  - Co khoa API/feed doi tac (SHOPEE_*, LAZADA_*, TIKTOK_*, TIKI_*, SENDO_FEED_URL... dat trong Secrets)
    *    -> goi kenh chinh thuc de lay gia that (hook: collectors/sources.js).
    *  - Chua co khoa -> che do MO PHONG thi truong: gia tung nguon dao dong deterministic quanh gia tham chieu,
-   *    giu he thong song that 30'/lan; khi dien Secrets la chay du lieu that, khong doi ma.
+   *    giu he thong song that 3 gio/lan; khi dien Secrets la chay du lieu that, khong doi ma.
    */
   const docs = new Map(), leaves = [], recent = [], changedSlugs = [];
   const trustStat = { dropped: 0, hold: 0 };
@@ -138,7 +138,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       if (inStock && (!best || price < best)) { best = price; bestSrc = src; }
     }
     /* ===== BO LOC TIN CAY: loai offer ngoai lai truoc khi chon gia ===== */
-    const flt = TRUST.filterOffers(d, offerState, OFFSET);
+    const flt = TRUST.filterOffers(d, offerState, PRICING.ok ? PRICING.toCost : 0);
     const hadLive = offerState.some(o => o.in_stock);
     best = null; bestSrc = null;
     for (const o of flt.valid) if (o.in_stock && (!best || o.price < best)) { best = o.price; bestSrc = o.source; }
@@ -147,8 +147,8 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     if (hadLive && !best) { d.hold = 1; d.hold_why = flt.dropped[0] ? flt.dropped[0].why : 'Không còn nguồn giá hợp lệ'; trustStat.hold++; }
     else { delete d.hold; delete d.hold_why; }
     let kk = d.kk_price;
-    if (best && Number.isFinite(OFFSET)) kk = best + OFFSET;          // cong thuc noi bo (Secret)
-    else if (best && !Number.isFinite(OFFSET)) kk = d.kk_price;       // thieu Secret: giu gia, van cap nhat ton kho
+    if (best && PRICING.ok) kk = PRICING.sell(best);                 // cong thuc noi bo theo bac gia (Secret)
+    else if (best && !PRICING.ok) kk = d.kk_price;                   // thieu Secret: giu gia, van cap nhat ton kho
     const inStock = best ? 1 : 0;
     if (!inStock) outOfStock++;
 
@@ -173,6 +173,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     }
     /* lich su 90 ngay + danh gia tin cay cong khai */
     { const cn = TRUST.cleanText(d.name); if (cn !== d.name) { d.name = cn; p.name = cn; } }
+    if (/30 phút\/lần/.test(d.description || '')) d.description = d.description.replace(/30 phút\/lần/g, '3 giờ/lần');
     TRUST.updateD90(d, now);
     const ev = TRUST.evaluate(d);
     d.trust = { disc: ev.disc, fl: ev.fl, why: ev.why };
@@ -242,9 +243,9 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     const FEEDK = ['ACCESSTRADE_KEY', 'FEED_URLS', 'SHOPEE_APP_ID', 'LAZADA_APP_KEY', 'TIKTOK_APP_KEY', 'TIKI_CLIENT_ID', 'SENDO_FEED_URL'].filter(k => process.env[k]);
     const entry = ULOG.finish(run, {
       at: now, dur: Date.now() - t0,
-      trig: process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' ? 'Chạy tay' : 'Lịch 30 phút',
+      trig: process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' ? 'Chạy tay' : 'Lịch 3 giờ',
       mode: feed.stat.ok ? 'Feed chính thức (' + feed.stat.ok + '/' + feed.stat.sources + ' nguồn) + mô phỏng phần chưa có feed' : (FEEDK.length ? 'Đã cấu hình feed nhưng chưa tải được' : 'Mô phỏng thị trường (chưa nối feed)'),
-      offers: adminRows.reduce((a, r) => a + r.offers.length, 0), feed: feed.stat.sources ? feed.stat : undefined, img: imgStat, pub: pub.length, hidden: hiddenSynthetic, ledger: [seqFrom + 1, seq], price_ok: Number.isFinite(OFFSET),
+      offers: adminRows.reduce((a, r) => a + r.offers.length, 0), feed: feed.stat.sources ? feed.stat : undefined, img: imgStat, pub: pub.length, hidden: hiddenSynthetic, ledger: [seqFrom + 1, seq], price_ok: PRICING.ok,
     });
     const updates = ULOG.append(prev && prev.updates, entry);
     const encObj = ULOG.encrypt({ v: 1, generated_at: now, total: adminRows.length, sources: SRCMETA, rows: adminRows, updates, unclassSample: feed.unclassSample || [] }, AKEY);
@@ -258,10 +259,11 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   }
 
   // ---- XUAT BAN CONG KHAI (catalog, nganh, pack, SDUI, meta + Merkle root, nhat ky root) ----
+  meta.syncMinutes = CYCLE_MIN;
   publish({ API, pub, meta, now, seq, mk, recent: recent.sort((a, b) => b.seq - a.seq) });
   // danh sach trang SP vua doi gia/ton kho -> IndexNow (chay sau deploy)
   const pubSet = new Set(pub.map(r => r.slug));
   fs.writeFileSync(path.join(__dirname, '.changed.json'), JSON.stringify(changedSlugs.filter(s => s && pubSet.has(s))));
 
-  console.log(`✔ Thu thập xong lúc ${now}: ${full.length} SP · ${changed} đổi giá · ${outOfStock} tạm hết hàng · sổ cái #${seq}` + (Number.isFinite(OFFSET) ? '' : ' · (chưa có PRICING_OFFSET - giữ nguyên giá bán)'));
+  console.log(`✔ Thu thập xong lúc ${now}: ${full.length} SP · ${changed} đổi giá · ${outOfStock} tạm hết hàng · sổ cái #${seq}` + (PRICING.ok ? ' · biểu lời ' + PRICING.desc : ' · (chưa có PRICING_TIERS/PRICING_OFFSET - giữ nguyên giá bán)'));
 })().catch(e => { console.error('COLLECTOR LỖI:', e); process.exit(1); });

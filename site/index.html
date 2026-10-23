@@ -356,7 +356,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
       <div>
         <div><span class="pill">🏷️ <b id="totalProducts">0</b>&nbsp;mặt hàng chính hãng</span><span class="pill">🤖 Trợ lý AI riêng 24/7</span><span class="pill">🔗 Giá minh bạch mật mã học</span></div>
         <h1 id="heroH">Một giỏ hàng - <em>cả thị trường Việt Nam</em> · AI săn giá tốt cho bạn 24/7</h1>
-        <p id="heroP">Hệ thống AI của KK-MALL quét và tối ưu hàng nghìn mặt hàng từ các nền tảng lớn nhất mỗi 30 phút. Giá bạn thấy là <b>giá cuối cùng</b>: đã gồm giao hàng tận cửa, không phụ phí ẩn, voucher tự áp tối ưu, hóa đơn điện tử gửi email và hoàn tiền 100% nếu hết hàng.</p>
+        <p id="heroP">Hệ thống AI của KK-MALL quét và tối ưu hàng chục nghìn mặt hàng từ các nền tảng lớn nhất mỗi 3 giờ. Giá bạn thấy là <b>giá cuối cùng</b>: đã gồm giao hàng tận cửa, không phụ phí ẩn, voucher tự áp tối ưu, hóa đơn điện tử gửi email và hoàn tiền 100% nếu hết hàng.</p>
         <button class="cta" onclick="document.getElementById('cats').scrollIntoView({behavior:'smooth',block:'start'})">Khám phá ngay →</button>
       </div>
       <div class="bigsym">🛍️</div>
@@ -587,12 +587,12 @@ async function loadMore(fresh){
   $('#grid').insertAdjacentHTML('beforeend',d.items.map(card).join('')); state.page++;
   $('#more').style.display=state.items.length<d.total?'block':'none';
 }
-function card(p){const off=discOf(p),hold=isHold(p),buy=canBuy(p),ins=state.f==='tragop'?installmentOf(p):null;
+function card(p){const off=discOf(p),hold=isHold(p),buy=canBuy(p);
   return `<div class="card${hold?' is-hold':''}">${p._need?`<span class="need">${esc(p._need)}</span>`:''}${!p.in_stock&&!hold?'<span class="tag out">Hết hàng</span>':hold?'<span class="tag out">Đang xác minh</span>':off>0?`<span class="tag" title="Mức giảm đã xác minh với giá tham chiếu tin cậy">-${off}%</span>`:''}<img class="im" src="${imgSrc(p)}" alt="${esc(p.name)}" loading="lazy" ${imgAttrs(p)} onclick="openProduct('${p.sku}')">
   <div class="bd"><div class="nm" onclick="openProduct('${p.sku}')">${esc(p.name)}</div>
   <div class="src">${trustBadges(p)||'<span class="dot" style="background:var(--ok)"></span>KK-MALL cung cấp · AI đã tối ưu giá'}</div>
   <div class="price">${p.kk_price?vnd(p.kk_price):'-'}${off>0&&p.base_price>p.kk_price?` <s style="color:var(--muted);font-size:12px;font-weight:500">${vnd(Math.round(p.kk_price/(1-off/100)/1000)*1000)}</s>`:''}<small>Giá cuối cùng - đã gồm giao hàng</small></div>
-  ${proofLine(p)}${ins?`<div class="proof ins">💳 Trả góp 0%: <b>${vnd(ins.per)}</b>/tháng × ${ins.months}</div>`:''}
+  ${proofLine(p)}
   <div class="meta"><span>⭐ ${p.rating}</span><span>Đã bán ${p.sold}</span></div>
   <button class="add" ${buy?'':'disabled'} onclick="addCart('${p.sku}')">${hold?'⏸ Đang xác minh giá':'+ Thêm vào giỏ'}</button></div></div>`}
 
@@ -619,7 +619,6 @@ async function openProduct(sku){closeAll();const p=await api('/api/products/'+sk
   <div style="margin:6px 0">${trustBadges(p)}</div>
   <div class="big">${p.kk_price?vnd(p.kk_price):'Tạm hết hàng'} ${p.kk_price&&discOf(p)>0?`<s style="font-size:16px;color:var(--muted);font-weight:500">${vnd(Math.round(p.kk_price/(1-discOf(p)/100)/1000)*1000)}</s> <span class="tag" style="position:static;display:inline-block;vertical-align:middle" title="Mức giảm đã xác minh với giá tham chiếu tin cậy & lịch sử niêm phong">-${discOf(p)}%</span>`:''}</div>
   ${p.kk_price?`<div style="font-size:13px;color:var(--ok);font-weight:600">✓ Giá cuối cùng - đã bao gồm giao hàng tận cửa, không phụ phí</div>`:''}${proofLine(p,true)}
-  ${(()=>{const i=installmentOf(p);return i&&canBuy(p)?`<div class="note" style="margin-top:8px">💳 <b>Trả góp 0% lãi suất</b> chỉ từ <b>${vnd(i.per)}/tháng</b> × ${i.months} tháng qua thẻ tín dụng. <span style="color:var(--muted)">${esc(i.note)}</span></div>`:''})()}
   ${isHold(p)?`<div class="note" style="border-color:#FCD34D;background:#FFFBEB">⏸ <b>Đang xác minh giá:</b> AI phát hiện giá nguồn bất thường (${esc(((p.trust||{}).why||[]).join('; ')||'chênh lệch lớn so với lịch sử')}). Sản phẩm tạm ngừng đặt để bảo vệ bạn khỏi giá ảo / nhầm phụ kiện - sẽ mở lại sau khi xác minh.</div>`:''}
   ${(flOf(p)&KFL.REF_INFLATED)?`<div style="font-size:11.5px;color:var(--muted);margin-top:6px">ℹ️ Không hiển thị % giảm: ${esc(((p.trust||{}).why||[]).find(w=>/Giá gốc/.test(w))||'giá gốc niêm yết tại nguồn chưa đáng tin cậy')}.</div>`:''}
   <div class="note">🚚 Giao <b>thẳng đến bạn</b> từ kho đối tác chính hãng. Hóa đơn điện tử ký số gửi email. Hoàn tiền 100% nếu hết hàng. Không COD.</div>
@@ -655,7 +654,7 @@ function initFlashDeal(d){
     const per=(META.syncMinutes||30)*60000;const last=new Date(META.lastSync).getTime();
     let next=last+per;while(next<Date.now())next+=per;
     const left=Math.max(0,next-Date.now());const m=Math.floor(left/60000),sec=Math.floor(left%60000/1000);
-    $('#syncClock').textContent=String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+    const hh=Math.floor(left/3600000),mm=Math.floor(left%3600000/60000);$('#syncClock').textContent=(hh?hh+':'+String(mm).padStart(2,'0'):String(m).padStart(2,'0'))+':'+String(sec).padStart(2,'0');
     const frac=1-left/per;$('#ringArc').style.strokeDashoffset=(119.4*(1-frac)).toFixed(1);
   }catch{}};tick();setInterval(tick,1000);
 }
@@ -680,7 +679,7 @@ function genDesc(p){
   parts.push(`${p.name} thuộc nhóm ${p.grp} của thương hiệu ${p.brand}, hiện có giá ${vnd(p.kk_price)} tại KK-MALL (đã gồm giao hàng tận cửa).`);
   const hl=Object.entries(sp).filter(([k])=>k!=='Bảo hành').slice(0,4).map(([k,v])=>`${k.toLowerCase()}: ${v}`);
   if(hl.length)parts.push(`Điểm nổi bật: ${hl.join(' · ')}.`);
-  parts.push(`Sản phẩm được KK-MALL tổng hợp giá tự động mỗi 30 phút và niêm phong lịch sử giá bằng sổ cái mật mã để bạn luôn mua đúng giá tốt.`);
+  parts.push(`Sản phẩm được KK-MALL tổng hợp giá tự động mỗi 3 giờ và niêm phong lịch sử giá bằng sổ cái mật mã để bạn luôn mua đúng giá tốt.`);
   return parts.join(' ')}
 
 /* ===== SO SANH SAN PHAM CUNG LOAI ===== */
