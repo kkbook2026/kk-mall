@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="vi">
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests"><meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>KK-MALL · Quản trị</title>
@@ -302,7 +302,8 @@ tr:hover td{background:#F8FAFC}
 /* Cong quan tri KK-MALL - (c) Nguyen Duy Dien (KK-2026) */
 const $=s=>document.querySelector(s);
 const vnd=n=>n==null?'-':Number(n).toLocaleString('vi-VN')+' đ';
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeUrl=u=>/^https:\/\//i.test(String(u||''))?esc(u):'#'; // chi cho phep link https (chan javascript:)
 let SRC={}; // bang nguon cung nam TRONG goi ma hoa, chi co sau khi mo khoa
 const ADMIN_EMAIL='nguyenduydien75@gmail.com';
 let DATA=null,page=1;const PER=25;
@@ -474,7 +475,7 @@ function renderCmp(){
       if(!o)return '<td class="na">-</td>';
       const isBest=r.best&&r.best.s===k&&o.k;
       const pct=lo&&o.k&&!isBest?'+'+((o.p-lo)/lo*100).toFixed(1)+'%':(isBest?'★ rẻ nhất':'hết hàng');
-      return `<td class="${isBest?'best':''}${o.k?'':' oos'}" title="${esc(SRC[k][0])}: ${num(o.p)} đ${o.u?' · bấm để mở trang sản phẩm tại nguồn':''}">${o.u?`<a href="${esc(o.u)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none">${num(o.p)} ↗</a>`:num(o.p)}<span class="pct">${pct}</span></td>`}).join('');
+      return `<td class="${isBest?'best':''}${o.k?'':' oos'}" title="${esc(SRC[k][0])}: ${num(o.p)} đ${o.u?' · bấm để mở trang sản phẩm tại nguồn':''}">${o.u?`<a href="${safeUrl(o.u)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none">${num(o.p)} ↗</a>`:num(o.p)}<span class="pct">${pct}</span></td>`}).join('');
     const spread=lo!=null?hi-lo:0;
     return `<tr><td class="l st"><b>${esc(r.name)}</b>${r.feed?' <span class="badge" style="background:#DCFCE7;color:#166534">giá feed thật</span>':''}<br><span style="color:var(--muted);font-size:11px">${r.sku} · ${esc(r.brand)} · ${esc(r.grp)}${r.stock?'':' · <span class="warn">hết hàng</span>'}</span></td>
       <td style="font-weight:700">${r.best?num(r.best.p):'-'}</td><td style="font-size:11.5px;white-space:nowrap">${tierLabel(r)}</td><td class="mg">${r.margin!=null?'+'+num(r.margin):'-'}</td><td class="kk sum">${num(r.kk)}</td>${cells}
@@ -629,7 +630,7 @@ function renderInv(){
 function renderInvCust(){
   const q=($('#invQ').value||'').trim().toLowerCase();
   const list=Object.values(custMap()).filter(c=>!q||(c.name+' '+c.phone+' '+(c.email||'')).toLowerCase().includes(q)).sort((a,b)=>b.sum-a.sum);
-  $('#invCust').innerHTML=list.map(c=>`<div class="citem${INV_SEL===c.phone?' on':''}" onclick="selectCust('${esc(c.phone)}')">
+  $('#invCust').innerHTML=list.map(c=>`<div class="citem${INV_SEL===c.phone?' on':''}" onclick="selectCust(${esc(JSON.stringify(String(c.phone)))})">
     <b>${esc(c.name||'(chưa có tên)')}</b>${c.member?' <span style="font-size:10.5px;background:#DBEAFE;color:#1E40AF;border-radius:6px;padding:1px 6px">thành viên</span>':''}
     <small>📞 ${esc(c.phone)} · ✉ ${esc(c.email||'-')}</small>
     <small>${c.orders.length} đơn · <b style="color:var(--pink)">${vnd(c.sum)}</b></small></div>`).join('')||'<div style="font-size:13px;color:var(--muted)">Chưa có khách hàng nào trên thiết bị này. Khách đặt hàng trên www.kk-mall.com từ thiết bị này sẽ xuất hiện tại đây; khi lên máy chủ động, toàn bộ khách hàng hệ thống tập trung về đây.</div>';
@@ -641,22 +642,22 @@ function selectCust(phone,keep){
   const ex=getBuyerExtra(phone);
   $('#invCustInfo').innerHTML=`<b style="color:var(--ink)">Thông tin người mua</b>
     <div class="fgrid" style="margin-top:10px">
-      <div><label>Họ tên người mua</label><input value="${esc(ex.name||c.name||'')}" oninput="setBuyerExtra('${esc(phone)}','name',this.value)"></div>
-      <div><label>Tên đơn vị (nếu xuất cho công ty)</label><input value="${esc(ex.company||'')}" placeholder="để trống nếu khách cá nhân" oninput="setBuyerExtra('${esc(phone)}','company',this.value)"></div>
-      <div><label>Mã số thuế người mua</label><input value="${esc(ex.tax||'')}" placeholder="10 hoặc 13 số" oninput="setBuyerExtra('${esc(phone)}','tax',this.value)"></div>
-      <div><label>Địa chỉ xuất hóa đơn</label><input value="${esc(ex.addr||c.addr||'')}" oninput="setBuyerExtra('${esc(phone)}','addr',this.value)"></div>
-      <div><label>Email nhận hóa đơn</label><input value="${esc(ex.email||c.email||'')}" oninput="setBuyerExtra('${esc(phone)}','email',this.value)"></div>
+      <div><label>Họ tên người mua</label><input value="${esc(ex.name||c.name||'')}" oninput="setBuyerExtra(${esc(JSON.stringify(String(phone)))},'name',this.value)"></div>
+      <div><label>Tên đơn vị (nếu xuất cho công ty)</label><input value="${esc(ex.company||'')}" placeholder="để trống nếu khách cá nhân" oninput="setBuyerExtra(${esc(JSON.stringify(String(phone)))},'company',this.value)"></div>
+      <div><label>Mã số thuế người mua</label><input value="${esc(ex.tax||'')}" placeholder="10 hoặc 13 số" oninput="setBuyerExtra(${esc(JSON.stringify(String(phone)))},'tax',this.value)"></div>
+      <div><label>Địa chỉ xuất hóa đơn</label><input value="${esc(ex.addr||c.addr||'')}" oninput="setBuyerExtra(${esc(JSON.stringify(String(phone)))},'addr',this.value)"></div>
+      <div><label>Email nhận hóa đơn</label><input value="${esc(ex.email||c.email||'')}" oninput="setBuyerExtra(${esc(JSON.stringify(String(phone)))},'email',this.value)"></div>
       <div><label>Số điện thoại</label><input value="${esc(phone)}" disabled></div>
     </div>`;
   const rate=+getSeller().vat||0;
   const box=$('#invOrders');box.style.display='block';
   box.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="color:var(--ink)">Đơn hàng của khách (${c.orders.length})</b>
-    <button class="btn2" style="margin-left:auto" onclick="exportInvoices('csv','${esc(phone)}')">⬇ Bảng kê của khách (CSV)</button></div>
+    <button class="btn2" style="margin-left:auto" onclick="exportInvoices('csv',${esc(JSON.stringify(String(phone)))})">⬇ Bảng kê của khách (CSV)</button></div>
     <table style="margin-top:8px"><tr><th>Số hóa đơn</th><th>Mã đơn · Ngày</th><th>SP</th><th>Trước thuế</th><th>Thuế ${rate}%</th><th>Tổng thanh toán</th><th></th></tr>
     ${c.orders.map(r=>{const o=r.order,k=calcInv(o,rate),paid=o.payment_status==='paid';
       return `<tr${INV_ORDER===o.code?' style="background:#EFF6FF"':''}><td><b>${esc(invNumber(r))}</b></td><td>${esc(o.code)}<br><span style="font-size:11px;color:var(--muted)">${new Date(o.created_at).toLocaleString('vi-VN')}</span></td>
         <td>${(o.items||[]).reduce((a,i)=>a+i.qty,0)}</td><td>${vnd(k.pre)}</td><td>${vnd(k.vat)}</td><td class="kk">${vnd(k.total)}</td>
-        <td>${paid?`<button class="btn2 cta" onclick="showInv('${esc(o.code)}')">🧾 Xem hóa đơn</button>`:'<span class="warn">Chờ thanh toán</span>'}</td></tr>`}).join('')||'<tr><td colspan="7">Khách chưa có đơn hàng (mới đăng ký thành viên).</td></tr>'}</table>`;
+        <td>${paid?`<button class="btn2 cta" onclick="showInv(${esc(JSON.stringify(String(o.code)))})">🧾 Xem hóa đơn</button>`:'<span class="warn">Chờ thanh toán</span>'}</td></tr>`}).join('')||'<tr><td colspan="7">Khách chưa có đơn hàng (mới đăng ký thành viên).</td></tr>'}</table>`;
   if(INV_ORDER)showInv(INV_ORDER);else $('#invPreview').style.display='none';
 }
 function invHTML(r,forPrint){
@@ -711,9 +712,9 @@ function showInv(code){
   const pv=$('#invPreview');pv.style.display='block';
   pv.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);background:#F8FAFC;border-radius:14px 14px 0 0">
     <b style="color:var(--ink);align-self:center">Hóa đơn ${esc(invNumber(r))}</b>
-    <button class="btn2 cta" style="margin-left:auto" onclick="printInv('${esc(code)}')">🖨️ In / Lưu PDF</button>
-    <button class="btn2" onclick="downloadInv('${esc(code)}')">⬇ Tải file hóa đơn (HTML)</button>
-    <button class="btn2" onclick="mailInv('${esc(code)}')">✉ Gửi email cho khách</button></div>`+invHTML(r,false);
+    <button class="btn2 cta" style="margin-left:auto" onclick="printInv(${esc(JSON.stringify(String(code)))})">🖨️ In / Lưu PDF</button>
+    <button class="btn2" onclick="downloadInv(${esc(JSON.stringify(String(code)))})">⬇ Tải file hóa đơn (HTML)</button>
+    <button class="btn2" onclick="mailInv(${esc(JSON.stringify(String(code)))})">✉ Gửi email cho khách</button></div>`+invHTML(r,false);
   document.querySelectorAll('#invOrders tr').forEach(tr=>tr.style.background=tr.innerHTML.includes(code)&&tr.querySelector('button')?'#EFF6FF':'');
   pv.scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -886,7 +887,7 @@ async function renderSys(){
   if(lc)lc.innerHTML='<b style="color:var(--ink)">Nhật ký quản trị trên thiết bị này (100 gần nhất)</b><table style="margin-top:8px"><tr><th>Thời gian</th><th>Hành động</th></tr>'+log.slice(0,20).map(l=>`<tr><td style="white-space:nowrap">${new Date(l.t).toLocaleString('vi-VN')}</td><td>${esc(l.act)}</td></tr>`).join('')+'</table>';
 }
 </script>
-<script src="../config.js?v=2610230941"></script>
-<script src="ops.js?v=2610230944"></script>
+<script src="../config.js?v=2610240302"></script>
+<script src="ops.js?v=2610240302"></script>
 </body>
 </html>

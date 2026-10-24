@@ -11,7 +11,7 @@
  */
 
 /* =========================== CẤU HÌNH =========================== */
-var VERSION = '1.0.0';
+var VERSION = '1.1.0';
 var CONSENT_VERSION = 'UQ-2026-10';
 var SHEETS = {
   Orders: ['code', 'created_at', 'status', 'payment_status', 'email', 'phone', 'name', 'goods', 'fee', 'total', 'paid_at', 'data', 'updated_at'],
@@ -193,10 +193,24 @@ function rate_(key, max, sec) {
   if (n >= max) throw err_('Bạn thao tác quá nhanh, vui lòng thử lại sau ít phút', 429);
   c.put(key, String(n + 1), sec);
 }
+function otpCode_() { var h = Utilities.getUuid().replace(/-/g, ''); return String(100000 + (parseInt(h.slice(0, 12), 16) % 900000)); } // nguon ngau nhien an toan (SecureRandom)
+function mailBudget_(reserve) { try { return MailApp.getRemainingDailyQuota() > reserve; } catch (e) { return true; } }
+// chong do mo ma don + SDT: dem lan sai theo ma don va toan he thong
+function guardCheck_(code) { var c = CacheService.getScriptCache(); if (parseInt(c.get('gf_' + code) || '0', 10) >= 8 || parseInt(c.get('gf_all') || '0', 10) >= 500) throw err_('Tra cứu sai quá nhiều lần - vui lòng thử lại sau 1 giờ', 429); }
+function guardFail_(code) { var c = CacheService.getScriptCache(); ['gf_' + code, 'gf_all'].forEach(function (k) { c.put(k, String(parseInt(c.get(k) || '0', 10) + 1), 3600); }); }
+function ownedOrder_(b, adminOk) {
+  var code = str_(b.code, 20).toUpperCase(), NF = 'Không tìm thấy đơn hàng hoặc số điện thoại không khớp';
+  var o; try { o = loadOrder_(code); } catch (e) { guardCheck_(code); guardFail_(code); throw err_(NF, 404); }
+  if (b.token) { try { var s = session_(b.token); if ((adminOk && s.role === 'admin') || s.email === o.customer.email || s.email === o.member) return o; } catch (e) { } } // chu don da dang nhap: khong bi khoa
+  guardCheck_(code);
+  if (!normPhone_(b.phone) || normPhone_(b.phone) !== o.customer.phone) { guardFail_(code); throw err_(NF, 404); }
+  return o;
+}
 function otpRequest_(b) {
   var email = str_(b.email, 120).toLowerCase(); if (!isEmail_(email)) throw err_('Email không hợp lệ');
-  rate_('otp_e_' + email, 3, 900); rate_('otp_all', 60, 3600);
-  var code = String(Math.floor(100000 + Math.random() * 900000));
+  rate_('otp_e_' + email, 3, 900); rate_('otp_d_' + email, 10, 86400); rate_('otp_all', 25, 3600);
+  if (!mailBudget_(30)) throw err_('Hệ thống đang tạm giới hạn gửi email, vui lòng thử lại sau', 503); // giu han muc email cho don hang
+  var code = otpCode_();
   CacheService.getScriptCache().put('otp_' + email, JSON.stringify({ h: hash_(email + '|' + code), t: 0 }), 600);
   var ok = mail_(email, 'Mã đăng nhập KK-MALL: ' + code, '<p>Mã xác thực của bạn là:</p><p style="font-size:30px;font-weight:900;letter-spacing:6px;color:#1E3A8A">' + code + '</p><p>Mã có hiệu lực <b>10 phút</b>. Không chia sẻ mã này cho bất kỳ ai, kể cả nhân viên KK-MALL.</p>');
   if (!ok) throw err_('Không gửi được email, vui lòng thử lại', 500);
@@ -211,16 +225,18 @@ function otpVerify_(b) {
   if (o.t >= 5) { c.remove('otp_' + email); throw err_('Nhập sai quá 5 lần - vui lòng lấy mã mới', 401); }
   if (hash_(email + '|' + code) !== o.h) { o.t++; c.put('otp_' + email, JSON.stringify(o), 600); throw err_('Mã xác thực không đúng', 401); }
   c.remove('otp_' + email);
-  var role = adminEmails_().indexOf(email) >= 0 ? 'admin' : 'member';
+  var isAdm = adminEmails_().indexOf(email) >= 0, role = isAdm && b.scope === 'admin' ? 'admin' : 'member'; // quyen quan tri chi cap khi dang nhap tu /admin
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     var m = find_('Members', 'email', email);
-    if (!m) append_('Members', { email: email, name: str_(b.name, 100), phone: normPhone_(b.phone), address: str_(b.address, 300), role: role, created_at: nowIso_(), last_login: nowIso_(), data: '{}' });
-    else update_('Members', m._row, { last_login: nowIso_(), role: role });
+    var mrole = isAdm ? 'admin' : 'member';
+    if (!m) append_('Members', { email: email, name: str_(b.name, 100), phone: normPhone_(b.phone), address: str_(b.address, 300), role: mrole, created_at: nowIso_(), last_login: nowIso_(), data: '{}' });
+    else update_('Members', m._row, { last_login: nowIso_(), role: mrole });
     var token = rnd_();
-    append_('Sessions', { token_hash: hash_(token), email: email, role: role, created_at: nowIso_(), expires_at: new Date(Date.now() + 30 * 864e5).toISOString() });
+    append_('Sessions', { token_hash: hash_(token), email: email, role: role, created_at: nowIso_(), expires_at: new Date(Date.now() + (role === 'admin' ? 12 * 36e5 : 30 * 864e5)).toISOString() });
   } finally { lock.releaseLock(); }
   log_('login', email, role);
+  if (role === 'admin') adminsMail_('🔐 Đăng nhập quản trị KK-MALL: ' + email, '<p>Tài khoản <b>' + esc_(email) + '</b> vừa đăng nhập trang quản trị lúc ' + new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) + ' (phiên hiệu lực 12 giờ).</p><p>Nếu không phải bạn: đổi mật khẩu Google ngay và xóa các dòng phiên trong sheet Sessions.</p>');
   return { token: token, member: memberOut_(find_('Members', 'email', email)) };
 }
 function memberOut_(m) { return m ? { email: m.email, name: m.name, phone: m.phone, address: m.address, role: m.role } : null; }
@@ -250,7 +266,8 @@ function orderCreate_(b) {
   if (!isEmail_(email)) throw err_('Email không hợp lệ (dùng để nhận hóa đơn)');
   if (addr.length < 10) throw err_('Địa chỉ nhận hàng chưa đầy đủ');
   if (b.consent !== true || b.consent_version !== CONSENT_VERSION) throw err_('Bạn cần đồng ý Điều khoản dịch vụ và Ủy quyền mua hộ - thanh toán hộ');
-  rate_('ord_' + phone, 10, 3600);
+  rate_('ord_' + phone, 10, 3600); rate_('ord_e_' + email, 10, 3600); rate_('ord_all', 40, 3600);
+  if (!mailBudget_(5)) throw err_('Hệ thống đang quá tải, vui lòng thử lại sau ít phút', 503);
   var q = quote_(b.items, b.voucher_codes, true);
   if (q.unavailable.length) throw err_('Sản phẩm không còn đặt được: ' + q.unavailable.map(function (x) { return x.name + ' (' + x.reason + ')'; }).join('; '), 409);
   if (b.lock && b.lock.items) {
@@ -299,9 +316,7 @@ function saveOrder_(o, extra) {
 }
 function setStatus_(o, s, by, note) { o.status = s; (o.history = o.history || []).push({ at: nowIso_(), s: s, by: by || 'system', note: note || '' }); }
 function orderGet_(b) {
-  var o = loadOrder_(b.code), ok = false;
-  if (b.token) { try { var s = session_(b.token); ok = s.role === 'admin' || s.email === o.customer.email || s.email === o.member; } catch (e) { } }
-  if (!ok && normPhone_(b.phone) !== o.customer.phone) throw err_('Không tìm thấy đơn hàng hoặc số điện thoại không khớp', 404);
+  var o = ownedOrder_(b, true);
   var pos = rows_('PO').filter(function (p) { return p.order_code === o.code; });
   var inv = rows_('Invoices').filter(function (i) { return i.order_code === o.code; });
   var rma = rows_('RMA').filter(function (r) { return r.order_code === o.code; });
@@ -362,9 +377,7 @@ function warrantyFor_(brand, cat) {
   return null;
 }
 function rmaCreate_(b) {
-  var o = loadOrder_(b.code), ok = false;
-  if (b.token) { try { var s = session_(b.token); ok = s.email === o.customer.email || s.email === o.member; } catch (e) { } }
-  if (!ok && normPhone_(b.phone) !== o.customer.phone) throw err_('Số điện thoại không khớp đơn hàng', 403);
+  var o = ownedOrder_(b, false);
   if (o.payment_status !== 'paid') throw err_('Đơn chưa thanh toán');
   var line = o.lines.filter(function (l) { return l.sku === str_(b.sku, 20).toUpperCase(); })[0]; if (!line) throw err_('Sản phẩm không có trong đơn');
   var type = b.type === 'return' ? 'return' : 'warranty';
@@ -563,7 +576,11 @@ function doGet(e) {
     if (a === 'config') return json_(publicConfig_());
     if (a === 'health') return json_({ ok: true, version: VERSION, at: nowIso_() });
     return json_({ error: 'Không hỗ trợ' });
-  } catch (x) { return json_({ error: x.message, code: x.code || 500 }); }
+  } catch (x) {
+    if (x.code) return json_({ error: x.message, code: x.code });
+    try { log_('error', a, String(x && x.stack || x).slice(0, 1500)); } catch (e) { }
+    return json_({ error: 'Hệ thống đang bận, vui lòng thử lại', code: 500 }); // khong lo thong bao loi noi bo
+  }
 }
 function publicConfig_() {
   var c = company_(), b = bank_();
@@ -603,7 +620,11 @@ function doPost(e) {
     };
     if (!R[a]) throw err_('Thao tác không hỗ trợ: ' + a, 404);
     return json_(R[a]());
-  } catch (x) { return json_({ error: x.message, code: x.code || 500 }); }
+  } catch (x) {
+    if (x.code) return json_({ error: x.message, code: x.code });
+    try { log_('error', a, String(x && x.stack || x).slice(0, 1500)); } catch (e) { }
+    return json_({ error: 'Hệ thống đang bận, vui lòng thử lại', code: 500 }); // khong lo thong bao loi noi bo
+  }
 }
 
 /* =========================== KHỞI TẠO (chạy 1 lần trong trình soạn thảo) =========================== */

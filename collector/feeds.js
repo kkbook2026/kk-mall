@@ -107,7 +107,7 @@ function normRow(o) {
   return {
     name, price, list: reg && reg > price ? reg : 0,
     image: String(pick(o, ['imagelink', 'image', 'imageurl', 'thumbnail', 'anh', 'img']) || '').trim(),
-    url: String(pick(o, ['link', 'url', 'producturl']) || '').replace(/^https?:\/\/(go\.isclix\.com|shorten\.asia|s\.shopee\.vn|c\.lazada\.vn)\/\S*$/i, '').trim(), /* bo link rut gon / affiliate */
+    url: String(pick(o, ['link', 'url', 'producturl']) || '').replace(/^(?!https:\/\/).*$/is, '').replace(/^https?:\/\/(go\.isclix\.com|shorten\.asia|s\.shopee\.vn|c\.lazada\.vn)\/\S*$/i, '').trim(), /* bo link rut gon / affiliate */
     brand: String(pick(o, ['brand', 'thuonghieu', 'manufacturer']) || '').trim(),
     cat: String(pick(o, ['producttype', 'googleproductcategory', 'category', 'categoryname', 'danhmuc', 'cate']) || '').trim(),
     stock: inStockOf(pick(o, ['availability', 'instock', 'stock', 'tinhtrang', 'quantity'])),
