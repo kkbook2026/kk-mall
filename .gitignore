@@ -1,0 +1,8 @@
+# Trang SEO tinh sinh luc deploy (collector/build-seo.js) - khong commit
+/site/p/
+/site/c/
+/site/n/
+/site/sitemap*.xml
+/site/seo.css
+ node_modules/
+collector/.changed.json

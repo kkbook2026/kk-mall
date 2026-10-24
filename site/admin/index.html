@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests"><meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>KK-MALL · Quản trị</title>
+<link rel="icon" href="../logo.svg" type="image/svg+xml">
+<style>
+:root{--ink:#1E3A8A;--muted:#6B7280;--pink:#EA580C;--vio:#1E3A8A;--gold:#EA580C;--bg:#F8FAFC;--ok:#10B981;--bad:#DC2626;--line:#E2E8F0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:#1F2937;font-size:14px}
+a{color:var(--vio)}
+.grad{background:linear-gradient(100deg,#1E3A8A,#3B82F6 55%,#EA580C)}
+/* ===== LOGIN ===== */
+#gate{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(135deg,#0F172A,#1E3A8A 60%,#C2410C);z-index:50}
+.gbox{background:#fff;border-radius:18px;padding:34px 36px;width:min(430px,92vw);box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.gbox img{height:52px;display:block;margin:0 auto 6px}
+.gbox h1{font-size:19px;color:var(--ink);text-align:center;margin-bottom:2px}
+.gbox .sub{text-align:center;color:var(--muted);font-size:12.5px;margin-bottom:18px}
+label{display:block;font-size:12px;font-weight:700;color:var(--ink);margin:12px 0 4px}
+input,select{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:14px;background:#fff}
+input:focus,select:focus{outline:none;border-color:var(--vio);box-shadow:0 0 0 3px rgba(30,58,138,.12)}
+.btn{display:block;width:100%;margin-top:18px;padding:12px;border:0;border-radius:11px;color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+.err{display:none;margin-top:10px;background:#FEF2F2;border:1px solid #FECACA;color:#B91C1C;border-radius:9px;padding:9px 11px;font-size:12.5px}
+.gnote{margin-top:14px;font-size:11.5px;color:var(--muted);line-height:1.55;background:var(--bg);border-radius:9px;padding:9px 11px}
+/* ===== APP ===== */
+#app{display:none}
+header{position:sticky;top:0;z-index:10;color:#fff;padding:0 18px;display:flex;align-items:center;gap:14px;height:62px;box-shadow:0 2px 14px rgba(30,58,138,.3)}
+header img{height:36px;filter:brightness(0) invert(1)}
+header .ttl{font-weight:800;font-size:15px}
+header .ttl small{display:block;font-weight:600;font-size:10.5px;opacity:.8;letter-spacing:1px}
+#who{margin-left:auto;font-size:12px;text-align:right;line-height:1.4}
+#who b{color:var(--gold)}
+header button{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer}
+nav{display:flex;gap:6px;padding:10px 18px;background:#fff;border-bottom:1px solid var(--line);overflow-x:auto;position:sticky;top:62px;z-index:9}
+nav button{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700;color:#374151;cursor:pointer;white-space:nowrap}
+nav button.on{color:#fff;border-color:transparent;background:linear-gradient(100deg,#1E3A8A,#EA580C)}
+main{padding:18px;max-width:1280px;margin:0 auto}
+.sec{display:none}.sec.on{display:block}
+h2{font-size:17px;color:var(--ink);margin:4px 0 12px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.stat .k{font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.stat .v{font-size:23px;font-weight:900;color:var(--ink);margin-top:3px}
+.stat .v small{font-size:12px;color:var(--muted);font-weight:600}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;text-align:left;padding:8px;border-bottom:2px solid var(--line);white-space:nowrap}
+td{padding:9px 8px;border-bottom:1px solid #E3F3FD;vertical-align:top}
+tr:hover td{background:#F8FAFC}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2.5px 9px;font-size:11.5px;font-weight:700;margin:1.5px;background:#fff;white-space:nowrap}
+.chip.best{background:#ECFDF5;border-color:#A7F3D0;color:#065F46}
+.chip.oos{opacity:.45;text-decoration:line-through}
+.src-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:1px}
+.kk{font-weight:900;color:var(--pink);white-space:nowrap}
+.mg{font-weight:800;color:var(--ok);white-space:nowrap}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.row input,.row select{width:auto;min-width:160px;padding:9px 11px;font-size:13px}
+.pg{display:flex;gap:6px;align-items:center;justify-content:center;margin-top:12px}
+.pg button{border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;font-size:12.5px}
+.pg button:disabled{opacity:.4;cursor:default}
+.bar{height:16px;border-radius:5px;background:linear-gradient(90deg,#1E3A8A,#EA580C);min-width:2px}
+.bwrap{display:grid;grid-template-columns:150px 1fr 70px;gap:8px;align-items:center;font-size:12.5px;margin:5px 0}
+.note{background:#F8FAFC;border:1px solid #BAE6FD;border-radius:10px;padding:10px 13px;font-size:12.5px;color:#1E3A8A;margin-bottom:14px;line-height:1.55}
+.good{color:var(--ok);font-weight:700}.warn{color:#B45309;font-weight:700}
+/* ===== MA TRAN SO SANH GIA ===== */
+.mx{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:1480px}
+.mx th{position:sticky;top:0;background:#F1F5F9;z-index:2;text-align:center;padding:9px 6px;border-bottom:2px solid #CBD5E1;font-size:10.5px;line-height:1.3;white-space:normal}
+.mx th.l,.mx td.l{text-align:left}
+.mx td{text-align:right;padding:8px 7px;border-bottom:1px solid var(--line);border-right:1px solid #F1F5F9;vertical-align:middle;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mx .st{position:sticky;left:0;background:#fff;z-index:1;min-width:250px;max-width:280px;white-space:normal;border-right:2px solid #CBD5E1;box-shadow:2px 0 4px rgba(15,23,42,.04)}
+.mx th.st{z-index:3;background:#F1F5F9}
+.mx tr:nth-child(even) td{background:#FAFCFF}.mx tr:nth-child(even) td.st{background:#FAFCFF}
+.mx tr:hover td,.mx tr:hover td.st{background:#EFF6FF}
+.mx td.best{background:#DCFCE7!important;color:#065F46;font-weight:800;box-shadow:inset 0 0 0 1.5px #34D399}
+.mx td.oos{color:#94A3B8;text-decoration:line-through}
+.mx td.na{color:#CBD5E1;text-align:center}
+.mx .pct{display:block;font-size:10px;font-weight:600;color:#94A3B8;text-decoration:none}
+.mx td.best .pct{color:#059669}
+.mx .hd{display:block;font-size:11px;font-weight:800;color:#0F172A;text-transform:none;letter-spacing:0}
+.mx td.sum{background:#FFF7ED;font-weight:800}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin:2px 0 10px}
+.legend i{display:inline-block;width:14px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:5px}
+/* ===== HOA DON ===== */
+.invgrid{display:grid;grid-template-columns:340px 1fr;gap:14px;align-items:start}
+.clist{max-height:640px;overflow-y:auto}
+.citem{padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer;background:#fff}
+.citem:hover{border-color:#93C5FD}.citem.on{border-color:var(--ink);background:#EFF6FF}
+.citem b{color:#0F172A}.citem small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
+.btn2{border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:8px 13px;font-weight:700;cursor:pointer;font-size:12.5px;white-space:nowrap}
+.btn2.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn2.cta{background:var(--pink);color:#fff;border-color:var(--pink)}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.fgrid label{margin:0 0 3px}
+.fgrid input,.fgrid select{padding:8px 10px;font-size:13px}
+@media(max-width:900px){.invgrid{grid-template-columns:1fr}.fgrid{grid-template-columns:1fr}}
+/* ===== LICH SU CAP NHAT ===== */
+.tl{display:flex;align-items:flex-end;gap:3px;height:120px;padding:6px 2px 0;border-bottom:1px solid var(--line);overflow-x:auto}
+.tl .c{flex:1 0 12px;min-width:12px;display:flex;flex-direction:column-reverse;cursor:pointer;position:relative}
+.tl .c span{display:block;width:100%}
+.tl .c:hover{outline:2px solid #93C5FD;outline-offset:1px}
+.tlx{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-top:4px}
+.badge{display:inline-block;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800;white-space:nowrap}
+.b-auto{background:#DBEAFE;color:#1E40AF}.b-cat{background:#FFEDD5;color:#C2410C}
+.up{color:#DC2626;font-weight:800}.dn{color:#059669;font-weight:800}
+.det td{background:#F8FAFC!important;padding:10px 12px}
+.det table{background:#fff;border:1px solid var(--line);border-radius:8px}
+.mini{font-size:12px}.mini th{font-size:10.5px;padding:6px}.mini td{padding:5px 6px}
+.ctag{display:inline-block;background:#F1F5F9;border-radius:6px;padding:1px 7px;margin:1px 2px;font-size:11.5px;white-space:nowrap}
+@media(max-width:640px){main{padding:12px}.row input,.row select{min-width:120px;flex:1}}
+</style>
+</head>
+<body>
+
+<!-- ======== CONG DANG NHAP ======== -->
+<div id="gate">
+  <div class="gbox">
+    <img src="../logo.svg" alt="KK-MALL">
+    <h1>Cổng quản trị KK-MALL</h1>
+    <div class="sub">Khu vực dành riêng cho chủ sở hữu · dữ liệu mã hóa AES-256</div>
+    <form onsubmit="unlock(event)">
+      <label>Email quản trị</label>
+      <input id="gEmail" type="email" required placeholder="email quản trị" autocomplete="username">
+      <label>Khóa quản trị</label>
+      <input id="gKey" type="password" required placeholder="••••••••••••" autocomplete="current-password">
+      <button class="btn grad" id="gBtn">🔐 Mở khóa dữ liệu</button>
+      <div class="err" id="gErr"></div>
+    </form>
+    <div class="gnote">Toàn bộ dữ liệu so sánh giá nguồn cung được mã hóa <b>AES-256-GCM</b> (khóa dẫn xuất PBKDF2 300.000 vòng) ngay trên máy chủ phát hành. Trình duyệt chỉ giải mã cục bộ sau khi nhập đúng khóa - không gửi khóa đi bất cứ đâu.</div>
+  </div>
+</div>
+
+<!-- ======== UNG DUNG ======== -->
+<div id="app">
+<header class="grad">
+  <img src="../logo.svg" alt="">
+  <div class="ttl">TRUNG TÂM QUẢN TRỊ<small>WWW.KK-MALL.COM</small></div>
+  <div id="who"></div>
+  <button onclick="lock()">Khóa lại</button>
+</header>
+<nav id="nav">
+  <button data-t="dash" class="on" onclick="go('dash')">📊 Tổng quan</button>
+  <button data-t="cmp" onclick="go('cmp')">⚖️ So sánh giá nguồn</button>
+  <button data-t="stats" onclick="go('stats')">📈 Thống kê tổng hợp</button>
+  <button data-t="orders" onclick="go('orders')">📦 Đơn hàng</button>
+  <button data-t="rev" onclick="go('rev')">💰 Doanh thu</button>
+  <button data-t="cust" onclick="go('cust')">👥 Khách hàng</button>
+  <button data-t="inv" onclick="go('inv')">🧾 Hóa đơn</button>
+  <button data-t="content" onclick="go('content')">🖼️ Kho & Nội dung</button>
+  <button data-t="upd" onclick="go('upd')">🔄 Lịch sử cập nhật</button>
+  <button data-t="sys" onclick="go('sys')">⚙️ Hệ thống</button>
+</nav>
+<main>
+
+<section class="sec on" id="t-dash">
+  <h2>Tổng quan vận hành</h2>
+  <div id="alertBox"></div>
+  <div class="cards" id="dashCards"></div>
+  <div class="card"><b style="color:var(--ink)">Nguồn rẻ nhất đang thắng theo số mặt hàng</b><div id="winChart" style="margin-top:10px"></div></div>
+  <div class="card"><b style="color:var(--ink)">Phí dịch vụ KK-MALL theo ngành hàng (đ/sản phẩm, trung bình)</b><div id="catChart" style="margin-top:10px"></div></div>
+</section>
+
+<section class="sec" id="t-cmp">
+  <h2>So sánh giá giữa các nguồn cung <span style="font-weight:600;font-size:12px;color:var(--muted)">(chỉ hiển thị tại đây - không bao giờ xuất hiện trên web khách)</span></h2>
+  <div class="row">
+    <input id="q" placeholder="🔍 Tìm theo tên / SKU / hãng..." oninput="page=1;renderCmp()">
+    <select id="fCat" onchange="page=1;renderCmp()"><option value="">Tất cả ngành hàng</option></select>
+    <select id="fSrc" onchange="page=1;renderCmp()"><option value="">Nguồn rẻ nhất: tất cả</option></select>
+    <select id="fSort" onchange="page=1;renderCmp()">
+      <option value="margin-">Phí DV cao → thấp</option><option value="margin+">Phí DV thấp → cao</option>
+      <option value="kk-">Giá KK cao → thấp</option><option value="kk+">Giá KK thấp → cao</option>
+      <option value="spread-">Chênh lệch nguồn lớn nhất</option>
+    </select>
+  </div>
+  <div class="legend">
+    <span><i style="background:#DCFCE7;box-shadow:inset 0 0 0 1.5px #34D399"></i>Nguồn rẻ nhất còn hàng (nguồn KK-MALL đặt mua)</span>
+    <span><i style="background:#F1F5F9"></i><s>Giá gạch</s> = nguồn đang hết hàng</span>
+    <span>"+x%" = cao hơn nguồn rẻ nhất</span><span>"-" = nguồn không bán mặt hàng này</span>
+    <button class="btn2" style="margin-left:auto" onclick="exportCmp()">⬇ Xuất bảng so sánh (CSV)</button>
+  </div>
+  <div class="card" style="padding:0;max-height:72vh;overflow:auto"><table id="cmpTbl" class="mx"></table></div>
+  <div class="pg" id="cmpPg"></div>
+</section>
+
+<section class="sec" id="t-stats">
+  <h2>Thống kê tổng hợp</h2>
+  <div class="cards" id="statCards"></div>
+  <div class="card"><b style="color:var(--ink)">Phân bố giá bán KK-MALL</b><div id="histChart" style="margin-top:10px"></div></div>
+  <div class="card"><b style="color:var(--ink)">Theo ngành hàng</b><table id="catTbl" style="margin-top:8px"></table></div>
+  <div class="card"><b style="color:var(--ink)">Hiệu quả từng nguồn cung</b><table id="srcTbl" style="margin-top:8px"></table></div>
+</section>
+
+<section class="sec" id="t-orders">
+  <h2>Sổ đơn hàng <span style="font-weight:600;font-size:12px;color:var(--muted)" id="ordCount"></span></h2>
+  <div class="note">Hệ thống tự tạo <b>mã đơn</b> và ghi mỗi đơn vào <b>sổ đơn hàng</b> với đầy đủ: khách hàng, SĐT, email, địa chỉ, từng sản phẩm - số lượng - đơn giá - thành tiền, giảm giá, tổng, phương thức thanh toán, vận đơn, hóa đơn. Bản web tĩnh lưu sổ <b>trên thiết bị đặt hàng</b>; khi lên máy chủ động, sổ của mọi khách tập trung về đây.</div>
+  <div class="row">
+    <input id="ordQ" placeholder="🔍 Tìm mã đơn / tên / SĐT..." oninput="renderOrders()">
+    <button class="vbtn" style="border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer" onclick="exportOrders('csv')">⬇ Xuất danh sách (CSV - mở bằng Excel)</button>
+    <button class="vbtn" style="border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer" onclick="exportOrders('json')">⬇ Xuất JSON</button>
+  </div>
+  <div class="card"><table id="ordTbl"></table></div>
+</section>
+
+<section class="sec" id="t-rev">
+  <h2>Doanh thu & bán hàng <span style="font-weight:600;font-size:12px;color:var(--muted)">(từ sổ đơn trên thiết bị này; máy chủ động sẽ gộp toàn hệ thống)</span></h2>
+  <div class="cards" id="revCards"></div>
+  <div class="card"><b style="color:var(--ink)">Doanh thu theo ngày</b><div id="revChart" style="margin-top:10px"></div></div>
+  <div class="card"><b style="color:var(--ink)">Sản phẩm bán chạy (theo đơn thực đặt)</b><table id="revTop" style="margin-top:8px"></table></div>
+</section>
+
+<section class="sec" id="t-cust">
+  <h2>Khách hàng & thành viên</h2>
+  <div class="cards" id="custCards"></div>
+  <div class="card"><b style="color:var(--ink)">Danh sách thành viên (đăng ký trên thiết bị này)</b><table id="memTbl" style="margin-top:8px"></table></div>
+  <div class="card"><b style="color:var(--ink)">Khách mua hàng (từ sổ đơn)</b><table id="custTbl" style="margin-top:8px"></table></div>
+</section>
+
+<section class="sec" id="t-inv">
+  <h2>Hóa đơn bán hàng <span style="font-weight:600;font-size:12px;color:var(--muted)">(lập từ danh sách khách hàng & sổ đơn)</span></h2>
+  <div class="note">Chọn khách hàng → chọn đơn → xem, in hoặc lưu PDF hóa đơn GTGT. Thông tin bên mua lấy từ đơn hàng, có thể bổ sung <b>tên đơn vị + mã số thuế</b> cho khách doanh nghiệp. Bảng kê xuất CSV dùng cho kế toán/khai thuế. Hóa đơn điện tử có mã CQT chính thức được phát hành qua nhà cung cấp HĐĐT (Viettel/VNPT/MISA) theo Nghị định 123/2020/NĐ-CP & Thông tư 78/2021/TT-BTC - bản tại đây là <b>bản thể hiện</b> cùng số liệu.</div>
+  <div class="cards" id="invCards"></div>
+  <div class="row">
+    <button class="btn2 pri" onclick="exportInvoices('csv')">⬇ Xuất bảng kê hóa đơn (CSV - Excel)</button>
+    <button class="btn2" onclick="exportInvoices('json')">⬇ Xuất dữ liệu hóa đơn (JSON)</button>
+    <button class="btn2" onclick="toggleSeller()">🏢 Thông tin bên bán</button>
+    <label style="margin:0 0 0 auto;display:flex;align-items:center;gap:6px;font-size:12.5px">Thuế suất GTGT
+      <select id="vatRate" style="width:auto;padding:7px 9px" onchange="saveSeller();renderInv()"><option value="10">10%</option><option value="8">8%</option><option value="5">5%</option><option value="0">0%</option></select></label>
+  </div>
+  <div class="card" id="sellerCard" style="display:none">
+    <b style="color:var(--ink)">Thông tin bên bán (in trên hóa đơn)</b>
+    <div class="fgrid" style="margin-top:10px">
+      <div><label>Tên đơn vị bán</label><input id="sName" oninput="saveSeller()"></div>
+      <div><label>Mã số thuế</label><input id="sTax" oninput="saveSeller()"></div>
+      <div><label>Địa chỉ</label><input id="sAddr" oninput="saveSeller()"></div>
+      <div><label>Điện thoại / Email</label><input id="sContact" oninput="saveSeller()"></div>
+      <div><label>Ký hiệu hóa đơn</label><input id="sSerial" oninput="saveSeller()"></div>
+      <div><label>Tài khoản ngân hàng</label><input id="sBank" oninput="saveSeller()"></div>
+    </div>
+  </div>
+  <div class="invgrid">
+    <div class="card">
+      <b style="color:var(--ink)">Danh sách khách hàng</b>
+      <input id="invQ" placeholder="🔍 Tên / SĐT / email..." style="margin:8px 0" oninput="renderInvCust()">
+      <div class="clist" id="invCust"></div>
+    </div>
+    <div>
+      <div class="card" id="invCustInfo"><div style="color:var(--muted);font-size:13px">← Chọn một khách hàng để xem đơn và lập hóa đơn.</div></div>
+      <div class="card" id="invOrders" style="display:none"></div>
+      <div class="card" id="invPreview" style="display:none;padding:0"></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="t-content">
+  <h2>Kho hàng & chất lượng nội dung <span style="font-weight:600;font-size:12px;color:var(--muted)">(ảnh chính hãng - thông số - tồn kho)</span></h2>
+  <div class="cards" id="cntCards"></div>
+  <div class="card"><b style="color:var(--ink)">Độ phủ ảnh chính hãng theo nhóm hàng</b><div style="font-size:12px;color:var(--muted);margin:4px 0 8px">Mục tiêu: 100% nhóm chủ lực dùng ảnh gốc của hãng/nguồn. Nhóm chưa phủ sẽ nhận ảnh thật tự động khi nối feed chính thức.</div><div id="imgChart" style="margin-top:6px"></div></div>
+  <div class="card"><b style="color:var(--ink)">Sản phẩm bán chạy chưa có ảnh chính hãng (ưu tiên bổ sung)</b><table id="noImgTbl" style="margin-top:8px"></table></div>
+  <div class="card"><b style="color:var(--ink)">Tồn kho theo nhóm</b><table id="stockTbl" style="margin-top:8px"></table></div>
+</section>
+
+<section class="sec" id="t-upd">
+  <h2>Lịch sử cập nhật hàng hóa · thông tin · giá <span style="font-weight:600;font-size:12px;color:var(--muted)">(cập nhật khi nào - bao nhiêu mặt hàng - vào mục nào)</span></h2>
+  <div class="note">Mỗi lần bộ thu thập chạy (tự động <b>3 giờ/lần</b> trên GitHub Actions) hoặc mỗi đợt <b>cập nhật catalog</b> (thêm ảnh thật, sửa giá, thêm hàng) đều được ghi lại: thời điểm, số mặt hàng được làm mới, số lượt <b>tăng / giảm giá</b>, <b>hết hàng / có hàng lại</b>, phân rã theo <b>ngành và nhóm hàng</b> và danh sách thay đổi lớn nhất. Nhật ký nằm trong gói dữ liệu mã hóa, chỉ xem được tại đây. Bấm vào một dòng để xem chi tiết.</div>
+  <div id="updAlert"></div>
+  <div class="cards" id="updCards"></div>
+  <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><b style="color:var(--ink)">Diễn biến các lần cập nhật gần nhất</b>
+    <span class="legend" style="margin:0"><span><i style="background:#EF4444"></i>Tăng giá</span><span><i style="background:#10B981"></i>Giảm giá</span><span><i style="background:#F59E0B"></i>Tồn kho thay đổi</span><span><i style="background:#EA580C"></i>Cập nhật catalog</span></span></div>
+    <div class="tl" id="updTl"></div><div class="tlx" id="updTlx"></div></div>
+  <div class="row">
+    <select id="uType" onchange="renderUpd()"><option value="">Tất cả loại cập nhật</option><option value="auto">Tự động 3 giờ (giá & tồn kho)</option><option value="catalog">Cập nhật catalog (hàng, ảnh, thông tin)</option></select>
+    <select id="uRange" onchange="renderUpd()"><option value="1">24 giờ qua</option><option value="7" selected>7 ngày qua</option><option value="0">Toàn bộ lịch sử</option></select>
+    <select id="uCat" onchange="renderUpd()"><option value="">Tất cả ngành hàng</option></select>
+    <label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#374151;width:auto"><input type="checkbox" id="uChg" style="width:auto" onchange="renderUpd()"> Chỉ lần có thay đổi</label>
+    <button class="btn2 pri" style="margin-left:auto" onclick="exportUpd()">⬇ Xuất lịch sử (CSV)</button>
+  </div>
+  <div class="card"><b style="color:var(--ink)">Tổng hợp theo ngành hàng</b> <span style="font-size:12px;color:var(--muted)" id="updCatNote"></span><table id="updCatTbl" style="margin-top:8px"></table></div>
+  <div class="card"><b style="color:var(--ink)">Nhật ký chi tiết</b> <span style="font-size:12px;color:var(--muted)" id="updCount"></span><table id="updTbl" style="margin-top:8px"></table><div class="pg" id="updPg"></div></div>
+</section>
+
+<section class="sec" id="t-sys">
+  <h2>Hệ thống</h2>
+  <div class="cards" id="sysCards"></div>
+  <div class="card" id="logCard"></div>
+  <div class="card" style="line-height:1.7">
+    <b style="color:var(--ink)">Kiến trúc đang vận hành</b><br>
+    · Website tĩnh phát hành qua GitHub Pages, tên miền <b>www.kk-mall.com</b> (HTTPS bắt buộc).<br>
+    · Bộ thu thập đám mây chạy <b>3 giờ/lần, 24/7</b> (GitHub Actions) - cập nhật giá, tồn kho, sổ cái giá hash-chain và <b>tự làm mới gói dữ liệu quản trị mã hóa</b> của trang này.<br>
+    · Hệ số định giá nội bộ và khóa quản trị nằm trong <b>GitHub Secrets</b> (PRICING_OFFSET, ADMIN_PORTAL_KEY) - không có trong mã nguồn hay dữ liệu công khai.<br>
+    · Sổ cái giá công khai để khách tự kiểm chứng: <a href="../api/ledger-verify.json" target="_blank">api/ledger-verify.json</a> (chỉ chứa giá KK, không chứa nguồn).<br>
+    · Mã nguồn đầy đủ (máy chủ động Node.js: đơn hàng thật, thanh toán, hóa đơn, điều phối, Passkey...) lưu tại OneDrive + Google Drive của chủ sở hữu.<br><br>
+    <b style="color:var(--ink)">Đổi khóa quản trị</b>: cập nhật Secret <code>ADMIN_PORTAL_KEY</code> trong GitHub → chạy lại workflow "Thu thập dữ liệu" → khóa cũ hết hiệu lực ngay lần phát hành sau.
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+'use strict';
+/* Cong quan tri KK-MALL - (c) Nguyen Duy Dien (KK-2026) */
+const $=s=>document.querySelector(s);
+const vnd=n=>n==null?'-':Number(n).toLocaleString('vi-VN')+' đ';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeUrl=u=>/^https:\/\//i.test(String(u||''))?esc(u):'#'; // chi cho phep link https (chan javascript:)
+let SRC={}; // bang nguon cung nam TRONG goi ma hoa, chi co sau khi mo khoa
+const ADMIN_EMAIL='nguyenduydien75@gmail.com';
+let DATA=null,page=1;const PER=25;
+
+/* ===== GIAI MA ===== */
+async function unlock(e){
+  e.preventDefault();
+  const email=$('#gEmail').value.trim().toLowerCase(), key=$('#gKey').value.trim();
+  const err=$('#gErr'); err.style.display='none';
+  if(email!==ADMIN_EMAIL){err.textContent='Email này không có quyền quản trị.';err.style.display='block';return}
+  $('#gBtn').textContent='Đang giải mã...';$('#gBtn').disabled=true;
+  try{
+    const enc=await (await fetch('data.enc',{cache:'no-store'})).json();
+    const te=new TextEncoder();
+    const base=await crypto.subtle.importKey('raw',te.encode(key),'PBKDF2',false,['deriveKey']);
+    const aes=await crypto.subtle.deriveKey({name:'PBKDF2',hash:'SHA-256',salt:Uint8Array.from(atob(enc.salt),c=>c.charCodeAt(0)),iterations:enc.iter},base,{name:'AES-GCM',length:256},false,['decrypt']);
+    const ct=Uint8Array.from(atob(enc.ct),c=>c.charCodeAt(0));
+    const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:Uint8Array.from(atob(enc.iv),c=>c.charCodeAt(0))},aes,ct);
+    DATA=JSON.parse(new TextDecoder().decode(pt));
+    sessionStorage.setItem('kk_admin_email',email);
+    boot();
+  }catch(ex){
+    err.textContent='Khóa quản trị không đúng hoặc gói dữ liệu bị thay đổi. Vui lòng thử lại.';
+    err.style.display='block';
+  }
+  $('#gBtn').textContent='🔐 Mở khóa dữ liệu';$('#gBtn').disabled=false;
+}
+function lock(){DATA=null;sessionStorage.removeItem('kk_admin_email');location.reload()}
+
+/* ===== KHOI DONG SAU GIAI MA ===== */
+function boot(){
+  $('#gate').style.display='none';$('#app').style.display='block';
+  SRC=DATA.sources||{};
+  $('#who').innerHTML=`<b>${esc(sessionStorage.getItem('kk_admin_email'))}</b><br>Dữ liệu: ${new Date(DATA.generated_at).toLocaleString('vi-VN')}`;
+  const cats=[...new Set(DATA.rows.map(r=>r.catName))].sort();
+  $('#fCat').innerHTML='<option value="">Tất cả ngành hàng</option>'+cats.map(c=>`<option>${esc(c)}</option>`).join('');
+  $('#fSrc').innerHTML='<option value="">Nguồn rẻ nhất: tất cả</option>'+Object.entries(SRC).map(([k,v])=>`<option value="${k}">${v[0]}</option>`).join('');
+  renderDash();renderCmp();renderStats();renderOrders();renderRev();renderCust();renderInv();renderContent();initUpd();renderSys();logAdmin('Đăng nhập cổng quản trị');
+}
+function go(t){document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  document.querySelectorAll('.sec').forEach(s=>s.classList.toggle('on',s.id==='t-'+t))}
+
+/* ===== NHAT KY QUAN TRI (tren thiet bi) ===== */
+function logAdmin(act){try{const l=JSON.parse(localStorage.getItem('kk_admin_log')||'[]');l.unshift({t:new Date().toISOString(),act});localStorage.setItem('kk_admin_log',JSON.stringify(l.slice(0,100)))}catch{}}
+
+/* ===== CANH BAO DIEU HANH ===== */
+function renderAlerts(){
+  const R=DATA.rows,al=[];
+  const neg=R.filter(r=>r.margin!=null&&r.margin<10000);
+  if(neg.length)al.push(['⚠️','Biên lãi dưới 10.000đ: <b>'+neg.length+'</b> mặt hàng (kiểm tra cấu hình giá)','#FEF3C7','#92400E']);
+  const oos=R.filter(r=>!r.stock);
+  if(oos.length)al.push(['⛔','Hết hàng tạm thời: <b>'+oos.length+'</b> mặt hàng - hệ thống đã ẩn nút mua','#FEE2E2','#991B1B']);
+  const spread=R.filter(r=>{if(r.offers.length<2)return false;const ps=r.offers.map(o=>o.p);return (Math.max(...ps)-Math.min(...ps))/Math.min(...ps)>0.25});
+  if(spread.length)al.push(['📊','Chênh lệch giá giữa nguồn > 25%: <b>'+spread.length+'</b> mặt hàng - cơ hội biên lãi / cần soát giá ảo','#DBEAFE','#1E40AF']);
+  const hot=R.filter(r=>r.sold>4000&&!r.img);
+  if(hot.length)al.push(['🖼️','Bán chạy nhưng chưa có ảnh chính hãng: <b>'+hot.length+'</b> mặt hàng (xem tab Kho & Nội dung)','#FFEDD5','#C2410C']);
+  const age=(Date.now()-new Date(DATA.generated_at))/60000;
+  if(age>75)al.push(['⏰','Gói dữ liệu quản trị đã <b>'+Math.round(age)+' phút</b> tuổi - kiểm tra workflow thu thập','#FEE2E2','#991B1B']);
+  document.querySelector('#alertBox').innerHTML=al.length?al.map(([i,m,bg,cl])=>`<div style="background:${bg};color:${cl};border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:8px">${i} ${m}</div>`).join(''):'<div style="background:#ECFDF5;color:#065F46;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:8px">✅ Không có cảnh báo - hệ thống vận hành bình thường</div>';
+}
+
+/* ===== DOANH THU ===== */
+function renderRev(){
+  const rows=orderRows().filter(r=>r.order.payment_status==='paid');
+  const sum=rows.reduce((a,r)=>a+r.order.total,0);
+  const items=rows.flatMap(r=>r.order.items||[]);
+  const aov=rows.length?sum/rows.length:0;
+  const disc=rows.reduce((a,r)=>a+(r.order.discount||0),0);
+  $('#revCards').innerHTML=[
+    ['Doanh thu đã thanh toán',vnd(sum)],['Số đơn',rows.length],['Giá trị TB/đơn',vnd(Math.round(aov))],
+    ['Sản phẩm đã bán',items.reduce((a,i)=>a+i.qty,0)],['Voucher đã giảm',vnd(disc)],
+  ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v" style="font-size:17px">${v}</div></div>`).join('');
+  const byDay={};for(const r of rows){const d=new Date(r.order.created_at).toLocaleDateString('vi-VN');byDay[d]=(byDay[d]||0)+r.order.total}
+  const days=Object.entries(byDay).slice(-14);const mx=Math.max(...days.map(x=>x[1]),1);
+  $('#revChart').innerHTML=days.map(([d,v])=>`<div class="bwrap"><span>${d}</span><div class="bar" style="width:${(v/mx*100).toFixed(1)}%"></div><b>${Math.round(v/1e6)}tr</b></div>`).join('')||'<div style="font-size:13px;color:var(--muted)">Chưa có đơn đã thanh toán trên thiết bị này.</div>';
+  const bySku={};for(const i of items){const o=bySku[i.sku]=bySku[i.sku]||{name:i.name,qty:0,rev:0};o.qty+=i.qty;o.rev+=i.line_total}
+  $('#revTop').innerHTML='<tr><th>Sản phẩm</th><th>SL bán</th><th>Doanh thu</th></tr>'+Object.entries(bySku).sort((a,b)=>b[1].rev-a[1].rev).slice(0,10).map(([s,o])=>`<tr><td><b>${esc(o.name)}</b><br><span style="color:var(--muted);font-size:11px">${s}</span></td><td>${o.qty}</td><td class="kk">${vnd(o.rev)}</td></tr>`).join('')||'<tr><td>Chưa có dữ liệu</td></tr>';
+}
+
+/* ===== KHACH HANG ===== */
+function renderCust(){
+  let mems={};try{mems=JSON.parse(localStorage.getItem('kk_members'))||{}}catch{}
+  const rows=orderRows();
+  const byPhone={};for(const r of rows){const o=r.order;const c=byPhone[o.customer_phone]=byPhone[o.customer_phone]||{name:o.customer_name,email:o.customer_email,n:0,sum:0,last:o.created_at};c.n++;c.sum+=o.total;if(o.created_at>c.last)c.last=o.created_at}
+  $('#custCards').innerHTML=[
+    ['Thành viên đã đăng ký',Object.keys(mems).length],['Khách đã mua',Object.keys(byPhone).length],
+    ['Khách mua ≥ 2 đơn',Object.values(byPhone).filter(c=>c.n>=2).length],
+  ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  $('#memTbl').innerHTML='<tr><th>Họ tên</th><th>SĐT</th><th>Email</th><th>Đăng ký</th></tr>'+Object.values(mems).map(m=>`<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.phone)}</td><td>${esc(m.email)}</td><td style="font-size:12px">${m.created_at?new Date(m.created_at).toLocaleString('vi-VN'):'-'}</td></tr>`).join('')||'<tr><td colspan="4">Chưa có thành viên đăng ký trên thiết bị này.</td></tr>';
+  $('#custTbl').innerHTML='<tr><th>Khách</th><th>SĐT</th><th>Số đơn</th><th>Tổng chi</th><th>Mua gần nhất</th></tr>'+Object.entries(byPhone).sort((a,b)=>b[1].sum-a[1].sum).map(([ph,c])=>`<tr><td><b>${esc(c.name)}</b><br><span style="color:var(--muted);font-size:11px">${esc(c.email||'')}</span></td><td>${esc(ph)}</td><td>${c.n}</td><td class="kk">${vnd(c.sum)}</td><td style="font-size:12px">${new Date(c.last).toLocaleDateString('vi-VN')}</td></tr>`).join('')||'<tr><td colspan="5">Chưa có đơn hàng.</td></tr>';
+}
+
+/* ===== KHO & NOI DUNG ===== */
+function renderContent(){
+  const R=DATA.rows;
+  const real=R.filter(r=>r.img).length;
+  const spAvg=R.reduce((a,r)=>a+(r.sp||0),0)/R.length;
+  const spLow=R.filter(r=>(r.sp||0)<4).length;
+  $('#cntCards').innerHTML=[
+    ['Ảnh chính hãng',real+' <small>/ '+R.length+'</small>'],
+    ['Ảnh minh họa (chờ feed)',R.length-real],
+    ['Thông số TB/sản phẩm',spAvg.toFixed(1)],
+    ['SP dưới 4 thông số',spLow],
+    ['Còn hàng',R.filter(r=>r.stock).length+' <small>/ '+R.length+'</small>'],
+  ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  const byGrp={};for(const r of R){const g=byGrp[r.grp]=byGrp[r.grp]||{n:0,img:0,stock:0};g.n++;if(r.img)g.img++;if(r.stock)g.stock++}
+  const rows=Object.entries(byGrp).sort((a,b)=>b[1].img/b[1].n-a[1].img/a[1].n);
+  $('#imgChart').innerHTML=rows.filter(([,g])=>g.img>0).map(([k,g])=>`<div class="bwrap"><span>${esc(k)}</span><div class="bar" style="width:${(g.img/g.n*100).toFixed(0)}%"></div><b>${g.img}/${g.n}</b></div>`).join('')+`<div style="font-size:12px;color:var(--muted);margin-top:8px">${rows.filter(([,g])=>!g.img).length} nhóm còn dùng toàn ảnh minh họa.</div>`;
+  $('#noImgTbl').innerHTML='<tr><th>Sản phẩm</th><th>Nhóm</th><th>Đã bán</th><th>Giá KK</th></tr>'+R.filter(r=>!r.img).sort((a,b)=>b.sold-a.sold).slice(0,15).map(r=>`<tr><td><b>${esc(r.name)}</b><br><span style="color:var(--muted);font-size:11px">${r.sku}</span></td><td style="font-size:12px">${esc(r.grp)}</td><td>${r.sold.toLocaleString('vi-VN')}</td><td class="kk">${vnd(r.kk)}</td></tr>`).join('');
+  $('#stockTbl').innerHTML='<tr><th>Nhóm hàng</th><th>Còn hàng</th><th>Hết hàng</th><th>Tỷ lệ sẵn sàng</th></tr>'+Object.entries(byGrp).sort((a,b)=>(a[1].stock/a[1].n)-(b[1].stock/b[1].n)).slice(0,20).map(([k,g])=>`<tr><td><b>${esc(k)}</b></td><td>${g.stock}</td><td class="${g.n-g.stock?'warn':''}">${g.n-g.stock}</td><td class="${g.stock===g.n?'good':''}">${(g.stock/g.n*100).toFixed(0)}%</td></tr>`).join('');
+}
+
+/* ===== TONG QUAN ===== */
+function renderDash(){
+  renderAlerts();
+  const R=DATA.rows,inS=R.filter(r=>r.stock);
+  const margins=R.filter(r=>r.margin!=null).map(r=>r.margin);
+  const avgM=margins.reduce((a,b)=>a+b,0)/(margins.length||1);
+  const gmv=inS.reduce((a,r)=>a+r.kk*r.sold,0);
+  const est=margins.length?R.filter(r=>r.margin!=null).reduce((a,r)=>a+r.margin*r.sold,0):0;
+  $('#dashCards').innerHTML=[
+    ['Mặt hàng đang bán',inS.length+' <small>/ '+R.length+'</small>'],
+    ['Nguồn cung kết nối',Object.keys(SRC).length||10],
+    ['Phí DV KK-MALL TB/sp',vnd(Math.round(avgM))],
+    ['Doanh số lũy kế (mô phỏng)',(gmv/1e9).toFixed(1)+' <small>tỷ đ</small>'],
+    ['Lãi gộp lũy kế (mô phỏng)',(est/1e6).toFixed(0)+' <small>triệu đ</small>'],
+    ['Hết hàng tạm thời',R.length-inS.length],
+  ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  // nguon thang
+  const win={};for(const r of R)if(r.best)win[r.best.s]=(win[r.best.s]||0)+1;
+  const mx=Math.max(...Object.values(win),1);
+  $('#winChart').innerHTML=Object.entries(win).sort((a,b)=>b[1]-a[1]).map(([s,n])=>
+    `<div class="bwrap"><span><span class="src-dot" style="background:${SRC[s][1]}"></span>${SRC[s][0]}</span><div class="bar" style="width:${(n/mx*100).toFixed(1)}%"></div><b>${n}</b></div>`).join('');
+  // bien lai theo nganh
+  const cm={};for(const r of R)if(r.margin!=null){(cm[r.catName]=cm[r.catName]||[]).push(r.margin)}
+  const rows=Object.entries(cm).map(([c,a])=>[c,a.reduce((x,y)=>x+y,0)/a.length]).sort((a,b)=>b[1]-a[1]);
+  const mx2=Math.max(...rows.map(r=>r[1]),1);
+  $('#catChart').innerHTML=rows.map(([c,m])=>
+    `<div class="bwrap"><span>${esc(c)}</span><div class="bar" style="width:${(m/mx2*100).toFixed(1)}%"></div><b>${Math.round(m/1000)}K</b></div>`).join('');
+}
+
+/* ===== KHUNG PHI DICH VU (bang phi cong khai tu may chu; du phong theo gia tri phi) ===== */
+let FEE_TABLE=null;
+function tierLabel(r){
+  const k=n=>n>=1e6?(n/1e6).toLocaleString('vi-VN')+'tr':Math.round(n/1000)+'k';
+  if(FEE_TABLE&&r.best){const c=r.best.p;const t=FEE_TABLE.find(t=>c>=t.from&&(t.to==null||c<=t.to));if(t)return t.to==null?'> '+k(t.from-1):(t.from?k(t.from)+'-'+k(t.to):'< '+k(t.to+1))}
+  return r.margin!=null?'phí '+k(r.margin):'-'}
+/* ===== SO SANH GIA ===== */
+function filtered(){
+  const q=$('#q').value.trim().toLowerCase(),cat=$('#fCat').value,src=$('#fSrc').value,sort=$('#fSort').value;
+  let R=DATA.rows.filter(r=>(!cat||r.catName===cat)&&(!src||(r.best&&r.best.s===src))&&(!q||(r.name+' '+r.sku+' '+r.brand).toLowerCase().includes(q)));
+  const spread=r=>r.offers.length?Math.max(...r.offers.map(o=>o.p))-Math.min(...r.offers.map(o=>o.p)):0;
+  const key={['margin-']:(a,b)=>(b.margin??-1)-(a.margin??-1),['margin+']:(a,b)=>(a.margin??1e12)-(b.margin??1e12),['kk-']:(a,b)=>b.kk-a.kk,['kk+']:(a,b)=>a.kk-b.kk,['spread-']:(a,b)=>spread(b)-spread(a)}[sort];
+  return R.sort(key);
+}
+function renderCmp(){
+  const R=filtered(),pages=Math.max(1,Math.ceil(R.length/PER));page=Math.min(page,pages);
+  const rows=R.slice((page-1)*PER,page*PER);
+  const keys=Object.keys(SRC);
+  const num=n=>Number(n).toLocaleString('vi-VN');
+  const head='<tr><th class="l st">Sản phẩm</th><th>Giá gốc NCC rẻ nhất<span class="hd">chi phí hàng (đ)</span></th><th>Khung phí</th><th>Phí DV KK-MALL<span class="hd">doanh thu (đ)</span></th><th>Giá bán KK-MALL<span class="hd">= gốc + phí (đ)</span></th>'+
+    keys.map(k=>`<th><span class="src-dot" style="background:${SRC[k][1]}"></span><span class="hd">${esc(SRC[k][0])}</span></th>`).join('')+
+    '<th>Nguồn rẻ nhất</th><th>Chênh lệch<span class="hd">cao - thấp</span></th><th>Số nguồn<span class="hd">còn hàng</span></th></tr>';
+  const body=rows.map(r=>{
+    const bySrc=Object.fromEntries(r.offers.map(o=>[o.s,o]));
+    const inS=r.offers.filter(o=>o.k).map(o=>o.p);
+    const lo=inS.length?Math.min(...inS):null,hi=inS.length?Math.max(...inS):null;
+    const cells=keys.map(k=>{const o=bySrc[k];
+      if(!o)return '<td class="na">-</td>';
+      const isBest=r.best&&r.best.s===k&&o.k;
+      const pct=lo&&o.k&&!isBest?'+'+((o.p-lo)/lo*100).toFixed(1)+'%':(isBest?'★ rẻ nhất':'hết hàng');
+      return `<td class="${isBest?'best':''}${o.k?'':' oos'}" title="${esc(SRC[k][0])}: ${num(o.p)} đ${o.u?' · bấm để mở trang sản phẩm tại nguồn':''}">${o.u?`<a href="${safeUrl(o.u)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none">${num(o.p)} ↗</a>`:num(o.p)}<span class="pct">${pct}</span></td>`}).join('');
+    const spread=lo!=null?hi-lo:0;
+    return `<tr><td class="l st"><b>${esc(r.name)}</b>${r.feed?' <span class="badge" style="background:#DCFCE7;color:#166534">giá feed thật</span>':''}<br><span style="color:var(--muted);font-size:11px">${r.sku} · ${esc(r.brand)} · ${esc(r.grp)}${r.stock?'':' · <span class="warn">hết hàng</span>'}</span></td>
+      <td style="font-weight:700">${r.best?num(r.best.p):'-'}</td><td style="font-size:11.5px;white-space:nowrap">${tierLabel(r)}</td><td class="mg">${r.margin!=null?'+'+num(r.margin):'-'}</td><td class="kk sum">${num(r.kk)}</td>${cells}
+      <td class="l" style="font-size:12px">${r.best?`<span class="src-dot" style="background:${SRC[r.best.s][1]}"></span><b>${esc(SRC[r.best.s][0])}</b>`:'-'}</td>
+      <td>${num(spread)}<span class="pct">${lo?(spread/lo*100).toFixed(1)+'%':''}</span></td>
+      <td style="text-align:center">${inS.length}/${r.offers.length}</td></tr>`}).join('');
+  $('#cmpTbl').innerHTML='<thead>'+head+'</thead><tbody>'+(body||`<tr><td class="l" colspan="${keys.length+8}">Không có kết quả</td></tr>`)+'</tbody>';
+  $('#cmpPg').innerHTML=`<button onclick="page--;renderCmp()" ${page<=1?'disabled':''}>‹ Trước</button><span style="font-size:12.5px">Trang <b>${page}</b>/${pages} · ${R.length} mặt hàng · ${keys.length} nguồn</span><button onclick="page++;renderCmp()" ${page>=pages?'disabled':''}>Sau ›</button>`;
+}
+function dl(content,fname,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=fname;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+const csvq=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+function exportCmp(){
+  const R=filtered(),keys=Object.keys(SRC);
+  const head=['SKU','Sản phẩm','Thương hiệu','Ngành','Nhóm','Giá gốc NCC rẻ nhất (chi phí hàng)','Khung phí','Phí DV KK-MALL (doanh thu)','Giá bán KK-MALL',...keys.map(k=>SRC[k][0]),'Nguồn rẻ nhất','Chênh lệch cao-thấp','Còn hàng/Tổng nguồn'];
+  const lines=[head.map(csvq).join(',')];
+  for(const r of R){const by=Object.fromEntries(r.offers.map(o=>[o.s,o]));const inS=r.offers.filter(o=>o.k).map(o=>o.p);
+    lines.push([r.sku,r.name,r.brand,r.catName,r.grp,r.best?r.best.p:'',tierLabel(r),r.margin??'',r.kk,...keys.map(k=>by[k]?(by[k].k?by[k].p:by[k].p+' (hết)'):''),r.best?SRC[r.best.s][0]:'',inS.length?Math.max(...inS)-Math.min(...inS):'',inS.length+'/'+r.offers.length].map(csvq).join(','))}
+  dl('﻿'+lines.join('\r\n'),`kk-mall-so-sanh-gia-${new Date().toISOString().slice(0,10)}.csv`,'text/csv;charset=utf-8');
+  logAdmin('Xuất bảng so sánh giá - '+R.length+' mặt hàng');
+}
+
+/* ===== THONG KE ===== */
+function renderStats(){
+  const R=DATA.rows;
+  const prices=R.map(r=>r.kk).sort((a,b)=>a-b);
+  const med=prices[Math.floor(prices.length/2)];
+  $('#statCards').innerHTML=[
+    ['Giá trung vị',vnd(med)],['Giá thấp nhất',vnd(prices[0])],['Giá cao nhất',vnd(prices[prices.length-1])],
+    ['Ngành hàng',new Set(R.map(r=>r.cat)).size],['Nhóm hàng',new Set(R.map(r=>r.grp)).size],['Thương hiệu',new Set(R.map(r=>r.brand)).size],
+  ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v" style="font-size:18px">${v}</div></div>`).join('');
+  // histogram
+  const buckets=[[0,'< 1 triệu',1e6],[1e6,'1-5 triệu',5e6],[5e6,'5-10 triệu',1e7],[1e7,'10-20 triệu',2e7],[2e7,'20-50 triệu',5e7],[5e7,'> 50 triệu',Infinity]];
+  const h=buckets.map(([lo,lb,hi])=>[lb,R.filter(r=>r.kk>=lo&&r.kk<hi).length]);
+  const mx=Math.max(...h.map(x=>x[1]),1);
+  $('#histChart').innerHTML=h.map(([lb,n])=>`<div class="bwrap"><span>${lb}</span><div class="bar" style="width:${(n/mx*100).toFixed(1)}%"></div><b>${n}</b></div>`).join('');
+  // theo nganh
+  const cm={};for(const r of R){const o=cm[r.catName]=cm[r.catName]||{n:0,stock:0,m:0,mn:0,sold:0};o.n++;o.stock+=r.stock?1:0;if(r.margin!=null){o.m+=r.margin;o.mn++}o.sold+=r.sold}
+  $('#catTbl').innerHTML='<tr><th>Ngành hàng</th><th>Mặt hàng</th><th>Còn hàng</th><th>Biên lãi TB</th><th>Đã bán (mô phỏng)</th></tr>'+
+    Object.entries(cm).sort((a,b)=>b[1].n-a[1].n).map(([c,o])=>`<tr><td><b>${esc(c)}</b></td><td>${o.n}</td><td class="${o.stock===o.n?'good':''}">${o.stock}/${o.n}</td><td class="mg">${vnd(Math.round(o.m/(o.mn||1)))}</td><td>${o.sold.toLocaleString('vi-VN')}</td></tr>`).join('');
+  // theo nguon
+  const sm={};for(const r of R)for(const o of r.offers){const s=sm[o.s]=sm[o.s]||{n:0,win:0,stock:0,sum:0};s.n++;s.stock+=o.k?1:0;s.sum+=o.p;if(r.best&&r.best.s===o.s)s.win++}
+  $('#srcTbl').innerHTML='<tr><th>Nguồn cung</th><th>Mặt hàng có giá</th><th>Còn hàng</th><th>Lần rẻ nhất</th><th>Tỷ lệ thắng</th></tr>'+
+    Object.entries(sm).sort((a,b)=>b[1].win-a[1].win).map(([s,o])=>`<tr><td><span class="src-dot" style="background:${(SRC[s]||['?','#999'])[1]}"></span><b>${(SRC[s]||[s])[0]}</b></td><td>${o.n}</td><td>${o.stock}</td><td><b>${o.win}</b></td><td>${(o.win/DATA.rows.length*100).toFixed(1)}%</td></tr>`).join('');
+}
+
+/* ===== SO DON HANG ===== */
+function orderRows(){
+  let all={};try{all=JSON.parse(localStorage.getItem('kk_orders'))||{}}catch{}
+  return Object.values(all).sort((a,b)=>b.order.created_at<a.order.created_at?-1:1);
+}
+const PMN={vnpay:'VNPay',momo:'Ví MoMo',zalopay:'ZaloPay',bank:'Chuyển khoản VietQR',vietqr:'Chuyển khoản VietQR'};
+function exportOrders(kind){
+  const rows=orderRows();
+  if(!rows.length)return alert('Chưa có đơn nào trên thiết bị này.');
+  const stamp=new Date().toISOString().slice(0,10);
+  let blob,fname;
+  if(kind==='json'){
+    blob=new Blob([JSON.stringify(rows,null,1)],{type:'application/json'});fname=`kk-mall-don-hang-${stamp}.json`;
+  }else{
+    const esc=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+    const head=['Mã đơn','Ngày giờ','Khách hàng','SĐT','Email','Địa chỉ','Ghi chú','SKU','Sản phẩm','Số lượng','Đơn giá (đ)','Thành tiền (đ)','Giảm giá đơn (đ)','Tổng đơn (đ)','Phương thức','Thanh toán','Trạng thái','Vận đơn','Hóa đơn'];
+    const lines=[head.map(esc).join(',')];
+    for(const r of rows){const o=r.order;
+      o.items.forEach((it,i)=>{const f=(r.fulfillments||[])[i]||{};
+        lines.push([o.code,new Date(o.created_at).toLocaleString('vi-VN'),o.customer_name,o.customer_phone,o.customer_email||'',o.customer_address||'',o.note||'',
+          it.sku,it.name,it.qty,it.unit,it.line_total,
+          i===0?o.discount:'',i===0?o.total:'',PMN[o.payment_method]||o.payment_method||'',
+          o.payment_status==='paid'?'Đã thanh toán':'Chờ thanh toán',o.status,f.tracking_code||'',r.invoice?r.invoice.number:''].map(esc).join(','))})}
+    blob=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});fname=`kk-mall-don-hang-${stamp}.csv`;
+  }
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  logAdmin('Xuất sổ đơn hàng ('+kind.toUpperCase()+') - '+rows.length+' đơn');
+}
+function renderOrders(){
+  const q=(document.querySelector('#ordQ')?document.querySelector('#ordQ').value:'').trim().toLowerCase();
+  let rows=orderRows();
+  if(q)rows=rows.filter(r=>(r.order.code+' '+r.order.customer_name+' '+r.order.customer_phone).toLowerCase().includes(q));
+  const el=document.querySelector('#ordCount');if(el)el.textContent='· '+rows.length+' đơn trên thiết bị này';
+  $('#ordTbl').innerHTML='<tr><th>Mã đơn</th><th>Khách hàng</th><th>Sản phẩm · SL · Đơn giá</th><th>Giảm</th><th>Tổng</th><th>Thanh toán</th><th>Vận đơn</th><th>Hóa đơn</th></tr>'+
+    (rows.map(r=>{const o=r.order;
+      return `<tr><td><b>${o.code}</b><br><span style="font-size:11px;color:var(--muted)">${new Date(o.created_at).toLocaleString('vi-VN')}</span></td>
+      <td style="min-width:170px">${esc(o.customer_name||'')}<br><span style="font-size:11px;color:var(--muted)">📞 ${esc(o.customer_phone||'')}<br>✉ ${esc(o.customer_email||'')}<br>🏠 ${esc(o.customer_address||'')}</span></td>
+      <td style="font-size:12px;min-width:220px">${(o.items||[]).map(i=>`${esc(i.name)}<br><span style="color:var(--muted)">${i.sku} · SL <b>${i.qty}</b> × ${vnd(i.unit)} = <b>${vnd(i.line_total)}</b></span>`).join('<hr style="border:0;border-top:1px dashed var(--line);margin:4px 0">')}</td>
+      <td style="color:var(--ok);font-weight:700">${o.discount?'-'+vnd(o.discount):'-'}</td>
+      <td class="kk">${vnd(o.total)}</td>
+      <td class="${o.payment_status==='paid'?'good':'warn'}" style="font-size:12px">${o.payment_status==='paid'?'✅ Đã thanh toán':'⏳ Chờ'}<br><span style="color:var(--muted)">${PMN[o.payment_method]||o.payment_method||''}</span></td>
+      <td style="font-size:12px">${(r.fulfillments||[]).map(f=>esc(f.tracking_code||'')).filter(Boolean).join('<br>')||'-'}</td>
+      <td>${r.invoice?esc(r.invoice.number)+' <span class="good">✓</span>':'-'}</td></tr>`}).join('')||'<tr><td colspan="8">Chưa có đơn nào đặt từ thiết bị này.</td></tr>');
+}
+
+/* ===== HOA DON (lap tu danh sach khach hang) ===== */
+const SELLER_DEF={name:'CÔNG TY TNHH KK-MALL',tax:'0000000000',addr:'Hà Nội, Việt Nam',contact:'1900 0000 · hotro@kk-mall.vn',serial:'1C'+String(new Date().getFullYear()).slice(2)+'TKK',bank:'',vat:'10'};
+function getSeller(){let s={};try{s=JSON.parse(localStorage.getItem('kk_seller'))||{}}catch{}return Object.assign({},SELLER_DEF,s)}
+function saveSeller(){
+  const s={name:$('#sName').value,tax:$('#sTax').value,addr:$('#sAddr').value,contact:$('#sContact').value,serial:$('#sSerial').value,bank:$('#sBank').value,vat:$('#vatRate').value};
+  try{localStorage.setItem('kk_seller',JSON.stringify(s))}catch{}
+}
+function toggleSeller(){const c=$('#sellerCard');c.style.display=c.style.display==='none'?'block':'none'}
+function getBuyerExtra(phone){let m={};try{m=JSON.parse(localStorage.getItem('kk_inv_buyer'))||{}}catch{}return m[phone]||{}}
+function setBuyerExtra(phone,field,val){let m={};try{m=JSON.parse(localStorage.getItem('kk_inv_buyer'))||{}}catch{}(m[phone]=m[phone]||{})[field]=val;try{localStorage.setItem('kk_inv_buyer',JSON.stringify(m))}catch{}}
+
+/* Doc so tien bang chu (tieng Viet) */
+function docSo(n){
+  n=Math.round(Math.abs(n));if(n===0)return 'Không đồng';
+  const cs=['không','một','hai','ba','bốn','năm','sáu','bảy','tám','chín'];
+  const doc3=(x,full)=>{const t=Math.floor(x/100),c=Math.floor(x%100/10),d=x%10;let r=[];
+    if(full||t)r.push(cs[t]+' trăm');
+    if(c===0){if(d&&(full||t))r.push('lẻ')}else if(c===1)r.push('mười');else r.push(cs[c]+' mươi');
+    if(d){if(d===1&&c>1)r.push('mốt');else if(d===5&&c>0)r.push('lăm');else if(d===4&&c>1)r.push('tư');else r.push(cs[d])}
+    return r.join(' ')};
+  const units=['',' nghìn',' triệu',' tỷ',' nghìn tỷ',' triệu tỷ'];const parts=[];let i=0;
+  while(n>0){parts.push([n%1000,i]);n=Math.floor(n/1000);i++}
+  const out=[];for(let k=parts.length-1;k>=0;k--){const [v,u]=parts[k];if(v)out.push(doc3(v,k<parts.length-1)+units[u])}
+  const s=out.join(' ').replace(/\s+/g,' ').trim();return s.charAt(0).toUpperCase()+s.slice(1)+' đồng chẵn';
+}
+/* Tinh hoa don tu don hang: gia ban da gom VAT -> tach truoc thue / tien thue */
+function calcInv(o,rate){
+  const r=rate/100;
+  const items=(o.items||[]).map(i=>{const pre=Math.round(i.unit/(1+r));return {...i,unit_pre:pre,line_pre:pre*i.qty}});
+  const goods=items.reduce((a,i)=>a+i.line_pre,0);
+  const discPre=Math.round((o.discount||0)/(1+r));
+  const pre=goods-discPre;
+  const total=o.total;
+  const vat=total-pre;
+  return {items,goods,discPre,pre,vat,total};
+}
+function invNumber(r){return r.invoice&&r.invoice.number?r.invoice.number:'KKM-'+String(r.order.code).slice(-8)}
+function custMap(){
+  const m={};
+  for(const r of orderRows()){const o=r.order;const c=m[o.customer_phone]=m[o.customer_phone]||{phone:o.customer_phone,name:o.customer_name,email:o.customer_email,addr:o.customer_address,orders:[],sum:0,last:o.created_at};
+    c.orders.push(r);c.sum+=o.total;if(o.created_at>=c.last){c.last=o.created_at;c.name=o.customer_name;c.email=o.customer_email;c.addr=o.customer_address}}
+  let mems={};try{mems=JSON.parse(localStorage.getItem('kk_members'))||{}}catch{}
+  for(const mm of Object.values(mems)){if(mm.phone&&!m[mm.phone])m[mm.phone]={phone:mm.phone,name:mm.name,email:mm.email,addr:'',orders:[],sum:0,last:mm.created_at||'',member:true};else if(mm.phone)m[mm.phone].member=true}
+  return m;
+}
+let INV_SEL=null,INV_ORDER=null;
+function renderInv(){
+  const S=getSeller();
+  ['Name','Tax','Addr','Contact','Serial','Bank'].forEach(k=>{const el=$('#s'+k);if(el&&document.activeElement!==el)el.value=S[k.toLowerCase()]||''});
+  $('#vatRate').value=S.vat||'10';
+  const rate=+S.vat||0;
+  const rows=orderRows().filter(r=>r.order.payment_status==='paid');
+  const tot=rows.reduce((a,r)=>a+r.order.total,0);
+  const vat=rows.reduce((a,r)=>a+calcInv(r.order,rate).vat,0);
+  $('#invCards').innerHTML=[
+    ['Hóa đơn đủ điều kiện',rows.length],['Khách hàng',Object.keys(custMap()).length],
+    ['Tổng giá trị thanh toán',vnd(tot)],['Tiền hàng trước thuế',vnd(tot-vat)],['Thuế GTGT ('+rate+'%)',vnd(vat)],
+  ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v" style="font-size:17px">${v}</div></div>`).join('');
+  renderInvCust();
+  if(INV_SEL)selectCust(INV_SEL,true);
+}
+function renderInvCust(){
+  const q=($('#invQ').value||'').trim().toLowerCase();
+  const list=Object.values(custMap()).filter(c=>!q||(c.name+' '+c.phone+' '+(c.email||'')).toLowerCase().includes(q)).sort((a,b)=>b.sum-a.sum);
+  $('#invCust').innerHTML=list.map(c=>`<div class="citem${INV_SEL===c.phone?' on':''}" onclick="selectCust(${esc(JSON.stringify(String(c.phone)))})">
+    <b>${esc(c.name||'(chưa có tên)')}</b>${c.member?' <span style="font-size:10.5px;background:#DBEAFE;color:#1E40AF;border-radius:6px;padding:1px 6px">thành viên</span>':''}
+    <small>📞 ${esc(c.phone)} · ✉ ${esc(c.email||'-')}</small>
+    <small>${c.orders.length} đơn · <b style="color:var(--pink)">${vnd(c.sum)}</b></small></div>`).join('')||'<div style="font-size:13px;color:var(--muted)">Chưa có khách hàng nào trên thiết bị này. Khách đặt hàng trên www.kk-mall.com từ thiết bị này sẽ xuất hiện tại đây; khi lên máy chủ động, toàn bộ khách hàng hệ thống tập trung về đây.</div>';
+}
+function selectCust(phone,keep){
+  INV_SEL=phone;if(!keep)INV_ORDER=null;
+  const c=custMap()[phone];if(!c)return;
+  renderInvCust();
+  const ex=getBuyerExtra(phone);
+  $('#invCustInfo').innerHTML=`<b style="color:var(--ink)">Thông tin người mua</b>
+    <div class="fgrid" style="margin-top:10px">
+      <div><label>Họ tên người mua</label><input value="${esc(ex.name||c.name||'')}" oninput="setBuyerExtra(${esc(JSON.stringify(String(phone)))},'name',this.value)"></div>
+      <div><label>Tên đơn vị (nếu xuất cho công ty)</label><input value="${esc(ex.company||'')}" placeholder="để trống nếu khách cá nhân" oninput="setBuyerExtra(${esc(JSON.stringify(String(phone)))},'company',this.value)"></div>
+      <div><label>Mã số thuế người mua</label><input value="${esc(ex.tax||'')}" placeholder="10 hoặc 13 số" oninput="setBuyerExtra(${esc(JSON.stringify(String(phone)))},'tax',this.value)"></div>
+      <div><label>Địa chỉ xuất hóa đơn</label><input value="${esc(ex.addr||c.addr||'')}" oninput="setBuyerExtra(${esc(JSON.stringify(String(phone)))},'addr',this.value)"></div>
+      <div><label>Email nhận hóa đơn</label><input value="${esc(ex.email||c.email||'')}" oninput="setBuyerExtra(${esc(JSON.stringify(String(phone)))},'email',this.value)"></div>
+      <div><label>Số điện thoại</label><input value="${esc(phone)}" disabled></div>
+    </div>`;
+  const rate=+getSeller().vat||0;
+  const box=$('#invOrders');box.style.display='block';
+  box.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="color:var(--ink)">Đơn hàng của khách (${c.orders.length})</b>
+    <button class="btn2" style="margin-left:auto" onclick="exportInvoices('csv',${esc(JSON.stringify(String(phone)))})">⬇ Bảng kê của khách (CSV)</button></div>
+    <table style="margin-top:8px"><tr><th>Số hóa đơn</th><th>Mã đơn · Ngày</th><th>SP</th><th>Trước thuế</th><th>Thuế ${rate}%</th><th>Tổng thanh toán</th><th></th></tr>
+    ${c.orders.map(r=>{const o=r.order,k=calcInv(o,rate),paid=o.payment_status==='paid';
+      return `<tr${INV_ORDER===o.code?' style="background:#EFF6FF"':''}><td><b>${esc(invNumber(r))}</b></td><td>${esc(o.code)}<br><span style="font-size:11px;color:var(--muted)">${new Date(o.created_at).toLocaleString('vi-VN')}</span></td>
+        <td>${(o.items||[]).reduce((a,i)=>a+i.qty,0)}</td><td>${vnd(k.pre)}</td><td>${vnd(k.vat)}</td><td class="kk">${vnd(k.total)}</td>
+        <td>${paid?`<button class="btn2 cta" onclick="showInv(${esc(JSON.stringify(String(o.code)))})">🧾 Xem hóa đơn</button>`:'<span class="warn">Chờ thanh toán</span>'}</td></tr>`}).join('')||'<tr><td colspan="7">Khách chưa có đơn hàng (mới đăng ký thành viên).</td></tr>'}</table>`;
+  if(INV_ORDER)showInv(INV_ORDER);else $('#invPreview').style.display='none';
+}
+function invHTML(r,forPrint){
+  const S=getSeller(),rate=+S.vat||0,o=r.order,k=calcInv(o,rate);
+  const ex=getBuyerExtra(o.customer_phone);
+  const d=new Date(r.invoice&&r.invoice.sent_at||o.created_at);
+  const PM={vnpay:'Chuyển khoản (VNPay)',momo:'Chuyển khoản (Ví MoMo)',zalopay:'Chuyển khoản (ZaloPay)',bank:'Chuyển khoản (VietQR)',vietqr:'Chuyển khoản (VietQR)'};
+  const n=x=>Number(x).toLocaleString('vi-VN');
+  return `<div class="invdoc" style="font-family:'Times New Roman',Times,serif;color:#111;background:#fff;padding:${forPrint?'0':'28px 32px'};max-width:820px;margin:0 auto;font-size:13.5px;line-height:1.5">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2px solid #1E3A8A;padding-bottom:10px">
+    <div><img src="${forPrint?location.href.replace(/admin\/.*$/,'')+'logo.svg':'../logo.svg'}" style="height:46px" alt="KK-MALL"></div>
+    <div style="text-align:center;flex:1"><div style="font-size:21px;font-weight:700;color:#B91C1C;letter-spacing:.5px">HÓA ĐƠN GIÁ TRỊ GIA TĂNG</div>
+      <div style="font-style:italic">(Bản thể hiện của hóa đơn điện tử)</div>
+      <div>Ngày ${String(d.getDate()).padStart(2,'0')} tháng ${String(d.getMonth()+1).padStart(2,'0')} năm ${d.getFullYear()}</div></div>
+    <div style="font-size:12.5px;white-space:nowrap">Mẫu số: <b>1</b><br>Ký hiệu: <b>${esc(S.serial)}</b><br>Số: <b style="color:#B91C1C">${esc(invNumber(r))}</b></div>
+  </div>
+  <table style="width:100%;margin:10px 0;font-size:13.5px;border:0"><tbody>
+    <tr><td style="width:150px;padding:2px 0;border:0">Đơn vị bán hàng:</td><td style="padding:2px 0;border:0"><b>${esc(S.name)}</b></td></tr>
+    <tr><td style="padding:2px 0;border:0">Mã số thuế:</td><td style="padding:2px 0;border:0"><b>${esc(S.tax)}</b></td></tr>
+    <tr><td style="padding:2px 0;border:0">Địa chỉ:</td><td style="padding:2px 0;border:0">${esc(S.addr)}</td></tr>
+    <tr><td style="padding:2px 0;border:0">Liên hệ:</td><td style="padding:2px 0;border:0">${esc(S.contact)}${S.bank?' · TK: '+esc(S.bank):''}</td></tr>
+  </tbody></table>
+  <table style="width:100%;margin:6px 0 10px;font-size:13.5px;border-top:1px dashed #94A3B8"><tbody>
+    <tr><td style="width:150px;padding:6px 0 2px;border:0">Họ tên người mua:</td><td style="padding:6px 0 2px;border:0"><b>${esc(ex.name||o.customer_name)}</b></td></tr>
+    <tr><td style="padding:2px 0;border:0">Tên đơn vị:</td><td style="padding:2px 0;border:0">${esc(ex.company||'')}</td></tr>
+    <tr><td style="padding:2px 0;border:0">Mã số thuế:</td><td style="padding:2px 0;border:0">${esc(ex.tax||'')}</td></tr>
+    <tr><td style="padding:2px 0;border:0">Địa chỉ:</td><td style="padding:2px 0;border:0">${esc(ex.addr||o.customer_address||'')}</td></tr>
+    <tr><td style="padding:2px 0;border:0">Điện thoại · Email:</td><td style="padding:2px 0;border:0">${esc(o.customer_phone)} · ${esc(ex.email||o.customer_email||'')}</td></tr>
+    <tr><td style="padding:2px 0;border:0">Hình thức thanh toán:</td><td style="padding:2px 0;border:0">${esc(PM[o.payment_method]||'Chuyển khoản')} · Mã đơn hàng: <b>${esc(o.code)}</b></td></tr>
+  </tbody></table>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr style="background:#EFF6FF">${['STT','Tên hàng hóa, dịch vụ','ĐVT','Số lượng','Đơn giá','Thành tiền'].map(h=>`<th style="border:1px solid #64748B;padding:6px;text-align:center;font-size:12.5px;color:#0F172A;text-transform:none;letter-spacing:0">${h}</th>`).join('')}</tr>
+    <tr style="font-size:11px;font-style:italic">${['1','2','3','4','5','6 = 4 x 5'].map(h=>`<td style="border:1px solid #64748B;text-align:center;padding:2px">${h}</td>`).join('')}</tr></thead>
+    <tbody>${k.items.map((i,idx)=>`<tr><td style="border:1px solid #64748B;text-align:center;padding:5px">${idx+1}</td><td style="border:1px solid #64748B;padding:5px">${esc(i.name)}<br><span style="font-size:11px;color:#475569">Mã: ${esc(i.sku)}</span></td><td style="border:1px solid #64748B;text-align:center;padding:5px">Cái</td><td style="border:1px solid #64748B;text-align:center;padding:5px">${i.qty}</td><td style="border:1px solid #64748B;text-align:right;padding:5px">${n(i.unit_pre)}</td><td style="border:1px solid #64748B;text-align:right;padding:5px">${n(i.line_pre)}</td></tr>`).join('')}
+    ${k.discPre?`<tr><td style="border:1px solid #64748B;padding:5px"></td><td style="border:1px solid #64748B;padding:5px;font-style:italic">Chiết khấu thương mại (voucher ${esc((o.vouchers||[]).map(v=>v.code||v).join(', '))})</td><td style="border:1px solid #64748B"></td><td style="border:1px solid #64748B"></td><td style="border:1px solid #64748B"></td><td style="border:1px solid #64748B;text-align:right;padding:5px">-${n(k.discPre)}</td></tr>`:''}
+    <tr><td colspan="5" style="border:1px solid #64748B;text-align:right;padding:5px">Cộng tiền hàng:</td><td style="border:1px solid #64748B;text-align:right;padding:5px"><b>${n(k.pre)}</b></td></tr>
+    <tr><td colspan="5" style="border:1px solid #64748B;text-align:right;padding:5px">Thuế suất GTGT: <b>${rate}%</b> &nbsp;&nbsp; Tiền thuế GTGT:</td><td style="border:1px solid #64748B;text-align:right;padding:5px"><b>${n(k.vat)}</b></td></tr>
+    <tr style="background:#FFF7ED"><td colspan="5" style="border:1px solid #64748B;text-align:right;padding:6px"><b>Tổng tiền thanh toán:</b></td><td style="border:1px solid #64748B;text-align:right;padding:6px;font-size:15px;color:#B91C1C"><b>${n(k.total)}</b></td></tr>
+    </tbody></table>
+  <div style="margin:8px 0 18px">Số tiền viết bằng chữ: <i><b>${docSo(k.total)}</b></i></div>
+  <div style="display:flex;justify-content:space-between;text-align:center;gap:20px">
+    <div style="flex:1"><b>Người mua hàng</b><br><i style="font-size:12px">(Chữ ký số (nếu có))</i></div>
+    <div style="flex:1"><b>Người bán hàng</b><br><i style="font-size:12px">(Chữ ký số)</i>
+      <div style="margin:10px auto 0;border:2px solid #16A34A;color:#15803D;border-radius:6px;padding:6px 10px;max-width:270px;font-size:12px;text-align:left">✔ Ký bởi: <b>${esc(S.name)}</b><br>Ký ngày: ${d.toLocaleDateString('vi-VN')}</div></div>
+  </div>
+  <div style="margin-top:18px;border-top:1px dashed #94A3B8;padding-top:6px;font-size:11px;color:#475569;text-align:center">Đơn giá đã gồm phí vận chuyển & xử lý · Tra cứu đơn hàng tại www.kk-mall.com bằng mã ${esc(o.code)} · Phát hành bởi hệ thống KK-MALL</div>
+  </div>`;
+}
+function showInv(code){
+  INV_ORDER=code;
+  const r=orderRows().find(x=>x.order.code===code);if(!r)return;
+  const pv=$('#invPreview');pv.style.display='block';
+  pv.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);background:#F8FAFC;border-radius:14px 14px 0 0">
+    <b style="color:var(--ink);align-self:center">Hóa đơn ${esc(invNumber(r))}</b>
+    <button class="btn2 cta" style="margin-left:auto" onclick="printInv(${esc(JSON.stringify(String(code)))})">🖨️ In / Lưu PDF</button>
+    <button class="btn2" onclick="downloadInv(${esc(JSON.stringify(String(code)))})">⬇ Tải file hóa đơn (HTML)</button>
+    <button class="btn2" onclick="mailInv(${esc(JSON.stringify(String(code)))})">✉ Gửi email cho khách</button></div>`+invHTML(r,false);
+  document.querySelectorAll('#invOrders tr').forEach(tr=>tr.style.background=tr.innerHTML.includes(code)&&tr.querySelector('button')?'#EFF6FF':'');
+  pv.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function invPage(r){
+  return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Hoa don ${esc(invNumber(r))} - KK-MALL</title>
+  <style>@page{size:A4;margin:14mm}body{margin:0;background:#fff}@media print{.noprint{display:none}}</style></head>
+  <body>${invHTML(r,true)}</body></html>`;
+}
+function printInv(code){
+  const r=orderRows().find(x=>x.order.code===code);if(!r)return;
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
+  f.contentDocument.open();f.contentDocument.write(invPage(r));f.contentDocument.close();
+  const go=()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch{}setTimeout(()=>f.remove(),60000)};
+  const img=f.contentDocument.querySelector('img');if(img&&!img.complete){img.onload=go;img.onerror=go}else setTimeout(go,150);
+  logAdmin('In hóa đơn '+invNumber(r));
+}
+function downloadInv(code){
+  const r=orderRows().find(x=>x.order.code===code);if(!r)return;
+  dl(invPage(r),`hoa-don-${invNumber(r)}.html`,'text/html;charset=utf-8');logAdmin('Tải hóa đơn '+invNumber(r));
+}
+function mailInv(code){
+  const r=orderRows().find(x=>x.order.code===code);if(!r)return;const o=r.order,ex=getBuyerExtra(o.customer_phone);
+  const k=calcInv(o,+getSeller().vat||0);
+  const body=`Kính gửi ${ex.name||o.customer_name},\n\nKK-MALL trân trọng gửi Quý khách hóa đơn GTGT số ${invNumber(r)} cho đơn hàng ${o.code}.\nTổng tiền thanh toán: ${k.total.toLocaleString('vi-VN')} đ (${docSo(k.total)}).\n\nFile hóa đơn đính kèm. Cảm ơn Quý khách đã mua sắm tại www.kk-mall.com.\n\nTrân trọng,\nKK-MALL`;
+  location.href=`mailto:${encodeURIComponent(ex.email||o.customer_email||'')}?subject=${encodeURIComponent('Hoa don GTGT '+invNumber(r)+' - KK-MALL')}&body=${encodeURIComponent(body)}`;
+  logAdmin('Soạn email hóa đơn '+invNumber(r));
+}
+function exportInvoices(kind,phone){
+  const S=getSeller(),rate=+S.vat||0;
+  let rows=orderRows().filter(r=>r.order.payment_status==='paid');
+  if(phone)rows=rows.filter(r=>r.order.customer_phone===phone);
+  if(!rows.length)return alert('Chưa có hóa đơn nào để xuất.');
+  const stamp=new Date().toISOString().slice(0,10);
+  const data=rows.map(r=>{const o=r.order,k=calcInv(o,rate),ex=getBuyerExtra(o.customer_phone);
+    return {so_hoa_don:invNumber(r),ky_hieu:S.serial,ngay:new Date(r.invoice&&r.invoice.sent_at||o.created_at).toLocaleDateString('vi-VN'),ma_don:o.code,
+      nguoi_mua:ex.name||o.customer_name,don_vi:ex.company||'',mst_nguoi_mua:ex.tax||'',dia_chi:ex.addr||o.customer_address||'',email:ex.email||o.customer_email||'',sdt:o.customer_phone,
+      so_mat_hang:(o.items||[]).length,tien_hang_truoc_thue:k.pre,thue_suat:rate+'%',tien_thue:k.vat,tong_thanh_toan:k.total,bang_chu:docSo(k.total),
+      thanh_toan:PMN[o.payment_method]||o.payment_method||'',
+      hang_hoa:k.items.map(i=>({sku:i.sku,ten:i.name,sl:i.qty,don_gia_truoc_thue:i.unit_pre,thanh_tien_truoc_thue:i.line_pre}))}});
+  const suffix=phone?'-'+phone:'';
+  if(kind==='json'){dl(JSON.stringify({ben_ban:S,hoa_don:data},null,1),`kk-mall-hoa-don${suffix}-${stamp}.json`,'application/json')}
+  else{
+    const head=['Số hóa đơn','Ký hiệu','Ngày','Mã đơn','Người mua','Tên đơn vị','MST người mua','Địa chỉ','Email','SĐT','Số mặt hàng','Tiền hàng trước thuế (đ)','Thuế suất','Tiền thuế GTGT (đ)','Tổng thanh toán (đ)','Số tiền bằng chữ','Hình thức thanh toán'];
+    const lines=[head.map(csvq).join(',')];
+    for(const x of data)lines.push([x.so_hoa_don,x.ky_hieu,x.ngay,x.ma_don,x.nguoi_mua,x.don_vi,x.mst_nguoi_mua,x.dia_chi,x.email,x.sdt,x.so_mat_hang,x.tien_hang_truoc_thue,x.thue_suat,x.tien_thue,x.tong_thanh_toan,x.bang_chu,x.thanh_toan].map(csvq).join(','));
+    const t=data.reduce((a,x)=>[a[0]+x.tien_hang_truoc_thue,a[1]+x.tien_thue,a[2]+x.tong_thanh_toan],[0,0,0]);
+    lines.push(['TỔNG CỘNG','','','','','','','','','',data.length+' HĐ',t[0],'',t[1],t[2],'',''].map(csvq).join(','));
+    dl('﻿'+lines.join('\r\n'),`kk-mall-bang-ke-hoa-don${suffix}-${stamp}.csv`,'text/csv;charset=utf-8');
+  }
+  logAdmin('Xuất '+(phone?'bảng kê khách '+phone:'bảng kê hóa đơn')+' ('+kind.toUpperCase()+') - '+data.length+' HĐ');
+}
+
+/* ===== LICH SU CAP NHAT ===== */
+let UPAGE=1,UOPEN=null;const UPER=30;
+const fmtT=s=>new Date(s).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'});
+const ago=s=>{const m=Math.round((Date.now()-new Date(s))/60000);return m<1?'vừa xong':m<60?m+' phút trước':m<1440?Math.floor(m/60)+' giờ '+(m%60)+' phút trước':Math.floor(m/1440)+' ngày trước'};
+const chg=e=>(e.up||0)+(e.down||0)+(e.oos||0)+(e.back||0);
+const ecats=e=>Object.entries(e.cats||{}).map(([c,v])=>[c,v[0],v[1],v[2],v[3],v[4]]);
+function updAll(){return (DATA.updates||[]).slice().sort((a,b)=>a.at<b.at?1:-1)}
+function initUpd(){
+  const cats=[...new Set(DATA.rows.map(r=>r.catName))].sort();
+  $('#uCat').innerHTML='<option value="">Tất cả ngành hàng</option>'+cats.map(c=>`<option>${esc(c)}</option>`).join('');
+  renderUpd();
+}
+function updFiltered(){
+  const t=$('#uType').value,rg=+$('#uRange').value,cat=$('#uCat').value,only=$('#uChg').checked;
+  const since=rg?Date.now()-rg*86400000:0;
+  return updAll().filter(e=>(!t||e.t===t)&&new Date(e.at)>=since&&(!cat||(e.cats&&e.cats[cat]))&&(!only||e.t==='catalog'||chg(e)>0));
+}
+function renderUpd(){
+  const all=updAll(),autos=all.filter(e=>e.t==='auto'),cat=$('#uCat').value;
+  const last=autos[0],lastAny=all[0];
+  const d1=all.filter(e=>Date.now()-new Date(e.at)<86400000),a1=d1.filter(e=>e.t==='auto');
+  const sum=(L,k)=>L.reduce((a,e)=>a+(e[k]||0),0);
+  // canh bao do tre
+  const late=last?(Date.now()-new Date(last.at))/60000:null;
+  $('#updAlert').innerHTML=!last?'<div class="note" style="background:#FFF7ED;border-color:#FED7AA;color:#9A3412">⏳ Bộ thu thập chưa ghi lần chạy nào kể từ khi bật nhật ký. Lần chạy tự động kế tiếp (tối đa 3 giờ) sẽ xuất hiện tại đây.</div>'
+    :late>240?`<div class="note" style="background:#FEE2E2;border-color:#FECACA;color:#991B1B">⚠️ Lần cập nhật tự động gần nhất cách đây <b>${Math.round(late)} phút</b> (quá chu kỳ 3 giờ) - kiểm tra workflow "Auto collect prices" trên GitHub.</div>`:'';
+  const lf=autos.find(e=>e.feed);
+  $('#updCards').innerHTML=[
+    ['Nguồn dữ liệu giá',lf?`<span class="good">Feed chính thức</span><br><small>${lf.feed.ok}/${lf.feed.sources} nguồn · ${DATA.rows.filter(r=>r.feed).length.toLocaleString('vi-VN')} SP giá thật</small>`:'<span class="warn">Mô phỏng</span><br><small>chưa nối datafeed</small>'],
+    ['Cập nhật gần nhất',lastAny?fmtT(lastAny.at)+'<br><small>'+ago(lastAny.at)+'</small>':'-'],
+    ['Tự động kế tiếp (dự kiến)',last?new Date(new Date(last.at).getTime()+180*60000).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})+'<br><small>chu kỳ 3 giờ</small>':'-'],
+    ['Số lần chạy 24h',a1.length+' <small>tự động</small> · '+d1.filter(e=>e.t==='catalog').length+' <small>catalog</small>'],
+    ['Lượt SP được làm mới 24h',sum(a1,'n').toLocaleString('vi-VN')],
+    ['Đổi giá 24h',`<span class="up">↑${sum(a1,'up').toLocaleString('vi-VN')}</span> <span class="dn">↓${sum(a1,'down').toLocaleString('vi-VN')}</span>`],
+    ['Tồn kho 24h',`<span class="warn">${sum(a1,'oos')}</span> <small>hết</small> · <span class="good">${sum(a1,'back')}</span> <small>có lại</small>`],
+    ['Tổng bản ghi nhật ký',all.length+' <small>'+(all.length?'từ '+new Date(all[all.length-1].at).toLocaleDateString('vi-VN'):'')+'</small>'],
+  ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v" style="font-size:16px">${v}</div></div>`).join('');
+  // bieu do 48 lan gan nhat
+  const tl=all.slice(0,48).reverse();const mx=Math.max(...tl.map(e=>e.t==='catalog'?e.n:chg(e)),1);
+  $('#updTl').innerHTML=tl.map((e,i)=>{const h=v=>(v/mx*110).toFixed(1)+'px';
+    const tip=`${fmtT(e.at)} · ${e.t==='catalog'?'Catalog: '+e.n+' SP':'↑'+e.up+' ↓'+e.down+' · hết '+e.oos+' · có lại '+e.back}`;
+    return `<div class="c" title="${esc(tip)}" onclick="openUpd('${e.at}')">${e.t==='catalog'?`<span style="height:${h(e.n)};background:#EA580C;border-radius:3px 3px 0 0"></span>`:
+      `<span style="height:${h(e.down)};background:#10B981"></span><span style="height:${h(e.up)};background:#EF4444"></span><span style="height:${h(e.oos+e.back)};background:#F59E0B;border-radius:3px 3px 0 0"></span>`}${!chg(e)&&e.t!=='catalog'?'<span style="height:2px;background:#CBD5E1"></span>':''}</div>`}).join('')||'<div style="font-size:13px;color:var(--muted);align-self:center">Chưa có dữ liệu</div>';
+  $('#updTlx').innerHTML=tl.length?`<span>${fmtT(tl[0].at)}</span><span>${tl.length} lần gần nhất</span><span>${fmtT(tl[tl.length-1].at)}</span>`:'';
+  // tong hop theo nganh
+  const L=updFiltered(),agg={};
+  for(const e of L)for(const [c,n,up,dn,oo,bk] of ecats(e)){if(cat&&c!==cat)continue;const a=agg[c]=agg[c]||{runs:0,n:0,up:0,dn:0,oo:0,bk:0,catl:0,cat:0};
+    if(e.t==='catalog'){a.catl++;a.cat+=n}else{a.runs++;a.n+=n;a.up+=up;a.dn+=dn;a.oo+=oo;a.bk+=bk}}
+  $('#updCatNote').textContent='· '+L.length+' lần cập nhật trong khoảng lọc';
+  $('#updCatTbl').innerHTML='<tr><th>Ngành hàng</th><th>Lần quét tự động</th><th>Lượt SP làm mới</th><th>Tăng giá</th><th>Giảm giá</th><th>Hết hàng</th><th>Có hàng lại</th><th>Đợt catalog</th><th>SP cập nhật catalog</th></tr>'+
+    Object.entries(agg).sort((a,b)=>(b[1].up+b[1].dn+b[1].cat)-(a[1].up+a[1].dn+a[1].cat)).map(([c,a])=>`<tr><td><b>${esc(c)}</b></td><td>${a.runs}</td><td>${a.n.toLocaleString('vi-VN')}</td><td class="up">${a.up.toLocaleString('vi-VN')}</td><td class="dn">${a.dn.toLocaleString('vi-VN')}</td><td class="${a.oo?'warn':''}">${a.oo}</td><td class="${a.bk?'good':''}">${a.bk}</td><td>${a.catl}</td><td><b>${a.cat.toLocaleString('vi-VN')}</b></td></tr>`).join('')||'<tr><td colspan="9">Không có dữ liệu trong khoảng lọc</td></tr>';
+  // nhat ky
+  const pages=Math.max(1,Math.ceil(L.length/UPER));UPAGE=Math.min(UPAGE,pages);
+  $('#updCount').textContent='· '+L.length+' bản ghi';
+  const rows=L.slice((UPAGE-1)*UPER,UPAGE*UPER);
+  $('#updTbl').innerHTML='<tr><th>Thời gian</th><th>Loại</th><th>Nội dung</th><th>Số mặt hàng</th><th>Giá ↑ / ↓</th><th>Tồn kho</th><th>Mục được cập nhật nhiều nhất</th><th></th></tr>'+
+    rows.map(e=>{const top=ecats(e).map(([c,n,up,dn,oo,bk])=>[c,e.t==='catalog'?n:up+dn+oo+bk]).filter(x=>x[1]).sort((a,b)=>b[1]-a[1]);
+      const open=UOPEN===e.at;
+      return `<tr style="cursor:pointer" onclick="openUpd('${e.at}')"><td style="white-space:nowrap"><b>${fmtT(e.at)}</b><br><span style="font-size:11px;color:var(--muted)">${ago(e.at)}</span></td>
+      <td>${e.t==='catalog'?`<span class="badge b-cat">📦 Catalog</span><br><span style="font-size:11px;color:var(--muted)">${esc(e.kind||'')}</span>`:`<span class="badge b-auto">🔄 Tự động</span><br><span style="font-size:11px;color:var(--muted)">${esc(e.trig||'')}</span>`}</td>
+      <td style="font-size:12.5px;min-width:200px">${e.t==='catalog'?esc(e.title):`Quét giá & tồn kho ${(e.offers||0).toLocaleString('vi-VN')} báo giá nguồn${e.feed?`<br><span style="font-size:11.5px">📥 Feed: <b>${e.feed.ok}/${e.feed.sources}</b> nguồn · khớp <b>${e.feed.matched}</b> · <b class="good">+${e.feed.added}</b> SP mới${e.feed.fail&&e.feed.fail.length?` · <span class="warn">${e.feed.fail.length} lỗi</span>`:''}</span>`:''}<br><span style="font-size:11px;color:var(--muted)">${esc(e.mode||'')} · ${((e.dur||0)/1000).toFixed(1)} giây</span>`}</td>
+      <td><b>${(e.n||0).toLocaleString('vi-VN')}</b><br><span style="font-size:11px;color:var(--muted)">${e.t==='catalog'?'SP cập nhật':chg(e)+' có thay đổi'}</span></td>
+      <td>${e.t==='catalog'?'-':`<span class="up">↑${e.up}</span> / <span class="dn">↓${e.down}</span>`}</td>
+      <td style="font-size:12px">${e.t==='catalog'?'-':`${e.oos?'<span class="warn">'+e.oos+' hết</span>':'0 hết'} · ${e.back?'<span class="good">'+e.back+' có lại</span>':'0 có lại'}`}</td>
+      <td style="max-width:300px">${top.slice(0,3).map(([c,n])=>`<span class="ctag">${esc(c)} <b>${n}</b></span>`).join('')}${top.length>3?`<span class="ctag">+${top.length-3} ngành</span>`:''}${!top.length?'<span style="font-size:12px;color:var(--muted)">Không có thay đổi</span>':''}</td>
+      <td style="color:var(--ink);font-weight:800">${open?'▲':'▼'}</td></tr>`+(open?`<tr class="det"><td colspan="8">${updDetail(e)}</td></tr>`:'')}).join('')||'<tr><td colspan="8">Không có bản ghi trong khoảng lọc</td></tr>';
+  $('#updPg').innerHTML=pages>1?`<button onclick="UPAGE--;renderUpd()" ${UPAGE<=1?'disabled':''}>‹ Mới hơn</button><span style="font-size:12.5px">Trang <b>${UPAGE}</b>/${pages}</span><button onclick="UPAGE++;renderUpd()" ${UPAGE>=pages?'disabled':''}>Cũ hơn ›</button>`:'';
+}
+function openUpd(at){
+  UOPEN=UOPEN===at?null:at;
+  const L=updFiltered(),i=L.findIndex(e=>e.at===at);
+  if(i<0){$('#uRange').value='0';$('#uType').value='';$('#uCat').value='';$('#uChg').checked=false}
+  const L2=updFiltered(),j=L2.findIndex(e=>e.at===at);if(j>=0)UPAGE=Math.floor(j/UPER)+1;
+  go('upd');renderUpd();
+}
+function updDetail(e){
+  const cats=ecats(e).sort((a,b)=>e.t==='catalog'?b[1]-a[1]:(b[2]+b[3]+b[4]+b[5])-(a[2]+a[3]+a[4]+a[5]));
+  const grps=Object.entries(e.grps||{}).sort((a,b)=>b[1]-a[1]);
+  const n=x=>Number(x).toLocaleString('vi-VN');
+  let h=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px">`;
+  h+=`<div><b style="font-size:12.5px;color:var(--ink)">Theo ngành hàng</b><table class="mini" style="margin-top:6px">`+(e.t==='catalog'
+    ?'<tr><th>Ngành</th><th>SP cập nhật</th></tr>'+cats.map(([c,v])=>`<tr><td>${esc(c)}</td><td><b>${v}</b></td></tr>`).join('')
+    :'<tr><th>Ngành</th><th>Quét</th><th>↑</th><th>↓</th><th>Hết</th><th>Có lại</th></tr>'+cats.map(([c,v,u,d,o,b])=>`<tr><td>${esc(c)}</td><td>${v}</td><td class="up">${u}</td><td class="dn">${d}</td><td>${o}</td><td>${b}</td></tr>`).join(''))+'</table></div>';
+  h+=`<div><b style="font-size:12.5px;color:var(--ink)">Theo nhóm hàng</b> <span style="font-size:11px;color:var(--muted)">(${grps.length} nhóm)</span><div style="margin-top:6px;max-height:260px;overflow:auto">${grps.map(([g,c])=>`<span class="ctag">${esc(g)} <b>${c}</b></span>`).join('')||'<span style="font-size:12px;color:var(--muted)">Không nhóm nào thay đổi</span>'}</div>`+
+    (e.note?`<div style="font-size:12px;color:#334155;margin-top:8px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 9px">📝 ${esc(e.note)}</div>`:'')+
+    (e.ledger&&e.ledger[1]>=e.ledger[0]?`<div style="font-size:11.5px;color:var(--muted);margin-top:8px">Sổ cái giá: niêm phong bản ghi #${n(e.ledger[0])} → #${n(e.ledger[1])}</div>`:'')+`</div>`;
+  if(e.feed)h+=`<div style="grid-column:1/-1;background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:12.5px"><b style="color:var(--ink)">📥 Datafeed chính thức lần này</b><br>Nguồn tải được: <b>${e.feed.ok}/${e.feed.sources}</b> · Bản ghi đọc: <b>${n(e.feed.items)}</b> · Hợp lệ: <b>${n(e.feed.valid)}</b> · Khớp SP sẵn có: <b>${n(e.feed.matched)}</b> · <span class="good">Thêm mới: <b>${n(e.feed.added)}</b></span> · Không phân loại được: ${n(e.feed.unclassified)} · Lỗi giá/tên: ${n(e.feed.bad)}${e.feed.capped?' · Vượt trần/thiếu ảnh: '+n(e.feed.capped):''}${e.feed.fail&&e.feed.fail.length?`<br><span class="warn">Lỗi tải: ${e.feed.fail.map(esc).join(' · ')}</span>`:''}</div>`;
+  if(e.top&&e.top.length)h+=`<div style="grid-column:1/-1"><b style="font-size:12.5px;color:var(--ink)">Thay đổi giá lớn nhất lần này</b><table class="mini" style="margin-top:6px"><tr><th>SKU</th><th>Sản phẩm</th><th>Nhóm</th><th>Giá cũ</th><th>Giá mới</th><th>Chênh</th></tr>`+
+    e.top.map(([sku,nm,g,o,nw])=>{const pc=(nw-o)/o*100;return `<tr><td>${esc(sku)}</td><td>${esc(nm)}</td><td>${esc(g)}</td><td>${n(o)}</td><td><b>${n(nw)}</b></td><td class="${pc>0?'up':'dn'}">${pc>0?'+':''}${pc.toFixed(1)}%</td></tr>`}).join('')+'</table></div>';
+  return h+'</div>';
+}
+function exportUpd(){
+  const L=updFiltered();if(!L.length)return alert('Không có bản ghi để xuất.');
+  const head=['Thời gian','Loại','Nội dung','Chế độ','Số mặt hàng','Tăng giá','Giảm giá','Hết hàng','Có hàng lại','Ngành hàng được cập nhật','Nhóm hàng được cập nhật'];
+  const lines=[head.map(csvq).join(',')];
+  for(const e of L)lines.push([new Date(e.at).toLocaleString('vi-VN'),e.t==='catalog'?'Cập nhật catalog':'Tự động 3 giờ',e.t==='catalog'?e.title:'Quét giá & tồn kho',e.t==='catalog'?(e.kind||''):(e.mode||''),e.n||0,e.up||'',e.down||'',e.oos||'',e.back||'',
+    ecats(e).map(([c,v,u,d,o,b])=>c+': '+(e.t==='catalog'?v:(u+d+o+b))).join('; '),Object.entries(e.grps||{}).map(([g,c])=>g+': '+c).join('; ')].map(csvq).join(','));
+  dl('﻿'+lines.join('\r\n'),`kk-mall-lich-su-cap-nhat-${new Date().toISOString().slice(0,10)}.csv`,'text/csv;charset=utf-8');
+  logAdmin('Xuất lịch sử cập nhật - '+L.length+' bản ghi');
+}
+
+/* ===== HE THONG ===== */
+async function renderSys(){
+  let meta={};try{meta=await (await fetch('../api/meta.json',{cache:'no-store'})).json()}catch{}
+  let ledger={};try{ledger=await (await fetch('../api/ledger-verify.json',{cache:'no-store'})).json()}catch{}
+  const ageSync=meta.lastSync?(Date.now()-new Date(meta.lastSync))/60000:1e9;
+  const ageData=(Date.now()-new Date(DATA.generated_at))/60000;
+  const hc=(ok,warn)=>ok?'✅':'⚠️ '+warn;
+  $('#sysCards').innerHTML=[
+    ['Đồng bộ gần nhất',(meta.lastSync?new Date(meta.lastSync).toLocaleString('vi-VN'):'-')+'<br>'+hc(ageSync<75,'quá '+Math.round(ageSync)+' phút')],
+    ['Chu kỳ cập nhật',(meta.syncMinutes||30)+' phút'],
+    ['Gói quản trị',new Date(DATA.generated_at).toLocaleString('vi-VN')+'<br>'+hc(ageData<75,'quá '+Math.round(ageData)+' phút')],
+    ['Sổ cái giá',ledger.ok?'✅ Toàn vẹn':'⚠️ đang kiểm'],
+    ['Số mặt hàng khớp',DATA.total===DATA.rows.length?'✅ '+DATA.total:'⚠️ lệch'],
+  ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v" style="font-size:14px">${v}</div></div>`).join('');
+  let log=[];try{log=JSON.parse(localStorage.getItem('kk_admin_log')||'[]')}catch{}
+  const lc=document.querySelector('#logCard');
+  if(lc)lc.innerHTML='<b style="color:var(--ink)">Nhật ký quản trị trên thiết bị này (100 gần nhất)</b><table style="margin-top:8px"><tr><th>Thời gian</th><th>Hành động</th></tr>'+log.slice(0,20).map(l=>`<tr><td style="white-space:nowrap">${new Date(l.t).toLocaleString('vi-VN')}</td><td>${esc(l.act)}</td></tr>`).join('')+'</table>';
+}
+</script>
+<script src="../config.js?v=2610240302"></script>
+<script src="ops.js?v=2610240302"></script>
+</body>
+</html>
