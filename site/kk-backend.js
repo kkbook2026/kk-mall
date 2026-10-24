@@ -95,7 +95,7 @@ if (KKB.on) {
     const box = $('#myOrdersBox'); box.innerHTML = '<div style="font-size:12px;color:var(--muted)">Đang tải...</div>';
     try {
       const r = await KKB.call('orders.mine', { token: KKB.token() }); const m = getMember();
-      box.innerHTML = r.orders.length ? `<table class="cmp"><tr><th>Mã đơn</th><th>Tổng</th><th>Trạng thái</th><th></th></tr>${r.orders.map(o => `<tr><td><b>${o.code}</b><br><small style="color:var(--muted)">${new Date(o.created_at).toLocaleDateString('vi-VN')}</small></td><td>${vnd(o.total)}</td><td style="font-size:12px">${esc(o.status_text)}</td><td><button class="vbtn" onclick="closeAll();showTrack('${o.code}','')">Xem</button></td></tr>`).join('')}</table>` : '<div style="font-size:13px;color:var(--muted)">Bạn chưa có đơn hàng nào.</div>';
+      box.innerHTML = r.orders.length ? `<table class="cmp"><tr><th>Mã đơn</th><th>Tổng</th><th>Trạng thái</th><th></th></tr>${r.orders.map(o => `<tr><td><b>${o.code}</b><br><small style="color:var(--muted)">${new Date(o.created_at).toLocaleDateString('vi-VN')}</small></td><td>${vnd(o.total)}</td><td style="font-size:12px">${esc(o.status_text)}</td><td><button class="vbtn" onclick="closeAll();showTrack(${esc(JSON.stringify(String(o.code)))},'')">Xem</button></td></tr>`).join('')}</table>` : '<div style="font-size:13px;color:var(--muted)">Bạn chưa có đơn hàng nào.</div>';
     } catch (x) { box.innerHTML = '<div style="color:#B91C1C;font-size:13px">' + esc(x.message) + '</div>'; if (x.code === 401) { KKB.setSess(null); memberBadge(); } }
   };
   window.regMember = window.otpSend;
@@ -158,8 +158,9 @@ if (KKB.on) {
     } catch (x) { er.textContent = x.message; er.style.display = 'block'; b.disabled = false; b.textContent = 'Xác nhận & thanh toán';
       if (x.code === 409) { toast('Giá/tồn kho vừa thay đổi - đang chốt lại...'); setTimeout(openCheckout, 1000); } }
   };
-  const copyBtn = (t) => `<button type="button" class="vbtn" style="padding:2px 8px;margin-left:6px" onclick="navigator.clipboard.writeText('${esc(String(t)).replace(/'/g, "\\'")}');toast('Đã sao chép')">Sao chép</button>`;
+  const copyBtn = (t) => `<button type="button" class="vbtn" style="padding:2px 8px;margin-left:6px" data-v="${esc(String(t))}" onclick="navigator.clipboard.writeText(this.dataset.v);toast('Đã sao chép')">Sao chép</button>`;
   window.payScreen = function (o, p, phone) {
+    phone = String(phone || '').replace(/\D/g, '').slice(0, 11); window._payPhone = phone;
     clearInterval(_poll);
     $('#coBox').innerHTML = `<button class="x" onclick="closeAll()" type="button" style="position:absolute;top:12px;right:14px;z-index:5">✕</button><div style="padding:28px;max-width:720px;margin:auto">
       <div class="step"><b>1</b> Thông tin <span style="margin:0 6px">›</span><b style="background:var(--cta)">2</b> Thanh toán VietQR <span style="margin:0 6px">›</span><b>3</b> KK-MALL tự đặt mua & giao</div>
@@ -170,7 +171,7 @@ if (KKB.on) {
         <div id="payState" class="lock" style="margin-top:10px">⏳ Đang chờ thanh toán... (tự cập nhật)</div>`
         : `<div class="note">KK-MALL sẽ gọi điện / gửi email thông tin chuyển khoản cho đơn <b>${o.code}</b> trong giờ làm việc.</div>`}
       <div class="sum" style="margin-top:14px"><div class="row"><span>Tiền hàng thanh toán hộ nhà cung cấp</span><b>${vnd(o.goods)}</b></div><div class="row"><span>Phí dịch vụ KK-MALL (gồm VAT)</span><b>${vnd(o.fee_net)}</b></div><div class="row t"><span>Tổng</span><span style="color:var(--coral)">${vnd(o.total)}</span></div></div>
-      <button class="btn i" onclick="showTrack('${o.code}','${esc(phone || '')}')">📦 Theo dõi đơn hàng</button></div>`;
+      <button class="btn i" onclick="showTrack(${esc(JSON.stringify(String(o.code)))},_payPhone)">📦 Theo dõi đơn hàng</button></div>`;
     show('#com');
     if (p && p.ready) _poll = setInterval(async () => {
       if (!document.getElementById('payState')) { clearInterval(_poll); return; }
@@ -182,13 +183,14 @@ if (KKB.on) {
   const SHIP = { to_order: 'Đang đặt tại nhà cung cấp', ordered: 'Đã đặt - chờ giao vận chuyển', shipped: 'Đang giao', delivered: 'Đã giao', cancelled: 'Đã hủy' };
   const RMAST = { info_sent: 'Đã gửi hướng dẫn bảo hành', requested: 'Đã nhận yêu cầu', pickup_scheduled: 'Đã hẹn lấy hàng', returned: 'Nhà cung cấp đã nhận lại', refunded: 'Đã hoàn tiền', rejected: 'Không được chấp nhận', closed: 'Đã đóng' };
   window.showTrack = async function (code, phone) {
+    code = String(code || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 20); phone = String(phone || '').replace(/\D/g, '').slice(0, 11);
     try {
       const d = await KKB.call('order.get', { code, phone, token: KKB.token() }); const o = d.order, paid = o.payment_status === 'paid';
       window._trk = { code, phone, o };
       const steps = [['Đặt hàng', true], ['Thanh toán', paid], ['Đặt tại nhà cung cấp', ['ordered', 'shipping', 'delivered', 'completed'].includes(o.status)], ['Đang giao', ['shipping', 'delivered', 'completed'].includes(o.status)], ['Đã giao', ['delivered', 'completed'].includes(o.status)]];
       $('#tBox').innerHTML = `<div style="padding:28px"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;color:var(--ink)">Đơn ${o.code}</h2><button class="x" onclick="closeAll()">✕</button></div>
         <div class="${paid ? 'okm' : 'err'}" style="display:block;margin:10px 0">${paid ? '✅ Đã thanh toán' : '⏳ Chưa thanh toán'} · <b>${esc(o.status_text)}</b></div>
-        ${!paid && d.payment && d.payment.ready && !['cancelled'].includes(o.status) ? `<button class="btn g" onclick="payScreen(_trk.o,${JSON.stringify(d.payment).replace(/"/g, '&quot;')},'${esc(phone || '')}')">📲 Thanh toán ngay bằng VietQR</button>` : ''}
+        ${!paid && d.payment && d.payment.ready && !['cancelled'].includes(o.status) ? `<button class="btn g" onclick="payScreen(_trk.o,${JSON.stringify(d.payment).replace(/"/g, '&quot;')},_trk.phone)">📲 Thanh toán ngay bằng VietQR</button>` : ''}
         <div class="timeline">${steps.map(([t, on]) => `<div class="tl ${on ? 'on' : ''}"><span class="d"></span><div><b>${t}</b></div></div>`).join('')}</div>
         <table class="cmp">${o.lines.map(l => { const sh = o.shipments.filter(s => s.sku === l.sku); const st = sh[0]; return `<tr><td>${esc(l.name)} × ${l.qty}${st ? `<br><span style="font-size:12px;color:var(--muted)">${SHIP[st.status] || st.status}${st.tracking ? ` · ${esc(st.carrier)} <b>${esc(st.tracking)}</b>` : ''}</span>` : ''}</td><td style="text-align:right">${vnd(l.line_total)}</td>
           <td style="white-space:nowrap">${paid ? `${l.warranty_ok ? `<button class="vbtn" onclick="openRma('${l.sku}','warranty')">🛠 Bảo hành</button> ` : ''}<button class="vbtn" onclick="openRma('${l.sku}','return')">↩️ Đổi trả</button>` : ''}</td></tr>`; }).join('')}

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="vi">
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests"><meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KK-MALL - Đại siêu thị trực tuyến tổng hợp</title>
 <meta name="description" content="KK-MALL - đại siêu thị trực tuyến với trợ lý AI riêng: tổng hợp hàng nghìn mặt hàng chính hãng từ các nền tảng lớn nhất Việt Nam, AI tối ưu giá & voucher 24/7, giá cuối cùng đã gồm giao hàng - không phụ phí ẩn, đặt hàng 1 phút, hóa đơn điện tử tự động.">
@@ -462,7 +462,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
   <form class="aif" onsubmit="aiSend(event)"><input id="aiIn" placeholder="Hỏi tôi: 'tủ lạnh dưới 12 triệu'..." autocomplete="off"><button class="b" type="submit">Gửi</button></form>
 </div>
 
-<script src="config.js?v=2610230941"></script>
+<script src="config.js?v=2610240302"></script>
 <script src="demo-shim.js"></script>
 <script src="kk-smart.js"></script>
 <script>
@@ -561,7 +561,7 @@ async function loadSDUI(){
   for(const s of d.sections){
     if(s.type!=='shelf'||!s.items.length)continue;
     const el=document.createElement('section');el.className='sec reveal';
-    el.innerHTML=`<div class="sec-h"><h2>${esc(s.title)}</h2>${s.cat?`<div class="chips">${s.groups.slice(0,5).map(g=>`<button class="chip" onclick="setCat('${s.cat}','${esc(g)}')">${esc(g)}</button>`).join('')}<button class="chip" onclick="setCat('${s.cat}')">Xem tất cả →</button></div>`:''}</div><div class="shelfwrap"><button class="sarr l" onclick="this.parentNode.querySelector('.shelf').scrollBy({left:-640,behavior:'smooth'})">‹</button><div class="shelf">${s.items.map(card).join('')}</div><button class="sarr r" onclick="this.parentNode.querySelector('.shelf').scrollBy({left:640,behavior:'smooth'})">›</button></div>`;
+    el.innerHTML=`<div class="sec-h"><h2>${esc(s.title)}</h2>${s.cat?`<div class="chips">${s.groups.slice(0,5).map(g=>`<button class="chip" onclick="setCat(${esc(JSON.stringify(String(s.cat)))},${esc(JSON.stringify(String(g)))})">${esc(g)}</button>`).join('')}<button class="chip" onclick="setCat('${s.cat}')">Xem tất cả →</button></div>`:''}</div><div class="shelfwrap"><button class="sarr l" onclick="this.parentNode.querySelector('.shelf').scrollBy({left:-640,behavior:'smooth'})">‹</button><div class="shelf">${s.items.map(card).join('')}</div><button class="sarr r" onclick="this.parentNode.querySelector('.shelf').scrollBy({left:640,behavior:'smooth'})">›</button></div>`;
     box.appendChild(el);
   }
   revealObserve();
@@ -576,7 +576,7 @@ function goHome(){state.f='';$('#shop').style.display='none';$('#shelves').style
 function showShop(){$('#shop').style.display='';$('#shelves').style.display='none';$('#cats').style.display='none';$('#home').style.display='none'}
 function setCat(id,group=''){closeMega();state.f='';state.cat=id;state.group=group;state.q='';$('#q').value='';$('#brand').innerHTML='<option value="">Tất cả thương hiệu</option>';navMark('-cat');
   const c=META.categories.find(x=>x.id===id); $('#secTitle').textContent=c?c.icon+' '+c.name+(group?' › '+group:''):'Tất cả sản phẩm';
-  $('#groups').innerHTML=c?c.groups.map(g=>`<button class="chip ${g===group?'on':''}" onclick="setCat('${id}','${esc(g)}')">${esc(g)}</button>`).join(''):'';
+  $('#groups').innerHTML=c?c.groups.map(g=>`<button class="chip ${g===group?'on':''}" onclick="setCat(${esc(JSON.stringify(String(id)))},${esc(JSON.stringify(String(g)))})">${esc(g)}</button>`).join(''):'';
   showShop(); scrollTo({top:0,behavior:'smooth'}); reload();}
 async function doSearch(e){e.preventDefault&&e.preventDefault();$('#sug').classList.remove('show');const qq=$('#q').value.trim();if(!qq)return;if(await showSemantic(qq))return;state.q=qq;state.f='';state.cat='';state.group='';navMark('');$('#secTitle').textContent='🔎 Kết quả cho "'+state.q+'"';$('#groups').innerHTML='';showShop();reload()}
 async function reload(){state.page=1;state.items=[];$('#grid').innerHTML=Array.from({length:8},()=>'<div class="skel sk-card"></div>').join('');await loadMore(true)}
@@ -756,7 +756,7 @@ async function openCheckout(){if(!cart.length)return toast('Giỏ hàng trống'
 async function tryCode(f){const code=f.extra_code.value.trim().toUpperCase();if(!code)return;
   try{const r=await api('/api/cart/optimize',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({items:cart.map(c=>({sku:c.sku,qty:c.qty})),codes:[code],phone:f.phone.value})});
     lastOpt=r;const t=totals();$('#sumTot').textContent=vnd(t.tot-r.discount);$('#coSubmit').textContent='Xác nhận & thanh toán '+vnd(t.tot-r.discount);
-    $('#codeMsg').innerHTML=r.vouchers.some(v=>v.code===code)?`<span style="color:var(--ok)">✓ Áp dụng ${code} - tổng giảm ${vnd(r.discount)}</span>`:`<span style="color:#B91C1C">Mã ${code} không tối ưu hơn tổ hợp hiện tại (giữ ${r.vouchers.map(v=>v.code).join('+')||'0 mã'})</span>`}catch(e){$('#codeMsg').innerHTML='<span style="color:#B91C1C">'+esc(e.message)+'</span>'}}
+    $('#codeMsg').innerHTML=r.vouchers.some(v=>v.code===code)?`<span style="color:var(--ok)">✓ Áp dụng ${esc(code)} - tổng giảm ${vnd(r.discount)}</span>`:`<span style="color:#B91C1C">Mã ${esc(code)} không tối ưu hơn tổ hợp hiện tại (giữ ${r.vouchers.map(v=>v.code).join('+')||'0 mã'})</span>`}catch(e){$('#codeMsg').innerHTML='<span style="color:#B91C1C">'+esc(e.message)+'</span>'}}
 let idemKey=null;
 async function submitOrder(e){e.preventDefault();const f=new FormData(e.target);const body=Object.fromEntries(f.entries());body.consent=!!f.get('consent');body.items=cart.map(c=>({sku:c.sku,qty:c.qty}));
   body.items=cart.filter(c=>!c.unavailable).map(c=>({sku:c.sku,qty:c.qty}));body.lock=PRICE_LOCK;
@@ -776,7 +776,7 @@ async function showTrack(code,phone){try{const d=await api(`/api/orders/${code}?
   $('#tBox').innerHTML=`<div style="padding:28px"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;color:var(--ink)">Đơn ${o.code}</h2><button class="x" onclick="closeAll()">✕</button></div>
   <div class="${paid?'okm':'err'}" style="display:block">${paid?'✅ Đã thanh toán':'⏳ Chưa thanh toán'}${o.payment_method?` qua <b>${{vnpay:'VNPay',momo:'Ví MoMo',zalopay:'ZaloPay',bank:'Chuyển khoản VietQR',vietqr:'Chuyển khoản VietQR'}[o.payment_method]||esc(o.payment_method)}</b>`:''} · ${ST[o.status]||o.status}</div>
   ${d.refund?`<div class="note">↩️ Hoàn tiền ${vnd(d.refund.amount)}: <b>${d.refund.status==='done'?'đã hoàn':'đang xử lý'}</b> (hệ thống tự tạo lệnh hoàn khi hết nguồn hàng)</div>`:''}
-  ${!paid&&d.payment?(d.payment.type==='redirect'?`<a class="btn g" style="display:block;text-align:center" href="${d.payment.url}">Thanh toán ngay</a>`:`<div class="note"><b>Chuyển khoản VietQR</b> - nội dung <b>${o.code}</b><br>Số TK: <b>${esc(d.payment.bank.account)}</b> · ${esc(d.payment.bank.name)} · Số tiền: <b>${vnd(d.payment.amount)}</b><br><img src="${d.payment.qr}" style="width:220px;margin:10px auto"></div>`):''}
+  ${!paid&&d.payment?(d.payment.type==='redirect'?`<a class="btn g" style="display:block;text-align:center" href="${/^(https:\/\/|\/(?!\/))/i.test(d.payment.url||'')?esc(d.payment.url):'#'}">Thanh toán ngay</a>`:`<div class="note"><b>Chuyển khoản VietQR</b> - nội dung <b>${o.code}</b><br>Số TK: <b>${esc(d.payment.bank.account)}</b> · ${esc(d.payment.bank.name)} · Số tiền: <b>${vnd(d.payment.amount)}</b><br><img src="${d.payment.qr}" style="width:220px;margin:10px auto"></div>`):''}
   <div class="timeline"><div class="tl on"><span class="d"></span><div><b>Đặt hàng</b> ${new Date(o.created_at).toLocaleString('vi-VN')}${o.discount?` · voucher -${vnd(o.discount)} (${(o.vouchers||[]).map(v=>v.code).join('+')})`:''}</div></div><div class="tl ${paid?'on':''}"><span class="d"></span><div><b>Thanh toán</b> ${paid?'Đã nhận - mã GD '+esc(o.payment_ref||''):'Chờ thanh toán'}</div></div><div class="tl ${['sourced','completed'].includes(o.status)?'on':''}"><span class="d"></span><div><b>Đặt tại nguồn & giao hàng</b><br>${d.fulfillments.map(f=>`• ${esc(f.product_name)} × ${f.qty}: ${FS[f.status]||f.status}${f.tracking_code?' · Vận đơn '+esc(f.tracking_code):''}`).join('<br>')||'Chờ thanh toán'}</div></div><div class="tl ${d.invoice&&d.invoice.status==='sent'?'on':''}"><span class="d"></span><div><b>Hóa đơn điện tử</b> ${d.invoice?esc(d.invoice.number)+' - '+(d.invoice.status==='sent'?'đã gửi email':d.invoice.status==='approved'?'đã ký số, đang gửi':'đang lập'):'Lập sau khi thanh toán'}</div></div></div>
   <table class="cmp">${o.items.map(i=>`<tr><td>${esc(i.name)}</td><td>× ${i.qty}</td><td style="text-align:right">${vnd(i.line_total)}</td></tr>`).join('')}${o.discount?`<tr><td colspan="2">Giảm giá voucher</td><td style="text-align:right;color:var(--ok)">-${vnd(o.discount)}</td></tr>`:''}<tr style="font-weight:800"><td colspan="2">Tổng thanh toán (đã gồm giao hàng)</td><td style="text-align:right;color:var(--coral)">${vnd(o.total)}</td></tr></table>
   <div style="font-size:12.5px;color:var(--muted)">Giao đến: ${esc(o.customer_name)} · ${esc(o.customer_phone)} · ${esc(o.customer_address)}</div></div>`;show('#tm')}catch(e){toast(e.message);openTrack()}}
@@ -807,7 +807,7 @@ async function regMember(e){e.preventDefault();const b=Object.fromEntries(new Fo
 async function myOrders(){const m=getMember();if(!m)return;
   const box=$('#myOrdersBox');box.innerHTML='<div class="kv" style="font-size:12px;color:var(--muted)">Đang tải...</div>';
   try{const rows=await api(`/api/members/orders?phone=${encodeURIComponent(m.phone)}&email=${encodeURIComponent(m.email)}`);
-    box.innerHTML=rows.length?`<table class="cmp"><tr><th>Mã đơn</th><th>Tổng</th><th>Trạng thái</th><th></th></tr>${rows.map(o=>`<tr><td><b>${o.code}</b><br><small style="color:var(--muted)">${new Date(o.created_at).toLocaleDateString('vi-VN')}</small></td><td>${vnd(o.total)}</td><td style="font-size:12px">${o.payment_status==='paid'?'✅ Đã thanh toán':'⏳ Chờ thanh toán'}</td><td><button class="vbtn" onclick="closeAll();showTrack('${o.code}','${esc(m.phone)}')">Xem</button></td></tr>`).join('')}</table>`:'<div style="font-size:13px;color:var(--muted)">Bạn chưa có đơn hàng nào. Mua sắm ngay nhé!</div>'}
+    box.innerHTML=rows.length?`<table class="cmp"><tr><th>Mã đơn</th><th>Tổng</th><th>Trạng thái</th><th></th></tr>${rows.map(o=>`<tr><td><b>${o.code}</b><br><small style="color:var(--muted)">${new Date(o.created_at).toLocaleDateString('vi-VN')}</small></td><td>${vnd(o.total)}</td><td style="font-size:12px">${o.payment_status==='paid'?'✅ Đã thanh toán':'⏳ Chờ thanh toán'}</td><td><button class="vbtn" onclick="closeAll();showTrack(${esc(JSON.stringify(String(o.code)))},${esc(JSON.stringify(String(m.phone)))})">Xem</button></td></tr>`).join('')}</table>`:'<div style="font-size:13px;color:var(--muted)">Bạn chưa có đơn hàng nào. Mua sắm ngay nhé!</div>'}
   catch(e){box.innerHTML='<div style="font-size:13px;color:#B91C1C">'+esc(e.message)+'</div>'}}
 memberBadge();
 
@@ -875,6 +875,6 @@ async function aiSend(e){e.preventDefault&&e.preventDefault();const q=$('#aiIn')
   aiChips(['Rẻ hơn nữa','Cao cấp hơn','Chính sách đổi trả']);
   window._aiLast=q}
 </script>
-<script src="kk-backend.js?v=2610230941"></script>
+<script src="kk-backend.js?v=2610240302"></script>
 </body>
 </html>
