@@ -70,9 +70,10 @@
   function cards() {
     return $$('button').filter(b => vis(b) && txt(b) === 'Giao đến địa chỉ này' && !b.closest('form') && !(b.parentElement && b.parentElement.parentElement && b.parentElement.parentElement.querySelector('input[name=full_name]'))).map(b => {
       let c = b; for (let i = 0; i < 6 && c && !/Điện thoại/.test(txt(c)); i++) c = c.parentElement;
-      const t = c ? c.innerText : '', lines = t.split('\n').map(x => x.trim()).filter(Boolean);
+      if (!c || c.querySelector('input[name=full_name], textarea[name=street]')) return null; // nut luu cua form them dia chi
+      const t = c.innerText, lines = t.split('\n').map(x => x.trim()).filter(Boolean);
       return { btn: b, name: lines[0] || '', phone: L.digits((t.match(/Điện thoại:?\s*([\d +.]+)/) || [])[1]), addr: ((t.match(/Địa chỉ:?\s*([^\n]+)/) || [])[1] || '') };
-    });
+    }).filter(c => c && c.phone);
   }
   async function pickSelect(idx, name) {
     const sel = () => $$('.rc-select').filter(vis)[idx];
