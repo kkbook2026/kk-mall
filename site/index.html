@@ -462,9 +462,9 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
   <form class="aif" onsubmit="aiSend(event)"><input id="aiIn" placeholder="Hỏi tôi: 'tủ lạnh dưới 12 triệu'..." autocomplete="off"><button class="b" type="submit">Gửi</button></form>
 </div>
 
-<script src="config.js?v=2610260332"></script>
-<script src="demo-shim.js"></script>
-<script src="kk-smart.js?v=2610260332"></script>
+<script src="config.js?v=2610260348"></script>
+<script src="demo-shim.js?v=2610260348"></script>
+<script src="kk-smart.js?v=2610260348"></script>
 <script>
 /* ===== ANH SAN PHAM: 3 lop du phong - anh goc -> anh SVG noi bo -> placeholder sinh tai cho (khong bao gio trong) ===== */
 const CAT_ICON={'dien-thoai-may-tinh-bang':'📱','laptop-may-tinh':'💻','thiet-bi-am-thanh-deo':'🎧','tivi-giai-tri':'📺','dien-lanh':'❄️','gia-dung':'🍳','noi-that-trang-tri':'🛋️','thoi-trang':'👗','suc-khoe-lam-dep':'💄','me-be':'🍼','bach-hoa':'🛒','the-thao-du-lich':'⚽','o-to-xe-may':'🏍️','sach-van-phong-pham':'📚','voucher-dich-vu':'🎫'};
@@ -498,33 +498,48 @@ const telemetry=()=>({mm:TEL.mm,kp:TEL.kp,sc:TEL.sc,dt:Date.now()-TEL.t0,touch:T
 
 // ===== LOCAL-FIRST SEARCH: chi muc chay trong Web Worker tren thiet bi (0ms, offline OK) =====
 const fold=s=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase();
-const workerSrc=`const fold=${fold.toString()};let rows=[];let idx=[];
-onmessage=e=>{const{type,data}=e.data;
- if(type==='load'){rows=data;idx=rows.map(r=>fold(r[1]+' '+r[2]+' '+r[4]+' '+r[5]));postMessage({type:'ready',n:rows.length});}
- if(type==='q'){const q=fold(data).split(/\\s+/).filter(Boolean);const out=[];
-  for(let i=0;i<rows.length;i++){const h=idx[i];let ok=true;for(const t of q){if(!h.includes(t)){ok=false;break}}
-   if(ok){out.push(rows[i]);if(out.length>=60)break}}
-  out.sort((a,b)=>(b[7]-a[7])||(b[9]-a[9]));postMessage({type:'res',q:data,out:out.slice(0,8),total:out.length});}}`;
-let W=null, packReady=false;
+// Bo may KK-SEARCH (kk-search.js) chay trong Worker: tu nguyen ven + trong so truong + IDF, dong nghia/viet tat,
+// sua loi go, go do, hieu gia ("duoi 5 trieu"), uu tien may chinh hon phu kien, noi long khi 0 ket qua
+const KKS_URL=new URL('kk-search.js?v=2610260348',location.href).href;
+const workerSrc=`importScripts(${JSON.stringify(KKS_URL)});let ix=null,rows=[];
+onmessage=e=>{const d=e.data;
+ if(d.type==='load'){rows=d.data;ix=KKS.build(rows);postMessage({type:'ready',n:rows.length});}
+ if(d.type==='q'&&ix){const r=KKS.query(ix,d.data,{limit:8});postMessage({type:'res',q:d.data,out:r.ids.map(i=>rows[i]),total:r.total,meta:{fix:r.fix,relaxed:r.relaxed,price:r.price,groups:r.groups}});}
+ if(d.type==='all'&&ix){const r=KKS.query(ix,d.q,{limit:d.limit||3000});postMessage({type:'all',id:d.id,skus:r.skus,rel:r.rel,total:r.total,fix:r.fix,relaxed:r.relaxed,price:r.price,groups:r.groups});}}`;
+let W=null, packReady=false, _kkReady=null, _kkOk=null; const _kkWait=new Map(); let _kkId=0;
+_kkReady=new Promise(r=>_kkOk=r);
 async function initLocalSearch(){
   try{
     W=new Worker(URL.createObjectURL(new Blob([workerSrc],{type:'text/javascript'})));
     W.onmessage=e=>{const d=e.data;
-      if(d.type==='ready'){packReady=true}
-      if(d.type==='res')renderSug(d.q,d.out,d.total)};
+      if(d.type==='ready'){packReady=true;_kkOk(true);if(document.activeElement===$('#q')&&$('#q').value.trim())$('#q').dispatchEvent(new Event('input'))}
+      if(d.type==='res')renderSug(d.q,d.out,d.total,d.meta);
+      if(d.type==='all'){const f=_kkWait.get(d.id);if(f){_kkWait.delete(d.id);f(d)}}};
+    W.onerror=e=>{console.warn('kk-search worker',e.message);_kkOk(false)};
     let pack=null; try{const c=JSON.parse(localStorage.getItem('kk_pack')||'null'); if(c&&c.v&&(c.v===META.packV||c.v===META.lastSync)&&c.cols)pack=c;}catch{}
     if(!pack){pack=await api('/api/catalog-pack'); if(!pack.unchanged){try{localStorage.setItem('kk_pack',JSON.stringify(pack))}catch{}}}
     W.postMessage({type:'load',data:pack.rows});
-  }catch(e){console.warn('local search off',e)}
+  }catch(e){console.warn('local search off',e);_kkOk(false)}
 }
+// tim day du (cho luoi ket qua) - tra ve danh sach SKU da xep hang theo do phu hop
+window.kkSearch=async(q,limit=3000)=>{const ok=await Promise.race([_kkReady,new Promise(r=>setTimeout(()=>r(false),8000))]);if(!ok||!W)return null;
+  return new Promise(res=>{const id=++_kkId;_kkWait.set(id,res);W.postMessage({type:'all',id,q,limit});setTimeout(()=>{if(_kkWait.has(id)){_kkWait.delete(id);res(null)}},5000)})};
 let sugTimer=null;
 $('#q').addEventListener('input',()=>{const v=$('#q').value.trim();clearTimeout(sugTimer);
   if(!v||!packReady){$('#sug').classList.remove('show');return}
   sugTimer=setTimeout(()=>{W.postMessage({type:'q',data:v});semanticSug(v).then(()=>{if($('#semSug').innerHTML)$('#sug').classList.add('show')})},60)});
 document.addEventListener('click',e=>{if(!e.target.closest('.search'))$('#sug').classList.remove('show')});
-function renderSug(q,out,total){const s=$('#sug'),L=$('#sugList');
+const searchNote=m=>{if(!m)return'';const a=[];
+  if(m.fix&&m.fix.length)a.push('Đã sửa lỗi gõ: '+m.fix.map(f=>'<s>'+esc(f[0])+'</s> → <b>'+esc(f[1])+'</b>').join(', '));
+  if(m.price)a.push('Lọc giá: <b>'+(m.price[1]>=1e11?'từ '+vnd(m.price[0]):m.price[0]>0?vnd(Math.round(m.price[0]/1e3)*1e3)+' - '+vnd(Math.round(m.price[1]/1e3)*1e3):'đến '+vnd(m.price[1]))+'</b>');
+  if(m.relaxed)a.push('Không có sản phẩm khớp đủ mọi từ khóa - đang hiển thị kết quả gần đúng nhất');
+  return a.join(' · ')};
+function renderSug(q,out,total,meta){if(q!==$('#q').value.trim())return; // bo ket qua cua lan go cu
+  const s=$('#sug'),L=$('#sugList');
   if(!out.length){L.innerHTML=$('#semSug').innerHTML?'':'<div class="st0">Không có kết quả khớp từ khóa - thử mô tả nhu cầu, ví dụ "quà tặng sếp dưới 1 triệu"</div>';s.classList.add('show');return}
-  L.innerHTML='<div class="st0">⚡ '+total+' kết quả - tìm tức thời trên thiết bị của bạn (không gửi truy vấn đi đâu)</div>'+
+  const note=searchNote(meta), gr=(meta&&meta.groups||[]).filter(g=>g.n>=2).slice(0,3);
+  L.innerHTML='<div class="st0">⚡ '+total.toLocaleString('vi-VN')+' kết quả phù hợp - xếp theo độ liên quan, tìm ngay trên thiết bị của bạn'+(note?'<br>'+note:'')+'</div>'+
+    (gr.length>1?'<div class="st0" style="display:flex;gap:6px;flex-wrap:wrap;background:#fff">Trong nhóm: '+gr.map(g=>`<a class="chip" style="padding:3px 10px;font-size:12px;cursor:pointer" onclick="$('#sug').classList.remove('show');setCat(${esc(JSON.stringify(g.cat))},${esc(JSON.stringify(g.grp))})">${esc(g.grp)} (${g.n})</a>`).join('')+'</div>':'')+
     out.map(r=>'<div class="si" onclick="openProduct(\''+r[0]+'\')"><span>'+esc(r[1])+' <small style="color:var(--muted)">· '+esc(r[5])+'</small></span><b>'+((r[11]||0)&1?'Đang xác minh':r[6]?vnd(r[6]):'hết hàng')+'</b></div>').join('');
   s.classList.add('show')}
 // Tim bang giong noi
@@ -536,7 +551,7 @@ async function init(){
   META=await api('/api/meta');
   $('#syncMin').textContent=META.syncMinutes; $('#lastSync').textContent=META.lastSync?new Date(META.lastSync).toLocaleTimeString('vi-VN'):'-';
   $('#ledgerSeq').textContent=(META.ledgerHead&&META.ledgerHead.seq||0).toLocaleString('vi-VN');
-  $('#totalProducts').textContent=META.totalProducts.toLocaleString('vi-VN');try{$('#vfactN').textContent=(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN');$('#q').placeholder=`Tìm tức thời trong ${(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN')}+ mặt hàng (chạy ngay trên máy bạn, 0ms)...`}catch{} $('#hotline').textContent=META.company.phone;
+  $('#totalProducts').textContent=META.totalProducts.toLocaleString('vi-VN');try{$('#q').placeholder='Tìm trong '+(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN')+'+ mặt hàng: tên, hãng, "tủ lạnh dưới 8 triệu"...'}catch{}try{$('#vfactN').textContent=(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN');$('#q').placeholder=`Tìm tức thời trong ${(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN')}+ mặt hàng (chạy ngay trên máy bạn, 0ms)...`}catch{} $('#hotline').textContent=META.company.phone;
   $('#coName').textContent=META.company.name;$('#coAddr').textContent=META.company.address;$('#coTax').textContent=META.company.taxCode;$('#coEmail').textContent=META.company.email;
   if(META.company.moit)$('#moit').textContent='Số đăng ký Bộ Công Thương: '+META.company.moit;
   renderNav();
@@ -578,14 +593,17 @@ function setCat(id,group=''){closeMega();state.f='';state.cat=id;state.group=gro
   const c=META.categories.find(x=>x.id===id); $('#secTitle').textContent=c?c.icon+' '+c.name+(group?' › '+group:''):'Tất cả sản phẩm';
   $('#groups').innerHTML=c?c.groups.map(g=>`<button class="chip ${g===group?'on':''}" onclick="setCat(${esc(JSON.stringify(String(id)))},${esc(JSON.stringify(String(g)))})">${esc(g)}</button>`).join(''):'';
   showShop(); scrollTo({top:0,behavior:'smooth'}); reload();}
-async function doSearch(e){e.preventDefault&&e.preventDefault();$('#sug').classList.remove('show');const qq=$('#q').value.trim();if(!qq)return;if(await showSemantic(qq))return;state.q=qq;state.f='';state.cat='';state.group='';navMark('');$('#secTitle').textContent='🔎 Kết quả cho "'+state.q+'"';$('#groups').innerHTML='';showShop();reload()}
+async function doSearch(e){e.preventDefault&&e.preventDefault();$('#sug').classList.remove('show');const qq=$('#q').value.trim();if(!qq)return;if(await showSemantic(qq))return;state.q=qq;state.f='';state.cat='';state.group='';navMark('');$('#brand').innerHTML='<option value="">Tất cả thương hiệu</option>';$('#sort').value='';$('#secTitle').textContent='🔎 Kết quả cho "'+state.q+'"';$('#groups').innerHTML='';showShop();reload()}
 async function reload(){state.page=1;state.items=[];$('#grid').innerHTML=Array.from({length:8},()=>'<div class="skel sk-card"></div>').join('');await loadMore(true)}
 async function loadMore(fresh){
+  $('#sort').options[0].text=state.q?'Phù hợp nhất':'Nổi bật';
   const p=new URLSearchParams({f:state.f||'',cat:state.cat,group:state.group,q:state.q,sort:$('#sort').value,brand:$('#brand').value,min:$('#min').value,max:$('#max').value,stock:$('#stock').checked?'1':'',page:state.page,limit:24});
   const d=await api('/api/products?'+p); if(fresh)$('#grid').innerHTML='';
   state.items.push(...d.items); $('#count').textContent=d.total.toLocaleString('vi-VN')+' sản phẩm';
   if(fresh&&d.brands.length&&$('#brand').options.length<=1)$('#brand').innerHTML='<option value="">Tất cả thương hiệu</option>'+d.brands.map(b=>`<option value="${esc(b.brand)}">${esc(b.brand)} (${b.n})</option>`).join('');
-  if(!d.items.length&&fresh){$('#grid').innerHTML='<div class="empty">Không tìm thấy sản phẩm phù hợp.</div>'}
+  if(fresh&&d.search&&state.q){const m=d.search,note=searchNote(m),gr=(m.groups||[]).filter(g=>g.n>=2).slice(0,4);
+    $('#groups').innerHTML=(note?`<div class="fdesc" style="margin-bottom:6px">${note}</div>`:'')+(gr.length>1?gr.map(g=>`<button class="chip" onclick="setCat(${esc(JSON.stringify(g.cat))},${esc(JSON.stringify(g.grp))})">${esc(g.grp)} (${g.n})</button>`).join(''):'')}
+  if(!d.items.length&&fresh){$('#grid').innerHTML='<div class="empty">Không tìm thấy sản phẩm phù hợp. Thử từ khóa ngắn hơn, hoặc mô tả nhu cầu như "quà tặng sếp dưới 1 triệu".</div>'}
   $('#grid').insertAdjacentHTML('beforeend',d.items.map(card).join('')); state.page++;
   $('#more').style.display=state.items.length<d.total?'block':'none';
 }
@@ -883,6 +901,6 @@ async function aiSend(e){e.preventDefault&&e.preventDefault();const q=$('#aiIn')
   aiChips(['Rẻ hơn nữa','Cao cấp hơn','Chính sách đổi trả']);
   window._aiLast=q}
 </script>
-<script src="kk-backend.js?v=2610260332"></script>
+<script src="kk-backend.js?v=2610260348"></script>
 </body>
 </html>
