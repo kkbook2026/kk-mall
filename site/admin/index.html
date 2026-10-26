@@ -324,6 +324,7 @@ async function unlock(e){
     const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:Uint8Array.from(atob(enc.iv),c=>c.charCodeAt(0))},aes,ct);
     DATA=JSON.parse(new TextDecoder().decode(pt));
     sessionStorage.setItem('kk_admin_email',email);
+    try{const h=await crypto.subtle.digest('SHA-256',te.encode('kk-stats|'+key));sessionStorage.setItem('kk_stats_key',[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join(''))}catch{}  // khoa thong ke ship (dan xuat, khong luu khoa goc)
     boot();
   }catch(ex){
     err.textContent='Khóa quản trị không đúng hoặc gói dữ liệu bị thay đổi. Vui lòng thử lại.';
@@ -888,6 +889,6 @@ async function renderSys(){
 }
 </script>
 <script src="../config.js?v=2610260422"></script>
-<script src="ops.js?v=2610260422"></script>
+<script src="ops.js?v=2610260444"></script>
 </body>
 </html>
