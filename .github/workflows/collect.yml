@@ -32,6 +32,10 @@ jobs:
         env:
           PRICING_TIERS: ${{ secrets.PRICING_TIERS }}     # bieu loi theo bac gia (bi mat kinh doanh)
           PRICING_OFFSET: ${{ secrets.PRICING_OFFSET }}
+          SHIP_RULES: ${{ secrets.SHIP_RULES }}                 # ghi de luat ship theo nguon (JSON, tuy chon)
+          SHIP_SAFETY_PCT: ${{ secrets.SHIP_SAFETY_PCT }}       # % du phong them tren gia hang (tuy chon)
+          KK_BACKEND_URL: ${{ secrets.KK_BACKEND_URL }}         # may chu don hang - doc thong ke ship thuc te
+          BACKEND_STATS_KEY: ${{ secrets.BACKEND_STATS_KEY }}
           ADMIN_PORTAL_KEY: ${{ secrets.ADMIN_PORTAL_KEY }}
           SHOPEE_APP_ID: ${{ secrets.SHOPEE_APP_ID }}
           SHOPEE_APP_SECRET: ${{ secrets.SHOPEE_APP_SECRET }}
