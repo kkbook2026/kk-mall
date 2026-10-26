@@ -1,0 +1,25 @@
+KK-MALL AUTO ORDER - TIỆN ÍCH CHROME TỰ ĐẶT HÀNG TẠI NGUỒN (giai đoạn 1: Tiki)
+(c) 2026 Nguyễn Duy Điển (KK-2026). All rights reserved.
+
+CÀI ĐẶT (1 lần)
+1. Giải nén file kk-auto-order.zip vào một thư mục cố định (ví dụ D:\KK-MALL\kk-auto-order). Không xóa thư mục này.
+2. Mở Chrome, vào địa chỉ chrome://extensions
+3. Bật "Chế độ dành cho nhà phát triển" (Developer mode) ở góc trên bên phải.
+4. Bấm "Tải tiện ích đã giải nén" (Load unpacked) -> chọn thư mục ở bước 1.
+5. Ghim biểu tượng KK (hình ghép hình trên thanh công cụ) để thấy trạng thái.
+
+THIẾT LẬP
+1. Trang Quản trị KK-MALL -> Hệ thống -> "🔑 Tạo khóa bot" -> Chép khóa.
+2. Bấm biểu tượng KK -> Cài đặt: dán Khóa bot, nhập Khóa quản trị (khóa mở dữ liệu so sánh giá).
+3. Trên Chrome này: đăng nhập Tiki, lưu sẵn thẻ thanh toán trong tài khoản Tiki (Tài khoản -> Thông tin thanh toán).
+4. Bật "Tự động đặt khi có lệnh mua mới", chọn giờ chạy -> Lưu -> "Kiểm tra kết nối".
+
+HOẠT ĐỘNG
+- Mỗi vài phút tiện ích hỏi máy chủ KK-MALL các lệnh mua đã thanh toán, chọn nguồn Tiki trong biên dung sai,
+  mở trang sản phẩm, đặt số lượng, chọn/thêm địa chỉ của khách, chọn thẻ đã lưu, kiểm tra tổng tiền.
+- Máy chủ chỉ cho bấm "Đặt hàng" khi tổng tiền <= tiền hàng đã thu + biên dung sai và <= trần mỗi đơn.
+- Khi có thông báo "Nhập OTP", anh nhập OTP ngân hàng. Tiện ích tự lấy mã đơn Tiki và báo về KK-MALL;
+  email xác nhận của Tiki cũng được máy chủ tự gắn vào lệnh mua (lớp dự phòng).
+- Không bao giờ chọn "Thanh toán tiền mặt khi nhận hàng"; không đọc/lưu số thẻ; đã bấm Đặt hàng thì không tự đặt lại.
+- Lỗi hoặc thiếu thông tin (địa chỉ không đủ phường/xã...) -> tiện ích dừng ở đúng chỗ cần anh thao tác và báo.
+- Nút "⏹ Dừng bot" trên thanh màu ở đầu trang Tiki dừng ngay lập tức.

@@ -1,0 +1,89 @@
+# THU THAP HANG HOA & GIA TU DONG - chay tren may chu dam may cua GitHub
+# moi 3 gio (phut 17), 24/7, KHONG phu thuoc may tinh / trinh duyet cua chu shop.
+name: Auto collect prices (3h)
+on:
+  schedule:
+    - cron: '17 */3 * * *'   # 3 gio/lan, phut 17 (UTC) - tranh dinh tai cron :00 cua GitHub
+  workflow_dispatch:
+    inputs:
+      indexnow_all:
+        description: 'Gui toan bo URL cho IndexNow (Bing, Yandex...)'
+        required: false
+        default: 'false'
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  collect-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Nap bo nho dem gia ban le (Hoang Ha, Phuc Anh, An Phat) - chi doc
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.retail-cache
+          key: retail-${{ github.run_id }}
+          restore-keys: retail-
+      - name: Thu thap & tinh gia (cau hinh noi bo tu Secrets)
+        env:
+          PRICING_TIERS: ${{ secrets.PRICING_TIERS }}     # bieu loi theo bac gia (bi mat kinh doanh)
+          PRICING_OFFSET: ${{ secrets.PRICING_OFFSET }}
+          SHIP_RULES: ${{ secrets.SHIP_RULES }}                 # ghi de luat ship theo nguon (JSON, tuy chon)
+          SHIP_SAFETY_PCT: ${{ secrets.SHIP_SAFETY_PCT }}       # % du phong them tren gia hang (tuy chon)
+          KK_BACKEND_URL: ${{ secrets.KK_BACKEND_URL }}         # may chu don hang - doc thong ke ship thuc te
+          BACKEND_STATS_KEY: ${{ secrets.BACKEND_STATS_KEY }}
+          ADMIN_PORTAL_KEY: ${{ secrets.ADMIN_PORTAL_KEY }}
+          SHOPEE_APP_ID: ${{ secrets.SHOPEE_APP_ID }}
+          SHOPEE_APP_SECRET: ${{ secrets.SHOPEE_APP_SECRET }}
+          LAZADA_APP_KEY: ${{ secrets.LAZADA_APP_KEY }}
+          LAZADA_APP_SECRET: ${{ secrets.LAZADA_APP_SECRET }}
+          TIKTOK_APP_KEY: ${{ secrets.TIKTOK_APP_KEY }}
+          TIKTOK_APP_SECRET: ${{ secrets.TIKTOK_APP_SECRET }}
+          TIKI_CLIENT_ID: ${{ secrets.TIKI_CLIENT_ID }}
+          TIKI_CLIENT_SECRET: ${{ secrets.TIKI_CLIENT_SECRET }}
+          SENDO_FEED_URL: ${{ secrets.SENDO_FEED_URL }}
+          ACCESSTRADE_KEY: ${{ secrets.ACCESSTRADE_KEY }}  # access key AccessTrade (pub.accesstrade.vn/accounts/profile)
+          ACCESSTRADE_DOMAINS: ${{ vars.ACCESSTRADE_DOMAINS }}
+          FEED_URLS: ${{ secrets.FEED_URLS }}            # datafeed chinh thuc: moi dong <ma-nguon>|<url>
+          FEED_MAX_TOTAL: ${{ vars.FEED_MAX_TOTAL || '80000' }}  # tran tong so SP nap tu feed
+          FEED_MAX_NEW: ${{ vars.FEED_MAX_NEW || '5000' }}      # tran SP moi moi lan chay
+        run: node collector/collect.js
+      - name: Luu du lieu moi (giu lich su gon - amend 1 commit du lieu)
+        run: |
+          git config user.name "kk-mall-bot"
+          git config user.email "bot@kk-mall.com"
+          git add site/api site/admin/data.enc
+          [ -f collector/feed-index.json ] && git add collector/feed-index.json || true
+          if git diff --cached --quiet; then echo "Khong co thay doi"; exit 0; fi
+          LAST=$(git log -1 --pretty=%s)
+          if [ "$LAST" = "auto-data: cap nhat gia & ton kho" ]; then
+            git commit --amend -m "auto-data: cap nhat gia & ton kho"
+            git push -f origin main
+          else
+            git commit -m "auto-data: cap nhat gia & ton kho"
+            git push origin main
+          fi
+      - name: SEO - sinh trang tinh SP/nganh/nhom + sitemap (khong commit)
+        run: node collector/build-seo.js
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+      - name: IndexNow - bao Bing/Yandex... trang vua thay doi
+        if: success()
+        continue-on-error: true
+        env:
+          INDEXNOW_ALL: ${{ github.event.inputs.indexnow_all }}
+        run: node collector/indexnow.js

@@ -1,0 +1,39 @@
+# KK-MALL - www.kk-mall.com
+# Chao don cong cu tim kiem va AI search doc trang danh muc & chi tiet san pham (HTML tinh, khong can JS).
+# Moi bot duoi day co cung quy tac: cho phep toan site, tru khu quan tri.
+
+User-agent: *
+Allow: /
+Disallow: /admin/
+
+User-agent: Googlebot
+User-agent: Googlebot-Image
+User-agent: Google-InspectionTool
+User-agent: Google-Extended
+User-agent: Storebot-Google
+User-agent: Bingbot
+User-agent: BingPreview
+User-agent: msnbot
+User-agent: coccocbot-web
+User-agent: coccocbot-image
+User-agent: Applebot
+User-agent: Applebot-Extended
+User-agent: DuckDuckBot
+User-agent: DuckAssistBot
+User-agent: YandexBot
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Amazonbot
+User-agent: meta-externalagent
+User-agent: facebookexternalhit
+User-agent: Zalo
+Allow: /
+Disallow: /admin/
+
+Sitemap: https://www.kk-mall.com/sitemap.xml

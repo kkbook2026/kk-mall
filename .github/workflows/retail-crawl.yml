@@ -1,0 +1,38 @@
+# THU THAP GIA CONG KHAI WEBSITE BAN LE (Hoang Ha Mobile, Phuc Anh, An Phat) - moi gio, toi da 45 phut
+# Tuan thu robots.txt + Crawl-delay, tu nhan dien KK-MALL-PriceBot. Ket qua luu GitHub Actions cache (khong commit),
+# bo thu thap gia 3 gio/lan doc lai de dinh gia theo quy tac gia thuc tra + phi dich vu.
+name: Retail price crawl (1h)
+on:
+  schedule:
+    - cron: '41 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: retail-crawl
+  cancel-in-progress: false
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Nap bo nho dem truoc
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.retail-cache
+          key: retail-${{ github.run_id }}
+          restore-keys: retail-
+      - name: Thu thap (45 phut, 3 trang song song)
+        run: node collector/retail.js 45
+      - name: Luu bo nho dem
+        if: always()
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.retail-cache
+          key: retail-${{ github.run_id }}
