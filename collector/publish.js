@@ -12,10 +12,19 @@ const T = require('./trust');
 const DEAL_BLOCK = T.FL.HOLD | T.FL.USED | T.FL.REF_INFLATED | T.FL.NO_SOURCE;
 const isDeal = r => r.in_stock && (r.disc || 0) >= 5 && !((r.fl || 0) & DEAL_BLOCK);
 
-function publish({ API, pub, meta, now, seq, mk, recent, log = console.log }) {
+function publish({ API, pub: pubIn, meta, now, seq, mk, recent, log = console.log }) {
+  let pub = pubIn;
   const wj = (f, d) => fs.writeFileSync(path.join(API, f), JSON.stringify(d));
   const rj = f => JSON.parse(fs.readFileSync(path.join(API, f), 'utf8'));
 
+  /* ---- go han SP mo phong khong co nguon mua ho that (NO_SOURCE): khong ban duoc, so "da ban" khong xac thuc ---- */
+  const dropped = pub.filter(p => (p.fl || 0) & T.FL.NO_SOURCE);
+  if (dropped.length) {
+    pub = pub.filter(p => !((p.fl || 0) & T.FL.NO_SOURCE));
+    for (const p of dropped) { try { fs.unlinkSync(path.join(API, 'products', p.sku + '.json')); } catch { } }
+    const ds = new Set(dropped.map(p => p.sku)); if (recent) recent = recent.filter(r => !ds.has(r.sku));
+    log(`Go ${dropped.length} SP khong co nguon mua ho that khoi cua hang`);
+  }
   wj('catalog-full.json', pub);
 
   /* ---- tach theo nganh ---- */
@@ -65,7 +74,7 @@ function publish({ API, pub, meta, now, seq, mk, recent, log = console.log }) {
   wj('ledger-roots.json', roots.slice(-500));
   if (recent) wj('ledger-recent.json', { at: now, items: recent.slice(0, 60) });
   log(`Xuat ban: ${pub.length} SP · deal tin cay ${st.deals} · tam giu ${st.hold} · hang cu ${st.used} · gia goc ao ${st.refInflated} · day gia ${st.low} · Merkle ${mk.root.slice(0, 12)}…`);
-  return { headHash, stats: st };
+  return { headHash, stats: st, pub, dropped: dropped.length };
 }
 
 module.exports = { publish, isDeal, DEAL_BLOCK };

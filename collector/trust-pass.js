@@ -24,7 +24,8 @@ for (const p of pub) {
   const cn = T.cleanText(d.name); if (cn !== d.name || cn !== p.name) { d.name = cn; p.name = cn; }
   if (!Array.isArray(d.d90) || !d.d90.length) d.d90 = T.seedD90(d);
   const ev = T.evaluate(d);
-  if (!FIDX.origin[p.sku]) ev.fl |= T.FL.NO_SOURCE;
+  if ((p.fl || 0) & T.FL.NO_SOURCE) ev.fl |= T.FL.NO_SOURCE;
+  if (!FIDX.origin[p.sku] && (p.sold || d.sold)) { p.sold = 0; d.sold = 0; } // so 'da ban' du lieu mau cu khong xac thuc // giu dung ket luan cua bo thu thap (feed hien hanh + nguon goc)
   d.trust = { disc: ev.disc, fl: ev.fl, why: ev.why };
   if ((ev.fl & T.FL.USED) && /mới 100%/i.test(d.description || '')) d.description = String(d.description).replace(/chính hãng, mới 100%(, đầy đủ phụ kiện)?/i, 'đã qua sử dụng, tình trạng đúng như tên gọi').replace(/mới 100%/ig, 'đã qua sử dụng');
   p.disc = ev.disc; p.fl = ev.fl;

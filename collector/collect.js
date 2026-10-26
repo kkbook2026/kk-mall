@@ -177,6 +177,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     TRUST.updateD90(d, now);
     const ev = TRUST.evaluate(d);
     if (!(feedBySku[p.sku] || fidx.origin[p.sku])) ev.fl |= TRUST.FL.NO_SOURCE;   // SP mo phong: khong co nguon mua ho that
+    if (!fidx.origin[p.sku] && (p.sold || d.sold)) { p.sold = 0; d.sold = 0; }   // so 'da ban' cua du lieu mau cu khong xac thuc -> 0
     d.trust = { disc: ev.disc, fl: ev.fl, why: ev.why };
   if ((ev.fl & TRUST.FL.USED) && /mới 100%/i.test(d.description || '')) d.description = String(d.description).replace(/chính hãng, mới 100%(, đầy đủ phụ kiện)?/i, 'đã qua sử dụng, tình trạng đúng như tên gọi').replace(/mới 100%/ig, 'đã qua sử dụng');
     p.disc = ev.disc; p.fl = ev.fl;
@@ -261,9 +262,9 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
 
   // ---- XUAT BAN CONG KHAI (catalog, nganh, pack, SDUI, meta + Merkle root, nhat ky root) ----
   meta.syncMinutes = CYCLE_MIN;
-  publish({ API, pub, meta, now, seq, mk, recent: recent.sort((a, b) => b.seq - a.seq) });
+  const PUBR = publish({ API, pub, meta, now, seq, mk, recent: recent.sort((a, b) => b.seq - a.seq) });
   // danh sach trang SP vua doi gia/ton kho -> IndexNow (chay sau deploy)
-  const pubSet = new Set(pub.map(r => r.slug));
+  const pubSet = new Set(PUBR.pub.map(r => r.slug));
   fs.writeFileSync(path.join(__dirname, '.changed.json'), JSON.stringify(changedSlugs.filter(s => s && pubSet.has(s))));
 
   console.log(`✔ Thu thập xong lúc ${now}: ${full.length} SP · ${changed} đổi giá · ${outOfStock} tạm hết hàng · sổ cái #${seq}` + (PRICING.ok ? ' · biểu lời ' + PRICING.desc : ' · (chưa có PRICING_TIERS/PRICING_OFFSET - giữ nguyên giá bán)'));
