@@ -11,7 +11,7 @@
  */
 
 /* =========================== CẤU HÌNH =========================== */
-var VERSION = '1.3.0';
+var VERSION = '1.4.0';
 var CONSENT_VERSION = 'UQ-2026-10';
 var SHEETS = {
   Orders: ['code', 'created_at', 'status', 'payment_status', 'email', 'phone', 'name', 'goods', 'fee', 'total', 'paid_at', 'data', 'updated_at'],
@@ -677,6 +677,80 @@ function installMailSync() {
   Logger.log('MAILSYNC ' + JSON.stringify({ scanned: r.scanned, events: r.events.length, info: mailSyncInfo_() }));
   return r;
 }
+/* =========================== BOT ĐẶT HÀNG TỰ ĐỘNG (tiện ích Chrome "KK-MALL Auto Order") ===========================
+ * Tien ich chay tren Chrome cua chu so huu (da dang nhap tai nguon): lay lenh mua "Can dat" -> dat tai nguon voi thong tin khach
+ * -> chon the/vi DA LUU (khong bao gio COD) -> bam Dat hang -> chu so huu chi nhap OTP -> bao ma don nguon ve may chu.
+ * Xac thuc bang KHOA BOT rieng (chi luu ban bam), chi doc lenh mua dang cho dat + ghi ket qua; xoay khoa trong trang quan tri.
+ * Chong dat trung: moi lenh mua co trang thai bot (working -> paying -> done); da qua "paying" (da bam Dat hang) thi KHONG BAO GIO
+ * tu thu lai - chi quan tri moi dat lai duoc sau khi kiem tra tai nguon.
+ */
+var BOT_SOURCES = ['tiki'];
+function botAuth_(b) {
+  var h = P_().getProperty('BOT_KEY_HASH'), k = str_(b.bot_key, 200);
+  if (!h || !k || sha_('kk-bot|' + k) !== h) { rate_('botbad', 30, 3600); throw err_('Khóa bot không đúng hoặc đã bị đổi', 401); }
+  rate_('bot', 600, 3600);
+  P_().setProperty('BOT_SEEN_AT', nowIso_()); if (b.device) P_().setProperty('BOT_DEVICE', str_(b.device, 80));
+}
+function botQueue_(b) {
+  botAuth_(b);
+  var orders = {}, orderOf = function (c) { if (!(c in orders)) { try { orders[c] = loadOrder_(c); } catch (e) { orders[c] = null; } } return orders[c]; };
+  var items = rows_('PO').filter(function (p) { return p.status === 'to_order'; }).map(function (p) {
+    var o = orderOf(p.order_code); if (!o || o.payment_status !== 'paid' || ['cancelled', 'refunded', 'refunding'].indexOf(o.status) >= 0) return null;
+    var d = parseData_(p), c = o.customer || {};
+    return { po_id: p.po_id, order_code: p.order_code, sku: p.sku, name: p.name, qty: Number(p.qty), collected_cost: Number(p.collected_cost), unit_cost: Number(d.unit_cost) || Math.round(Number(p.collected_cost) / Number(p.qty)),
+      ship_est: Number(d.ship_est) || 0, vat: !!o.vat, paid_at: o.paid_at || '', ship_to: { name: c.name, phone: c.phone, address: c.address, note: c.note || '' }, bot: d.bot ? { state: d.bot.state, at: d.bot.at, note: d.bot.note || '' } : null };
+  }).filter(Boolean).slice(0, 50);
+  return { at: nowIso_(), tolerance: Number(cfg_('TOLERANCE')), sources: BOT_SOURCES, items: items };
+}
+function botUpdate_(b) {
+  botAuth_(b);
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var p = find_('PO', 'po_id', b.po_id); if (!p) throw err_('Không tìm thấy lệnh mua', 404);
+    var d = parseData_(p), bot = d.bot || {}, st = String(b.state || ''), now = nowIso_(), age = bot.at ? (Date.now() - new Date(bot.at).getTime()) / 60000 : 1e9;
+    var src = str_(b.source, 20).toLowerCase(); if (src && BOT_SOURCES.indexOf(src) < 0) throw err_('Nguồn chưa hỗ trợ bot: ' + src);
+    var logIt = function (note) { (bot.log = bot.log || []).push({ at: now, state: bot.state, note: str_(note, 160) }); bot.log = bot.log.slice(-12); };
+    if (st === 'claim') {
+      if (p.status !== 'to_order') throw err_('Lệnh mua không còn ở trạng thái Cần đặt', 409);
+      if (['paying', 'paying_unknown', 'pay_failed'].indexOf(bot.state) >= 0) throw err_('Lệnh mua đã từng bấm Đặt hàng tại nguồn - cần quản trị kiểm tra và cho phép đặt lại', 409);
+      if (bot.state === 'working' && age < 15 && bot.run !== str_(b.run, 60)) throw err_('Một phiên bot khác đang xử lý lệnh mua này', 409);
+      if (bot.state === 'failed' && !b.retry) throw err_('Lệnh mua đã lỗi ở lần trước - bấm "Thử lại" trong tiện ích hoặc quản trị cho phép', 409);
+      bot.state = 'working'; bot.at = now; bot.run = str_(b.run, 60); bot.src = src || 'tiki'; bot.tries = (bot.tries || 0) + 1; logIt('bắt đầu đặt tại ' + bot.src);
+    } else if (st === 'paying') {
+      if (bot.state !== 'working' || bot.run !== str_(b.run, 60)) throw err_('Phiên bot không hợp lệ cho lệnh mua này', 409);
+      var total = Math.round(Number(b.total) || 0), cap = Number(p.collected_cost) + Number(cfg_('TOLERANCE'));
+      if (!(total > 0) || total > cap) throw err_('Tổng thanh toán tại nguồn ' + vnd_(total) + ' vượt tiền hàng đã thu + biên dung sai (' + vnd_(cap) + ') - không đặt', 409);
+      bot.state = 'paying'; bot.at = now; bot.total = total; bot.ship = Math.max(0, Math.round(Number(b.ship) || 0)); logIt('bấm Đặt hàng, tổng ' + vnd_(total) + ' - chờ OTP');
+    } else if (st === 'done') {
+      var id = str_(b.supplier_order_id, 40).replace(/[^\w-]/g, ''); if (!id) throw err_('Thiếu mã đơn nguồn');
+      if (p.status === 'to_order') poUpdate_({ po_id: p.po_id, status: 'ordered', actual_source: bot.src || src || 'tiki', actual_cost: Math.round(Number(b.total) || bot.total || 0), supplier_order_id: id, ship_paid: b.ship !== undefined ? b.ship : bot.ship, vat_requested: false, auto: 'bot-' + (bot.src || src || 'tiki') }, 'bot:' + (P_().getProperty('BOT_DEVICE') || 'chrome'));
+      else if (String(p.supplier_order_id) !== id) throw err_('Lệnh mua đã gắn mã đơn nguồn khác: ' + p.supplier_order_id, 409);
+      p = find_('PO', 'po_id', b.po_id); d = parseData_(p); bot = d.bot || bot; bot.state = 'done'; bot.at = now; logIt('đặt thành công, mã đơn ' + id);
+    } else if (st === 'fail' || st === 'skip') {
+      var reason = str_(b.note, 200) || 'không rõ';
+      if (bot.state === 'paying') { bot.state = /thanh to[aá]n|payment|otp/i.test(reason) ? 'pay_failed' : 'paying_unknown'; }
+      else bot.state = st === 'skip' ? 'skip' : 'failed';
+      bot.at = now; bot.note = reason; logIt(reason);
+      if (bot.state !== 'skip' && rate_soft_('botmail_' + p.po_id + '_' + bot.state, 1, 21600)) adminsMail_((bot.state === 'failed' ? '⚠️' : '🚨') + ' Bot đặt hàng: ' + p.po_id + ' - ' + reason.slice(0, 80), '<p>Lệnh mua <b>' + esc_(p.po_id) + '</b> (' + esc_(p.name) + ')</p><p>Trạng thái bot: <b>' + esc_(bot.state) + '</b><br>Lý do: ' + esc_(reason) + '</p>' + (bot.state === 'failed' ? '<p>Bấm "Thử lại" trong tiện ích hoặc đặt tay trong Quản trị → Lệnh mua.</p>' : '<p><b>Đã bấm Đặt hàng tại nguồn</b> - kiểm tra đơn trên ứng dụng nguồn (thanh toán lại nếu cần). Hệ thống đọc email xác nhận sẽ tự gắn mã đơn khi có.</p>'));
+    } else throw err_('Trạng thái bot không hợp lệ');
+    d = parseData_(find_('PO', 'po_id', b.po_id)); d.bot = bot;
+    var row = find_('PO', 'po_id', b.po_id); update_('PO', row._row, { data: JSON.stringify(d), updated_at: now });
+    log_('bot_' + st, P_().getProperty('BOT_DEVICE') || 'bot', b.po_id + ' ' + (bot.note || ''));
+    return { ok: true, po_id: b.po_id, bot: { state: bot.state, at: bot.at, note: bot.note || '' }, status: row.status };
+  } finally { lock.releaseLock(); }
+}
+function rate_soft_(key, max, sec) { var c = CacheService.getScriptCache(), n = parseInt(c.get(key) || '0', 10); if (n >= max) return false; c.put(key, String(n + 1), sec); return true; }
+function adminBotKey_(b) {
+  var s = session_(b.token, true), k = 'kkbot_' + rnd_();
+  P_().setProperty('BOT_KEY_HASH', sha_('kk-bot|' + k)); P_().setProperty('BOT_KEY_AT', nowIso_());
+  log_('admin_botkey', s.email, 'tao/doi khoa bot'); adminsMail_('🔑 Khóa bot đặt hàng vừa được tạo/đổi', '<p>Khóa bot đặt hàng tự động vừa được tạo bởi ' + esc_(s.email) + '. Khóa cũ (nếu có) đã hết hiệu lực. Nếu không phải anh/chị thực hiện, đăng nhập Quản trị và đổi khóa ngay.</p>');
+  return { bot_key: k, at: P_().getProperty('BOT_KEY_AT') };
+}
+function adminPoBotReset_(b) {
+  var s = session_(b.token, true), lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try { var p = find_('PO', 'po_id', b.po_id); if (!p) throw err_('Không tìm thấy lệnh mua', 404); var d = parseData_(p); var old = d.bot && d.bot.state; d.bot_prev = d.bot || null; delete d.bot; update_('PO', p._row, { data: JSON.stringify(d), updated_at: nowIso_() }); log_('admin_po_botreset', s.email, b.po_id + ' (' + old + ')'); return { ok: true }; } finally { lock.releaseLock(); }
+}
+function botInfo_() { var P = P_(); return { has_key: !!P.getProperty('BOT_KEY_HASH'), key_at: P.getProperty('BOT_KEY_AT') || '', seen_at: P.getProperty('BOT_SEEN_AT') || '', device: P.getProperty('BOT_DEVICE') || '', sources: BOT_SOURCES }; }
 // Hoa don GTGT phi dich vu (ban nhap -> quan tri duyet -> phat hanh qua nha cung cap HDDT & gui khach)
 function feeInvoice_(o) {
   if (!o.fee_net || rows_('Invoices').some(function (i) { return i.order_code === o.code; })) return;
@@ -743,7 +817,7 @@ function adminConfig_(b) {
   var out = {}; ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'ADMIN_EMAILS', 'VOUCHER_FEE_CAP_PCT'].forEach(function (k) { out[k] = cfg_(k); });
   out.WEBHOOK_URL = ScriptApp.getService().getUrl() + '?a=webhook&key=' + P_().getProperty('WEBHOOK_KEY');
   if (!P_().getProperty('STATS_KEY')) P_().setProperty('STATS_KEY', rnd_());
-  out.STATS_KEY = P_().getProperty('STATS_KEY'); out.BACKEND_URL = ScriptApp.getService().getUrl(); out.MAILSYNC = mailSyncInfo_();
+  out.STATS_KEY = P_().getProperty('STATS_KEY'); out.BACKEND_URL = ScriptApp.getService().getUrl(); out.MAILSYNC = mailSyncInfo_(); out.BOT = botInfo_();
   out.SHEET_URL = ss_().getUrl(); out.fee_table = feeTable_();
   return out;
 }
@@ -828,6 +902,10 @@ function doPost(e) {
       'admin.config': function () { return adminConfig_(b); },
       'admin.stats': function () { return adminStats_(b); },
       'admin.backup': function () { session_(b.token, true); dailyBackup(); return { ok: true }; },
+      'bot.queue': function () { return botQueue_(b); },
+      'bot.update': function () { return botUpdate_(b); },
+      'admin.botkey': function () { return adminBotKey_(b); },
+      'admin.po.botreset': function () { return adminPoBotReset_(b); },
       'admin.mailsync': function () { var s2 = session_(b.token, true), lk = LockService.getScriptLock(); lk.waitLock(25000); try { var r2 = mailSync_({ by: s2.email }); r2.info = mailSyncInfo_(); return r2; } finally { lk.releaseLock(); } }
     };
     if (!R[a]) throw err_('Thao tác không hỗ trợ: ' + a, 404);

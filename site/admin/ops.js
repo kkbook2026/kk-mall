@@ -144,7 +144,7 @@ function renderPO() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px" class="pog">
         <div style="background:#F8FAFC;border-radius:10px;padding:10px 12px;font-size:13px"><b>📦 Giao tới (điền vào ô người nhận tại nguồn)</b> ${cp(shipTxt, '📋 Chép tất cả')}<br>${esc(s.name)} ${cp(s.name)}<br>${esc(s.phone)} ${cp(s.phone)}<br>${esc(s.address)} ${cp(s.address)}${s.note ? '<br><i>Ghi chú: ' + esc(s.note) + '</i>' : ''}</div>
         <div style="background:${v ? '#EFF6FF' : '#F8FAFC'};border-radius:10px;padding:10px 12px;font-size:13px">${v ? `<b>🧾 Xuất hóa đơn GTGT tiền hàng cho khách</b> ${cp(`${v.name}\nMST: ${v.tax_code || ''}\n${v.address || ''}\n${v.email || ''}`, '📋 Chép')}<br>${esc(v.name)}<br>MST: <b>${esc(v.tax_code || '-')}</b><br>${esc(v.address || '')}<br>Email nhận HĐ: ${esc(v.email || '')}` : '<b>🧾 Không yêu cầu hóa đơn GTGT</b><br><span style="color:var(--muted)">Có thể đặt tại nguồn rẻ nhất bất kỳ.</span>'}</div></div>
-      ${p.status === 'to_order' ? `<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:${pl.act[0] === 'go' ? '#ECFDF5' : '#FEF2F2'};color:${pl.act[0] === 'go' ? '#065F46' : '#991B1B'};font-weight:700;font-size:13px">🤖 Kế hoạch: ${pl.pick ? `<b>${esc(srcName(pl.pick.s))}</b> - thực trả ${vnd(pl.pick.l)}/sp${pl.pick.sh ? ' (niêm yết ' + vnd(pl.pick.p) + ' + ship dự phòng ' + vnd(pl.pick.sh) + ')' : ' (freeship)'} · ` : ''}${pl.act[1]}${pl.warn ? '<br>⚠️ ' + pl.warn : ''}${pl.row ? '' : '<br>⚠️ Mở khóa dữ liệu so sánh giá để xem nguồn'}</div>
+      ${p.status === 'to_order' ? `<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:${pl.act[0] === 'go' ? '#ECFDF5' : '#FEF2F2'};color:${pl.act[0] === 'go' ? '#065F46' : '#991B1B'};font-weight:700;font-size:13px">🤖 Kế hoạch: ${pl.pick ? `<b>${esc(srcName(pl.pick.s))}</b> - thực trả ${vnd(pl.pick.l)}/sp${pl.pick.sh ? ' (niêm yết ' + vnd(pl.pick.p) + ' + ship dự phòng ' + vnd(pl.pick.sh) + ')' : ' (freeship)'} · ` : ''}${pl.act[1]}${pl.warn ? '<br>⚠️ ' + pl.warn : ''}${pl.row ? '' : '<br>⚠️ Mở khóa dữ liệu so sánh giá để xem nguồn'}</div>${botBadge(p)}
         <table style="margin-top:8px"><tr><th>Nguồn</th><th>Niêm yết/sp</th><th>Ship dự phòng</th><th>Thực trả/sp</th><th>So với đã thu</th><th>Xuất VAT</th><th></th></tr>${pl.offers.slice(0, 5).map(x => `<tr${pl.pick && x.s === pl.pick.s ? ' style="background:#DCFCE7"' : ''}><td><span class="src-dot" style="background:${(SRC[x.s] || ['', '#999'])[1]}"></span>${esc(srcName(x.s))}</td><td>${vnd(x.p)}</td><td style="color:#B45309">${x.sh ? '+' + vnd(x.sh) : '0'}</td><td><b>${vnd(x.l)}</b></td><td class="${x.diff > OPS.tol ? 'warn' : x.diff > 0 ? '' : 'good'}">${x.diff > 0 ? '+' : ''}${vnd(x.diff)}</td><td>${x.vat ? '✓ có' : '<span style="color:var(--muted)">không chắc</span>'}</td><td>${x.u ? `<a class="btn2" href="${safeUrl(x.u)}" target="_blank" rel="noopener noreferrer">Mở trang nguồn ↗</a>` : '<span style="color:var(--muted);font-size:11px">chưa có link</span>'}</td></tr>`).join('') || '<tr><td colspan="5">Không có nguồn hợp lệ còn hàng.</td></tr>'}</table>
         <div class="row" style="margin-top:10px"><select id="ps_${id}" style="max-width:170px">${Object.keys(SRC).map(k => `<option value="${k}" ${pl.pick && pl.pick.s === k ? 'selected' : ''}>${esc(SRC[k][0])}</option>`).join('')}</select>
           <input id="pc_${id}" placeholder="TỔNG thực trả NCC (gồm ship)" value="${pl.pick ? pl.pick.l * p.qty : ''}" style="max-width:200px" title="Tổng số tiền đã thanh toán cho nguồn, gồm tiền hàng + phí ship/phụ phí"><input id="psh_${id}" placeholder="Trong đó ship/phụ phí" value="${pl.pick ? pl.pick.sh * p.qty : ''}" style="max-width:170px" title="Phần phí vận chuyển/phụ phí thực tế tại nguồn - dùng để hệ thống tự hiệu chỉnh dự phòng ship"><input id="pi_${id}" placeholder="Mã đơn tại nguồn" style="max-width:180px">
@@ -227,7 +227,8 @@ function renderOpsCfg() {
     <div class="row" style="margin-top:12px"><button class="btn2 pri" onclick="saveOpsCfg()">💾 Lưu cấu hình</button><span id="cfgMsg" style="font-size:12.5px"></span><button class="btn2" onclick="OPS.call('admin.backup').then(()=>alert('Đã sao lưu vào Google Drive'))">🗄 Sao lưu ngay</button>${C.SHEET_URL ? `<a class="btn2" href="${safeUrl(C.SHEET_URL)}" target="_blank">📊 Mở Google Sheet dữ liệu</a>` : ''}</div>
     <div class="note" style="margin-top:12px">🔗 <b>Tự động xác nhận thanh toán</b>: đăng ký SePay (sepay.vn) hoặc Casso, liên kết tài khoản ngân hàng trên, khai báo Webhook URL:<br><code style="word-break:break-all">${esc(C.WEBHOOK_URL || '')}</code> ${C.WEBHOOK_URL ? cp(C.WEBHOOK_URL, '📋 Chép') : ''}<br>Biểu phí dịch vụ: ${(C.fee_table || []).map(t => `${t.to == null ? '> ' + vnd(t.from - 1) : vnd(t.from) + '-' + vnd(t.to)}: <b>${vnd(t.fee)}</b>`).join(' · ')} (chỉ sửa trong dự án Apps Script - Script Properties).</div>
     <div class="note" style="margin-top:12px">🚚 <b>Giá thực trả tự hiệu chỉnh theo ship thực tế</b>: bộ thu thập cộng dự phòng ship của từng nguồn vào giá vốn; mỗi lệnh mua anh nhập "trong đó ship/phụ phí" sẽ được thống kê 90 ngày để nâng dự phòng nếu thực tế cao hơn. Khóa thống kê được dẫn xuất tự động từ khóa quản trị và đã đăng ký lên máy chủ ${sessionStorage.getItem('kk_stats_key') && C.STATS_KEY === sessionStorage.getItem('kk_stats_key') ? '<b style="color:#166534">✓ sẵn sàng</b>' : '<b style="color:#B45309">(chưa khớp - mở lại trang quản trị)</b>'}; bộ thu thập tự đọc qua URL máy chủ trong <code>config.js</code> - không cần cấu hình thêm.
-      <button class="btn2" style="margin-left:8px" onclick="showShipStats()">📊 Xem chênh lệch ship theo nguồn</button><div id="shipStats" style="margin-top:8px;font-size:12.5px"></div></div>`;
+      <button class="btn2" style="margin-left:8px" onclick="showShipStats()">📊 Xem chênh lệch ship theo nguồn</button><div id="shipStats" style="margin-top:8px;font-size:12.5px"></div></div>
+    <div class="note" style="margin-top:12px" id="botBox">${botBoxHtml(C.BOT)}</div>`;
 }
 async function saveOpsCfg() {
   if (!$('#cAcc').value.trim() && OPS.cfg && OPS.cfg.BANK_ACC && !confirm('Ô số tài khoản đang TRỐNG trong khi máy chủ đang có tài khoản ' + OPS.cfg.BANK_LABEL + ' ' + OPS.cfg.BANK_ACC + '.\nMáy chủ sẽ GIỮ NGUYÊN tài khoản cũ. Tiếp tục lưu các mục khác?')) return;
@@ -265,4 +266,33 @@ async function runMailSync() {
   try { const r = await OPS.call('admin.mailsync'); if (OPS.cfg) OPS.cfg.MAILSYNC = r.info; logAdmin('Đồng bộ email nguồn: ' + r.events.length + ' sự kiện'); await opsLoad(); renderMailSync('vừa quét ' + r.scanned + ' email, ' + r.events.length + ' cập nhật'); }
   catch (e) { alert(e.message); }
   if (b) { b.disabled = false; b.textContent = '📧 Đồng bộ email nguồn ngay'; }
+}
+
+/* ---------- bot đặt hàng tự động (tiện ích Chrome KK-MALL Auto Order) ---------- */
+const BOT_ST = { working: ['🤖 Bot đang đặt', '#1D4ED8'], paying: ['💳 Đã bấm Đặt hàng - chờ OTP', '#7C3AED'], done: ['✅ Bot đã đặt', '#166534'], failed: ['⚠️ Bot lỗi (chưa đặt)', '#B45309'], skip: ['↪️ Bot bỏ qua - đặt tay', '#475569'], pay_failed: ['🚨 Thanh toán tại nguồn lỗi', '#B91C1C'], paying_unknown: ['🚨 Đã bấm Đặt hàng - chưa rõ kết quả', '#B91C1C'] };
+function botBadge(p) {
+  const b = p.data && p.data.bot; if (!b || p.status !== 'to_order') return '';
+  const [t, c] = BOT_ST[b.state] || [b.state, '#475569'];
+  const canReset = ['failed', 'pay_failed', 'paying_unknown', 'skip'].includes(b.state);
+  return `<div style="margin-top:8px;padding:8px 12px;border-radius:10px;border:1px solid ${c}33;background:${c}0D;font-size:12.5px"><b style="color:${c}">${t}</b> · ${esc(new Date(b.at).toLocaleString('vi-VN'))}${b.note ? ' · ' + esc(b.note) : ''}${b.total ? ' · tổng tại nguồn ' + vnd(b.total) : ''}
+    ${['pay_failed', 'paying_unknown'].includes(b.state) ? '<br>Đã bấm Đặt hàng tại nguồn: kiểm tra đơn trên ứng dụng nguồn trước. Nếu nguồn KHÔNG có đơn, bấm cho phép đặt lại.' : ''}
+    ${canReset ? ` <button class="btn2" style="padding:3px 10px;font-size:12px" onclick="botReset('${p.po_id}')">↻ Cho bot đặt lại</button>` : ''}</div>`;
+}
+async function botReset(po_id) {
+  if (!confirm('Cho bot đặt lại lệnh mua ' + po_id + '?\nChỉ đồng ý khi đã kiểm tra nguồn KHÔNG có đơn cho lệnh này (tránh mua trùng).')) return;
+  try { await OPS.call('admin.po.botreset', { po_id }); logAdmin('Cho bot đặt lại ' + po_id); await opsLoad(); } catch (e) { alert(e.message); }
+}
+function botBoxHtml(B) {
+  B = B || {};
+  return `🤖 <b>Bot đặt hàng tự động</b> (tiện ích Chrome "KK-MALL Auto Order" - nguồn: ${esc((B.sources || ['tiki']).join(', '))}): ${B.has_key ? 'đã có khóa (tạo ' + esc(B.key_at ? new Date(B.key_at).toLocaleString('vi-VN') : '') + ')' : '<b>chưa có khóa</b>'} · bot hoạt động lần cuối: <b>${B.seen_at ? esc(new Date(B.seen_at).toLocaleString('vi-VN')) + (B.device ? ' (' + esc(B.device) + ')' : '') : 'chưa'}</b><br>
+    <span style="font-size:12.5px">Bot tự lấy lệnh mua đã thanh toán, đặt tại nguồn với thông tin khách, chọn thẻ đã lưu (không bao giờ COD), chặn nếu tổng tiền vượt tiền đã thu + biên dung sai, bấm Đặt hàng - anh chỉ nhập OTP. Cài: tải gói → chrome://extensions → bật Chế độ nhà phát triển → "Tải tiện ích đã giải nén" → chọn thư mục đã giải nén.</span><br>
+    <a class="btn2" href="ext/kk-auto-order.zip" download style="margin-top:6px">⬇ Tải tiện ích (zip)</a> <button class="btn2 pri" style="margin-top:6px" onclick="botKeyNew()">🔑 ${B.has_key ? 'Đổi' : 'Tạo'} khóa bot</button><div id="botKeyOut" style="margin-top:8px"></div>`;
+}
+async function botKeyNew() {
+  if (OPS.cfg && OPS.cfg.BOT && OPS.cfg.BOT.has_key && !confirm('Đổi khóa bot? Khóa cũ hết hiệu lực ngay - phải dán khóa mới vào tiện ích.')) return;
+  try {
+    const r = await OPS.call('admin.botkey');
+    document.getElementById('botKeyOut').innerHTML = `<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:10px 12px;font-size:13px">Khóa bot (chỉ hiện MỘT lần - dán vào ô "Khóa bot" của tiện ích): <code style="word-break:break-all">${esc(r.bot_key)}</code> ${cp(r.bot_key, '📋 Chép khóa')}</div>`;
+    logAdmin('Tạo/đổi khóa bot đặt hàng'); if (OPS.cfg) OPS.cfg.BOT = Object.assign({}, OPS.cfg.BOT, { has_key: true, key_at: r.at });
+  } catch (e) { alert(e.message); }
 }

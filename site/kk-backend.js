@@ -120,7 +120,7 @@ if (KKB.on) {
       <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off">
       <div class="f"><label>Họ và tên người nhận *</label><input name="name" required autocomplete="name" value="${v('name')}" placeholder="Nguyễn Văn A"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div class="f"><label>Số điện thoại *</label><input name="phone" required inputmode="tel" autocomplete="tel" value="${v('phone')}" placeholder="09xxxxxxxx"></div><div class="f"><label>Email nhận thông báo *</label><input name="email" type="email" required autocomplete="email" value="${v('email')}" placeholder="ban@email.com"></div></div>
-      <div class="f"><label>Địa chỉ nhận hàng đầy đủ *</label><textarea name="address" rows="2" required autocomplete="street-address" placeholder="Số nhà, đường, phường/xã, tỉnh/thành">${v('address')}</textarea></div>
+      <div class="f"><label>Địa chỉ nhận hàng đầy đủ *</label><textarea name="address" rows="2" required autocomplete="street-address" placeholder="Số nhà, đường, Phường/Xã, Quận/Huyện, Tỉnh/Thành phố (cách nhau bằng dấu phẩy)">${v('address')}</textarea></div>
       <div class="f"><label>Ghi chú giao hàng</label><input name="note" placeholder="Giờ nhận hàng, gọi trước khi giao..."></div>
       <label class="consent" style="background:#F8FAFC;border-radius:10px;padding:10px"><input type="checkbox" name="vat_need" onchange="document.getElementById('vatBox').style.display=this.checked?'block':'none'" style="margin-top:2px"><span><b>Xuất hóa đơn GTGT</b> (công ty / cá nhân có MST)</span></label>
       <div id="vatBox" style="display:none;border:1.5px dashed var(--line);border-radius:12px;padding:10px 12px;margin-bottom:12px">
@@ -147,6 +147,8 @@ if (KKB.on) {
   let _idem = null, _poll = null;
   window.submitOrder = async function (e) {
     e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)), b = $('#coSubmit'), er = $('#coErr'); er.style.display = 'none';
+    // dia chi du 3 cap (phuong/xa, quan/huyen, tinh/thanh) de nha cung cap giao dung va he thong dat hang tu dong dien chinh xac
+    if (String(f.address || '').split(/[,;\n]/).map(x => x.trim()).filter(x => x.length > 1).length < 3) { er.textContent = 'Vui lòng ghi đủ địa chỉ: số nhà + đường, Phường/Xã, Quận/Huyện, Tỉnh/Thành phố - cách nhau bằng dấu phẩy (ví dụ: 12 Phố Huế, Phường Hàng Bài, Quận Hoàn Kiếm, Hà Nội).'; er.style.display = 'block'; const ta = e.target.querySelector('[name=address]'); if (ta) ta.focus(); return; }
     b.disabled = true; b.textContent = 'Đang tạo đơn...';
     try {
       try { localStorage.setItem('kk_cust', JSON.stringify({ name: f.name, phone: f.phone, email: f.email, address: f.address })); } catch { }
