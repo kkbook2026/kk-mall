@@ -85,7 +85,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
         const name = TRUST.cleanText(best.name).replace(/\s*[-–|]\s*(hàng chính hãng|chính hãng|hàng nhập khẩu)\s*$/i, '').slice(0, 140);
         const brand = (offs.find(o => o.brand) || {}).brand || name.split(' ').find(w => /^[A-Z][A-Za-z0-9&.-]{1,}$/.test(w)) || 'KK Select';
         const base = offs.map(o => o.list || o.price).sort((a, b) => a - b)[Math.floor(offs.length / 2)];
-        const initKK = PRICING.ok ? PRICING.sell(Math.min(...offs.map(o => SHIP.landed(o.src, o.price, best.grp, { freeship: /freeship/i.test(o.name || '') })))) : base; // gia thuc tra, khong bao gio de 0d
+        const initKK = PRICING.ok ? PRICING.sell(Math.min(...offs.map(o => SHIP.landed(o.src, o.price, best.grp, { freeship: /freeship/i.test(o.name || ''), name: o.name })))) : base; // gia thuc tra, khong bao gio de 0d
         const slug = FEEDS.normKey(name).replace(/ /g, '-').slice(0, 80) + '-' + sku.toLowerCase();
         const d = { id: nextId - 1, sku, spu_id: nextId - 1, variant: '', name, slug, category_id: cid, category_name: cname, grp: best.grp, brand,
           image: withImg.image, description: name + ' chính hãng, mới 100%. Giá được KK-MALL so sánh và cập nhật tự động 3 giờ/lần.',
@@ -144,7 +144,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     if (feedBySku[p.sku] || fidx.origin[p.sku]) {
       // GIA THAT tu datafeed chinh thuc (san pham tu feed khong co gia mo phong; mat khoi feed => tam het hang)
       offerState = feedBySku[p.sku] || [];
-      for (const o of offerState) { o.ship = SHIP.shipFor(o.source, o.price, p.grp, { freeship: o.fs, stale: o.st }); o.landed = o.price + o.ship; }
+      for (const o of offerState) { o.ship = SHIP.shipFor(o.source, o.price, p.grp, { freeship: o.fs, stale: o.st, name: p.name }); o.landed = o.price + o.ship; }
     } else for (const src of sources) {
       const rnd = mulberry32((seed + hash32(p.sku + src)) >>> 0);
       const price = round1000(d.base_price * (0.91 + rnd() * 0.18));

@@ -17,7 +17,11 @@
  * (backend ?a=shipstats: chenh lech thuc tra - da thu theo nguon, 90 ngay): neu thuc te cao hon uoc tinh thi nang du phong.
  */
 const BULKY_GRP = new Set(['Tủ lạnh', 'Tủ đông & Tủ mát', 'Máy giặt & Sấy', 'Máy lạnh / Điều hòa', 'Smart Tivi', 'Máy nước nóng', 'Máy lọc nước',
-  'Nội thất phòng ngủ', 'Nội thất văn phòng', 'Xe đạp & Xe điện', 'Máy tập & Gym', 'Loa kéo & Karaoke', 'Máy chiếu', 'PC & Linh kiện', 'Màn hình máy tính']);
+  'Nội thất phòng ngủ', 'Nội thất văn phòng', 'Xe đạp & Xe điện', 'Máy tập & Gym', 'Loa kéo & Karaoke', 'Máy chiếu']);
+// nhom hon hop: chi cong kenh khi ten cho thay hang lon (may bo, vo case, man hinh lon, may in A3...)
+const BULKY_NAME = { 'PC & Linh kiện': /\b(may tinh de ban|may bo|pc |case|vo may|thung may|may tram|workstation|server|may chu|aio|all in one)\b/, 'Màn hình máy tính': /\b(2[7-9]|[3-9]\d) ?(inch|")|\b(2[7-9]|[3-9]\d)\b/, 'Máy in & Mực in': /\b(may in|may photo|a3)\b/ };
+const nd = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+const isBulky = (grp, name) => BULKY_GRP.has(grp) || !!(BULKY_NAME[grp] && BULKY_NAME[grp].test(nd(name)));
 // [nguong gia tu, phi ship nguoi mua con phai tra sau uu dai pho bien] - sap xep giam dan theo nguong; bulky: phi cho hang cong kenh
 const DEFAULT_RULES = {
   dienmayxanh: { tiers: [[0, 0]], bulky: 0, note: 'Giao hàng miễn phí toàn quốc' },
@@ -31,7 +35,7 @@ const DEFAULT_RULES = {
   tiktok: { tiers: [[300000, 8000], [0, 18000]], bulky: 60000, note: 'Voucher freeship thường xuyên' },
   sendo: { tiers: [[300000, 12000], [0, 25000]], bulky: 60000, note: 'Freeship có điều kiện' },
   // Website ban le (thu thap gia cong khai, 10/2026):
-  hoangha: { tiers: [[300000, 0], [0, 15000]], bulky: 0, note: 'Miễn phí vận chuyển toàn quốc (dự phòng 15k đơn nhỏ)' },
+  hoangha: { tiers: [[300000, 0], [0, 15000]], bulky: 30000, note: 'Miễn phí vận chuyển toàn quốc (dự phòng 15k đơn nhỏ, 30k hàng cồng kềnh tỉnh xa)' },
   phucanh: { tiers: [[500000, 25000], [0, 35000]], bulky: 60000, note: 'Miễn phí giao từ 500k nội thành HN; khách tỉnh qua chuyển phát - dự phòng' },
   anphat: { tiers: [[3000000, 30000], [500000, 35000], [0, 40000]], bulky: 80000, note: 'Miễn phí theo bán kính 10-40km quanh HN, ngoài bán kính 6.000đ/km - dự phòng khách tỉnh' },
 };
@@ -53,7 +57,7 @@ function create(env = process.env, stats = null) {
     const r = rules[src] || { tiers: [[0, 25000]], bulky: 60000 };
     if (flags && flags.freeship) return calib[src] ? Math.min(calib[src], 5000) : 0;   // nguon ghi ro Freeship trong ten
     let fee = 0; for (const [min, f] of [...r.tiers].sort((a, b) => b[0] - a[0])) if (price >= min) { fee = f; break; }
-    if (grp && BULKY_GRP.has(grp)) fee = Math.max(fee, r.bulky || 0);
+    if (grp && isBulky(grp, flags && flags.name)) fee = Math.max(fee, r.bulky || 0);
     if (calib[src] != null) fee = Math.max(fee, calib[src]);                            // thuc te > uoc tinh -> theo thuc te
     if (flags && flags.stale) fee += Math.round(price * 0.01 / 1000) * 1000;            // gia ban le thu thap > 48h: du phong 1%
     return fee + Math.round(price * safety / 100 / 1000) * 1000;
@@ -73,4 +77,4 @@ async function fetchStats(env = process.env) {
     const j = await r.json(); return j && j.sources ? j.sources : null;
   } catch { return null; }
 }
-module.exports = { create, fetchStats, DEFAULT_RULES, BULKY_GRP };
+module.exports = { create, fetchStats, DEFAULT_RULES, BULKY_GRP, isBulky };
