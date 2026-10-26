@@ -86,3 +86,8 @@
 - **Form đặt hàng:** bắt buộc địa chỉ đủ 3 cấp (số nhà + đường, Phường/Xã, Quận/Huyện, Tỉnh/TP) để bot điền chính xác.
 - **Mã nguồn:** `extension/kk-auto-order/` (MV3: background.js điều phối, tiki.js thao tác trang, lib.js tách địa chỉ + kế hoạch nguồn, popup). Kiểm thử: 136 kiểm tra máy chủ, 15 kiểm tra tách địa chỉ, 28 kiểm tra trình duyệt; chạy thử thật trên Tiki tới bước xin phép thanh toán (sản phẩm 39.200đ, ship 16.500đ, tổng 55.700đ, thẻ đã lưu) - máy chủ giả lập từ chối nên không đặt.
 - **Mở rộng:** thêm nguồn = thêm bộ thao tác trang (vd `shopee.js`) + khai báo `BOT_SOURCES` ở máy chủ.
+
+## SỬA ĐĂNG NHẬP OTP (26/10/2026, backend v1.4.1 - Version 8)
+- **Sự cố:** quản trị bị báo "thao tác quá nhanh" vì hôm đó đã gửi đủ 10 mã (giới hạn 10 mã/ngày/email), và mỗi lần bấm "Gửi mã" làm mã trước mất hiệu lực nên dễ bấm lặp.
+- **Đã sửa:** bấm "Gửi mã" lần nữa trong 60 giây không gửi mã mới (mã vừa gửi vẫn dùng được); mã của email trước còn hạn vẫn đăng nhập được; giới hạn theo cửa sổ cố định (quản trị 6 mã/15 phút, 40 mã/ngày; khách 3 mã/15 phút, 10 mã/ngày), báo rõ số phút phải chờ, không còn khóa kéo dài; nút "Gửi mã" đếm ngược 60 giây.
+- **Đồng bộ email Tiki tạm tắt:** để triển khai ngay mà không chờ cấp quyền, manifest đang dùng 5 quyền cũ (`backend/appsscript.json`). Khi bật lại: thay bằng `backend/appsscript.gmail.json` (thêm dịch vụ Gmail + `gmail.readonly`), chủ sở hữu cấp quyền, chạy `installMailSync`, triển khai phiên bản mới. Bot đặt hàng tự báo mã đơn nên không phụ thuộc phần này.
