@@ -11,7 +11,7 @@
  */
 
 /* =========================== CẤU HÌNH =========================== */
-var VERSION = '1.2.2';
+var VERSION = '1.3.0';
 var CONSENT_VERSION = 'UQ-2026-10';
 var SHEETS = {
   Orders: ['code', 'created_at', 'status', 'payment_status', 'email', 'phone', 'name', 'goods', 'fee', 'total', 'paid_at', 'data', 'updated_at'],
@@ -303,7 +303,7 @@ function publicOrder_(o, pos, invs, rmas) {
     customer: { name: o.customer.name, phone: maskPhone_(o.customer.phone), address: o.customer.address }, vat: o.vat ? { name: o.vat.name, tax_code: o.vat.tax_code } : null,
     lines: o.lines.map(function (l) { return { sku: l.sku, name: l.name, image: l.image, category_id: l.category_id, warranty_ok: WARRANTY_CATS.indexOf(l.category_id) >= 0, qty: l.qty, unit: l.unit, unit_cost: l.unit_cost, unit_fee: l.unit_fee, line_total: l.line_total, line_cost: l.line_cost, line_fee: l.line_fee }; }),
     goods: o.goods, fee: o.fee, discount: o.discount, vouchers: o.vouchers, fee_net: o.fee_net, fee_pre_tax: o.fee_pre_tax, fee_vat: o.fee_vat, total: o.total, refund_due: o.refund_due || 0,
-    history: o.history, shipments: (pos || []).map(function (p) { var d = parseData_(p); return { sku: p.sku, name: p.name, qty: p.qty, status: p.status, carrier: d.carrier || '', tracking: p.tracking || '', delivered_at: d.delivered_at || '' }; }),
+    history: o.history, shipments: (pos || []).map(function (p) { var d = parseData_(p); return { sku: p.sku, name: p.name, qty: p.qty, status: p.status, carrier: d.carrier || '', tracking: p.tracking || '', eta: d.eta || '', delivered_at: d.delivered_at || '' }; }),
     invoices: (invs || []).map(function (i) { return { inv_id: i.inv_id, status: i.status, content: i.content, total: i.total }; }),
     rmas: (rmas || []).map(function (r) { var d = parseData_(r); return { rma_id: r.rma_id, sku: r.sku, type: r.type, status: r.status, created_at: r.created_at, return_tracking: d.return_tracking || '', pickup: d.pickup || '' }; }) };
 }
@@ -477,7 +477,11 @@ function adminOrderUpdate_(b) {
 }
 function adminPoUpdate_(b) {
   var s = session_(b.token, true), lock = LockService.getScriptLock(); lock.waitLock(20000);
-  try {
+  try { return poUpdate_(b, s.email); } finally { lock.releaseLock(); }
+}
+// Chuyen trang thai lenh mua (dung chung cho quan tri bam tay va bo dong bo email nguon) - goi khi DA giu khoa
+function poUpdate_(b, by) {
+  {
     var p = find_('PO', 'po_id', b.po_id); if (!p) throw err_('Không tìm thấy lệnh mua', 404);
     var d = parseData_(p), o = loadOrder_(p.order_code), st = b.status;
     var upd = { status: st, updated_at: nowIso_() };
@@ -487,12 +491,12 @@ function adminPoUpdate_(b) {
       if (b.ship_paid !== undefined && b.ship_paid !== '') d.ship_paid = Math.max(0, Math.round(Number(b.ship_paid) || 0)); // phi ship/phu phi thuc tra tai nguon (da nam trong actual_cost)
       var lineFee = (o.lines.filter(function (l) { return l.sku === p.sku; })[0] || {}).line_fee || 0;
       if (cost - Number(p.collected_cost) > lineFee) adminsMail_('⚠️ Lệnh mua ' + p.po_id + ' LỖ: thực trả vượt phí dịch vụ', '<p>Thực trả nhà cung cấp <b>' + vnd_(cost) + '</b> cao hơn tiền hàng đã thu <b>' + vnd_(p.collected_cost) + '</b> quá phí dịch vụ của dòng này (' + vnd_(lineFee) + '). Kiểm tra lại dự phòng ship của nguồn <b>' + esc_(upd.actual_source) + '</b>.</p>');
-      d.source_url = str_(b.source_url, 500); d.ordered_at = nowIso_(); d.vat_requested = !!b.vat_requested;
+      d.source_url = str_(b.source_url, 500); d.ordered_at = nowIso_(); d.vat_requested = !!b.vat_requested; if (b.auto) d.auto = str_(b.auto, 40);
       ledger_(o.code, upd.supplier_order_id, '3388', '', Math.min(cost, Number(p.collected_cost)), 'Chi hộ tiền hàng cho nhà cung cấp (' + upd.actual_source + ')');
       if (cost > Number(p.collected_cost)) ledger_(o.code, upd.supplier_order_id, '632', '', cost - Number(p.collected_cost), 'KK-MALL bù trượt giá trong biên dung sai');
       ledger_(o.code, upd.supplier_order_id, '', '1121', cost, 'Thanh toán nhà cung cấp');
       if (cost < Number(p.collected_cost)) { o.refund_due = (o.refund_due || 0) + Number(p.collected_cost) - cost; d.refund_due = Number(p.collected_cost) - cost; }
-    } else if (st === 'shipped') { upd.tracking = str_(b.tracking, 60); d.carrier = str_(b.carrier, 40); d.shipped_at = nowIso_(); }
+    } else if (st === 'shipped') { upd.tracking = str_(b.tracking, 60); d.carrier = str_(b.carrier, 40); d.shipped_at = nowIso_(); if (b.eta) d.eta = str_(b.eta, 60); }
     else if (st === 'delivered') { d.delivered_at = nowIso_(); }
     else if (st === 'cancelled') { d.cancel_reason = str_(b.note, 200); }
     else throw err_('Trạng thái không hợp lệ');
@@ -502,14 +506,176 @@ function adminPoUpdate_(b) {
     var every = function (s2) { return live.length && live.every(function (x) { return x.status === s2 || (s2 === 'ordered' && (x.status === 'shipped' || x.status === 'delivered')) || (s2 === 'shipped' && x.status === 'delivered'); }); };
     var prev = o.status;
     var to = every('delivered') ? 'delivered' : every('shipped') ? 'shipping' : every('ordered') ? 'ordered' : '';
-    if (to && to !== o.status) setStatus_(o, to, s.email);
+    if (to && to !== o.status) setStatus_(o, to, by);
     saveOrder_(o);
-    if (st === 'shipped') mail_(o.customer.email, 'Đơn ' + o.code + ' đang giao: ' + p.name, '<p><b>' + esc_(p.name) + '</b> đã được nhà cung cấp bàn giao vận chuyển.</p><p>Đơn vị vận chuyển: <b>' + esc_(d.carrier || '') + '</b><br>Mã vận đơn: <b>' + esc_(upd.tracking) + '</b></p><p><a href="' + cfg_('SITE') + '/?order=' + o.code + '&phone=' + o.customer.phone + '">Theo dõi đơn →</a></p>');
+    if (st === 'shipped') mail_(o.customer.email, 'Đơn ' + o.code + ' đang giao: ' + p.name, '<p><b>' + esc_(p.name) + '</b> đã được nhà cung cấp bàn giao vận chuyển.</p><p>Đơn vị vận chuyển: <b>' + esc_(d.carrier || '') + '</b><br>Mã vận đơn: <b>' + esc_(upd.tracking) + '</b>' + (d.eta ? '<br>Dự kiến giao: <b>' + esc_(d.eta) + '</b>' : '') + '</p><p><a href="' + cfg_('SITE') + '/?order=' + o.code + '&phone=' + o.customer.phone + '">Theo dõi đơn →</a></p>');
     if (st === 'ordered' && o.status === 'ordered' && prev !== 'ordered') mail_(o.customer.email, 'Đơn ' + o.code + ' đã được đặt tại nhà cung cấp', '<p>Toàn bộ sản phẩm trong đơn <b>' + o.code + '</b> đã được đặt tại nhà cung cấp và giao thẳng đến bạn.' + (o.vat ? ' Hóa đơn GTGT tiền hàng mang tên <b>' + esc_(o.vat.name) + '</b> do nhà cung cấp xuất trực tiếp.' : '') + '</p>');
     if (o.status === 'delivered' && prev !== 'delivered') { feeInvoice_(o); mail_(o.customer.email, 'Đơn ' + o.code + ' đã giao thành công', '<p>Cảm ơn bạn đã mua sắm tại KK-MALL. Nếu sản phẩm có lỗi, bạn có thể yêu cầu <b>đổi trả trong ' + cfg_('RETURN_DAYS') + ' ngày</b> hoặc <b>bảo hành</b> ngay trên trang theo dõi đơn hàng.</p>'); }
-    log_('admin_po_' + st, s.email, b.po_id);
+    log_('admin_po_' + st, by, b.po_id);
     return { ok: true, po: poOut_(find_('PO', 'po_id', b.po_id)), order_status: o.status };
-  } finally { lock.releaseLock(); }
+  }
+}
+/* =========================== TỰ ĐỒNG BỘ LỆNH MUA TỪ EMAIL NGUỒN ===========================
+ * Doc email giao dich nguon gui ve hop thu chu so huu - quyen CHI DOC (gmail.readonly, dich vu Gmail API nang cao), 15 phut/lan:
+ *  - "Xac nhan don hang #ID": tu gan ma don nguon vao lenh mua "Can dat" (bat buoc khop SDT nguoi nhan voi khach KK-MALL + ten SP),
+ *    ghi thuc tra = tong gia tri don nguon (phan bo theo dong neu nhieu SP), ship thuc tra = phi van chuyen - giam gia van chuyen
+ *  - "Dang van chuyen" / "Giao thanh cong": tu chuyen trang thai lenh mua + don, email khach (don vi van chuyen, du kien giao)
+ *  - Canh bao quan tri: don nguon dat COD cho khach KK-MALL (khach se bi thu tien lan 2), nguon huy don, cho thanh toan, khong khop lenh mua
+ * Don ca nhan cua chu so huu (SDT khong thuoc khach KK-MALL dang cho dat) bi bo qua.
+ */
+var MAIL_SOURCES = { tiki: { name: 'Tiki', q: 'from:noreply@tiki.vn' } };
+function nd_(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd'); }
+function phone_(s) { var d = String(s || '').replace(/\D/g, ''); if (d.indexOf('84') === 0 && d.length === 11) d = '0' + d.slice(2); return d; }
+function money_(s) { return Math.round(Number(String(s || '').replace(/[^\d]/g, '')) || 0); }
+function htmlText_(h) {
+  return String(h || '').replace(/<(style|script|head)[\s\S]*?<\/\1>/gi, ' ').replace(/<\/(td|th)>/gi, ' | ').replace(/<(br|\/p|\/div|\/tr|\/h\d|\/li|\/table)[^>]*>/gi, '\n').replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#(\d+);/g, function (_, n) { return String.fromCharCode(+n); })
+    .replace(/&#x([0-9a-f]+);/gi, function (_, n) { return String.fromCharCode(parseInt(n, 16)); }).replace(/[ \t ]+/g, ' ').replace(/ *\n[ |\n]*/g, '\n');
+}
+/* Phan tich 1 email Tiki -> { src, id, type, phone, total, sub, ship, shipDisc, cod, lines[], carrier, eta } | null */
+function parseTikiMail_(subject, text) {
+  var s = nd_(subject), t = String(text || ''), tn = nd_(t);
+  var m = s.match(/(?:#|don hang)\s*#?\s*(\d{8,12})/) || tn.match(/don hang\s*#?\s*(\d{8,12})/);
+  if (!m) return null;
+  var r = { src: 'tiki', id: m[1], type: '' };
+  if (/xac nhan don hang/.test(s)) r.type = 'confirm';
+  else if (/giao thanh cong/.test(s)) r.type = 'delivered';
+  else if (/dang van chuyen/.test(s)) r.type = 'shipped';
+  else if (/doi thanh toan/.test(s)) r.type = 'unpaid';
+  else if (/hoa don dien tu/.test(s)) r.type = 'invoice';
+  else if (/thong bao don hang/.test(s)) r.type = /huy don hang|da bi huy|da huy don/.test(tn) ? 'cancelled' : 'notice';
+  else return null;
+  var ph = tn.match(/(?:sdt|so dien thoai|dien thoai)\s*:?\s*((?:\+?84|0)[\d .]{8,13})/); r.phone = ph ? phone_(ph[1]) : '';
+  var g = function (re) { var x = tn.match(re); return x ? money_(x[1]) : 0; };
+  r.total = g(/tong (?:gia tri don hang|cong|thanh toan)[^\d\n]{0,12}([\d.,]{4,})\s*d/);
+  r.sub = g(/tam tinh[^\d\n]{0,12}([\d.,]{4,})\s*d/);
+  r.ship = g(/phi van chuyen[^\d\n]{0,12}([\d.,]{3,})\s*d/);
+  r.shipDisc = g(/giam gia van chuyen[^\d\n]{0,12}([\d.,]{3,})\s*d/);
+  r.cod = /thanh toan (?:bang )?tien mat khi nhan hang/.test(tn);
+  r.lines = [];
+  t.split('\n').forEach(function (ln) {
+    var c = ln.split('|').map(function (x) { return x.trim(); }).filter(String); if (c.length < 3) return;
+    var price = c[c.length - 1], qty = c[c.length - 2], name = c[c.length - 3];
+    if (/^[\d.,]+\s*(đ|₫|d)$/i.test(price) && /^\d{1,3}$/.test(qty) && name.length >= 3 && !/^(sản phẩm|tạm tính)/i.test(name)) r.lines.push({ name: name.slice(0, 200), qty: Number(qty), price: money_(price) });
+  });
+  var cr = t.match(/đối tác vận chuyển\s+([^.\n|,]{2,30})/i); if (cr) r.carrier = cr[1].trim();
+  var eta = t.match(/giao trước\s+([^.\n|]{3,40})/i); if (eta) r.eta = eta[1].trim();
+  return r;
+}
+/* Muc do phu ten SP lenh mua trong 1 chuoi (0..1) - bo tu qua ngan, dem token co mat */
+function nameCover_(poName, hay) {
+  var tk = nd_(poName).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(function (w) { return w.length >= 2 && ['hang', 'chinh', 'hang', 'cho', 'va', 'the', 'new'].indexOf(w) < 0; });
+  if (!tk.length) return 0; var h = ' ' + nd_(hay).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ') + ' ';
+  return tk.filter(function (w) { return h.indexOf(' ' + w + ' ') >= 0; }).length / tk.length;
+}
+/* Gan don nguon (email xac nhan) vao cac lenh mua dang cho dat - tra ve [{ po, cost, ship, qty_ok }] */
+function matchConfirm_(r, pos, orderOf) {
+  if (!r.phone) return [];
+  var cand = pos.filter(function (p) { var o = orderOf(p.order_code); return p.status === 'to_order' && o && o.payment_status === 'paid' && phone_(o.customer.phone) === r.phone; });
+  var out = [];
+  cand.forEach(function (p) {
+    var best = null, bs = 0;
+    r.lines.forEach(function (l) { var sc = nameCover_(p.name, l.name); if (sc > bs) { bs = sc; best = l; } });
+    if (best && bs >= 0.6) out.push({ po: p, line: best, score: bs });
+    else if (!r.lines.length && nameCover_(p.name, r.text || '') >= 0.8) out.push({ po: p, line: null, score: 0.8 });
+  });
+  if (!out.length) return [];
+  var linesSum = out.reduce(function (a, x) { return a + (x.line ? x.line.price * x.line.qty : 0); }, 0), sub = r.sub || linesSum, shipNet = Math.max(0, r.ship - r.shipDisc);
+  if (out.some(function (x) { return !x.line; })) { if (out.length > 1 || !r.total) return []; return [{ po: out[0].po, cost: r.total, ship: shipNet, qty_ok: true }]; }
+  return out.map(function (x) {
+    var amt = x.line.price * x.line.qty, w = sub ? amt / sub : 1;
+    var cost = r.total && sub ? amt + Math.round((r.total - sub) * w) : amt + Math.round(shipNet * w);
+    return { po: x.po, cost: Math.max(0, cost), ship: Math.round(shipNet * w), qty_ok: x.line.qty >= Number(x.po.qty) };
+  });
+}
+function b64Text_(d) {
+  try {
+    if (typeof d !== 'string') return Utilities.newBlob(d).getDataAsString('UTF-8');
+    while (d.length % 4) d += '=';
+    return Utilities.newBlob(Utilities.base64DecodeWebSafe(d)).getDataAsString('UTF-8');
+  } catch (e) { return ''; }
+}
+function gmailFetch_(q, max, seen) {
+  if (typeof Gmail === 'undefined') throw err_('Chưa bật dịch vụ Gmail API (Services → Gmail API) cho dự án Apps Script');
+  var res = Gmail.Users.Messages.list('me', { q: q, maxResults: max || 40 }), out = [];
+  ((res && res.messages) || []).forEach(function (x) {
+    if (seen[x.id]) return;
+    var m = Gmail.Users.Messages.get('me', x.id, { format: 'full' }), hs = {}, html = '', plain = '';
+    ((m.payload && m.payload.headers) || []).forEach(function (h) { hs[String(h.name).toLowerCase()] = h.value; });
+    (function walk(pt) { if (!pt) return; var mt = String(pt.mimeType || ''); if (pt.body && pt.body.data) { if (mt === 'text/html' && !html) html = b64Text_(pt.body.data); else if (mt === 'text/plain' && !plain) plain = b64Text_(pt.body.data); } (pt.parts || []).forEach(walk); })(m.payload);
+    out.push({ id: x.id, at: Number(m.internalDate) || 0, subject: hs.subject || '', text: html ? htmlText_(html) : plain });
+  });
+  return out.sort(function (a, b) { return a.at - b.at; });
+}
+/* Chay dong bo: msgs (tuy chon, de kiem thu) = [{ id, at, subject, text, src }] */
+function mailSync_(opt) {
+  opt = opt || {};
+  var P = P_(), seenArr = []; try { seenArr = JSON.parse(P.getProperty('MAILSYNC_SEEN') || '[]'); } catch (e) { seenArr = []; }
+  var seen = {}; seenArr.forEach(function (k) { seen[k] = 1; });
+  var msgs = opt.msgs || [];
+  if (!opt.msgs) Object.keys(MAIL_SOURCES).forEach(function (src) { gmailFetch_(MAIL_SOURCES[src].q + ' newer_than:' + (opt.days || 10) + 'd', 40, seen).forEach(function (m) { m.src = src; msgs.push(m); }); });
+  var ev = [], orders = {}, orderOf = function (c) { if (!(c in orders)) { try { orders[c] = loadOrder_(c); } catch (e) { orders[c] = null; } } return orders[c]; };
+  var note = function (e) { e.at = nowIso_(); ev.push(e); };
+  msgs.forEach(function (m) {
+    if (seen[m.id]) return; seen[m.id] = 1; seenArr.push(m.id);
+    var r = m.src === 'tiki' || !m.src ? parseTikiMail_(m.subject, m.text) : null; if (!r) return;
+    r.text = m.text; var srcName = (MAIL_SOURCES[r.src] || {}).name || r.src;
+    var pos = rows_('PO'), linked = pos.filter(function (p) { return String(p.supplier_order_id) === r.id && p.status !== 'cancelled'; });
+    try {
+      if (r.type === 'confirm') {
+        if (linked.length) return note({ src: r.src, id: r.id, type: r.type, po: linked.map(function (p) { return p.po_id; }).join(','), note: 'đã gắn từ trước' });
+        var mt = matchConfirm_(r, pos, orderOf);
+        if (!mt.length) {
+          var kkPhone = r.phone && pos.some(function (p) { var o = orderOf(p.order_code); return p.status === 'to_order' && o && phone_(o.customer.phone) === r.phone; });
+          if (kkPhone) { adminsMail_('⚠️ Đơn ' + srcName + ' #' + r.id + ' giao tới khách KK-MALL nhưng CHƯA khớp lệnh mua', '<p>Email xác nhận đơn ' + srcName + ' <b>#' + esc_(r.id) + '</b> có SĐT người nhận trùng khách đang chờ đặt, nhưng tên sản phẩm không khớp lệnh mua nào. Vào Quản trị → Lệnh mua để gắn tay mã đơn nguồn.</p>'); note({ src: r.src, id: r.id, type: r.type, note: 'SĐT khớp khách nhưng không khớp sản phẩm - đã báo quản trị' }); }
+          return;
+        }
+        mt.forEach(function (x) {
+          poUpdate_({ po_id: x.po.po_id, status: 'ordered', actual_source: r.src, actual_cost: x.cost, supplier_order_id: r.id, ship_paid: x.ship, vat_requested: false, auto: 'email-' + r.src }, 'tu-dong:email-' + r.src);
+          note({ src: r.src, id: r.id, type: r.type, po: x.po.po_id, note: 'đã gắn mã đơn, thực trả ' + vnd_(x.cost) + (x.qty_ok ? '' : ' - SỐ LƯỢNG THIẾU') });
+          if (!x.qty_ok) adminsMail_('⚠️ Đơn ' + srcName + ' #' + r.id + ' đặt THIẾU số lượng cho ' + x.po.po_id, '<p>Lệnh mua cần ' + x.po.qty + ' sản phẩm, đơn nguồn ít hơn. Kiểm tra và đặt bổ sung.</p>');
+        });
+        if (r.cod) adminsMail_('🚨 Đơn ' + srcName + ' #' + r.id + ' đang để THANH TOÁN KHI NHẬN HÀNG', '<p>Đơn nguồn giao thẳng cho khách KK-MALL nhưng phương thức là <b>tiền mặt khi nhận hàng</b> - khách sẽ bị thu tiền lần 2. Đổi sang thanh toán trước hoặc hủy và đặt lại ngay.</p>');
+      } else if (r.type === 'shipped' || r.type === 'delivered') {
+        linked.forEach(function (p) {
+          if (r.type === 'shipped' && p.status === 'ordered') { poUpdate_({ po_id: p.po_id, status: 'shipped', carrier: srcName + (r.carrier ? ' - ' + r.carrier : ''), tracking: r.id, eta: r.eta || '' }, 'tu-dong:email-' + r.src); note({ src: r.src, id: r.id, type: r.type, po: p.po_id, note: 'đang giao' + (r.eta ? ', dự kiến ' + r.eta : '') }); }
+          if (r.type === 'delivered' && (p.status === 'ordered' || p.status === 'shipped')) { poUpdate_({ po_id: p.po_id, status: 'delivered' }, 'tu-dong:email-' + r.src); note({ src: r.src, id: r.id, type: r.type, po: p.po_id, note: 'đã giao' }); }
+        });
+      } else if (r.type === 'cancelled' && linked.length) {
+        adminsMail_('🚨 ' + srcName + ' HỦY đơn #' + r.id + ' (' + linked.map(function (p) { return p.po_id; }).join(', ') + ')', '<p>Nguồn thông báo hủy đơn đã đặt cho khách KK-MALL. Đặt lại tại nguồn khác hoặc hoàn tiền cho khách trong Quản trị → Lệnh mua.</p>');
+        note({ src: r.src, id: r.id, type: r.type, po: linked.map(function (p) { return p.po_id; }).join(','), note: 'nguồn hủy đơn - đã báo quản trị' });
+      } else if (r.type === 'unpaid' && (linked.length || (r.phone && pos.some(function (p) { var o = orderOf(p.order_code); return p.status === 'to_order' && o && phone_(o.customer.phone) === r.phone; })))) {
+        adminsMail_('⚠️ Đơn ' + srcName + ' #' + r.id + ' CHƯA thanh toán thành công', '<p>Thanh toán tại nguồn chưa thành công. Vào ứng dụng ' + srcName + ' thanh toán lại để đơn của khách không bị hủy.</p>');
+        note({ src: r.src, id: r.id, type: r.type, note: 'chưa thanh toán tại nguồn - đã báo quản trị' });
+      } else if ((r.type === 'notice' || r.type === 'invoice') && linked.length) {
+        linked.forEach(function (p) { var d = parseData_(p); (d.src_notes = d.src_notes || []).push({ at: nowIso_(), type: r.type, text: str_(m.subject, 120) }); d.src_notes = d.src_notes.slice(-5); if (r.type === 'invoice') d.supplier_invoice = true; update_('PO', p._row, { data: JSON.stringify(d), updated_at: nowIso_() }); });
+        note({ src: r.src, id: r.id, type: r.type, po: linked.map(function (p) { return p.po_id; }).join(','), note: str_(m.subject, 80) });
+      }
+    } catch (x) { note({ src: r.src, id: r.id, type: r.type, note: 'LỖI: ' + str_(x && x.message, 120) }); log_('mailsync_error', r.id, String(x && x.stack || x).slice(0, 800)); }
+  });
+  P.setProperty('MAILSYNC_SEEN', JSON.stringify(seenArr.slice(-400)));
+  var logArr = []; try { logArr = JSON.parse(P.getProperty('MAILSYNC_LOG') || '[]'); } catch (e) { logArr = []; }
+  P.setProperty('MAILSYNC_LOG', JSON.stringify(logArr.concat(ev).slice(-30))); P.setProperty('MAILSYNC_AT', nowIso_());
+  if (ev.length) log_('mailsync', opt.by || 'tu-dong', ev.length + ' su kien');
+  return { at: P.getProperty('MAILSYNC_AT'), scanned: msgs.length, events: ev };
+}
+function mailSyncInfo_() {
+  var log = []; try { log = JSON.parse(P_().getProperty('MAILSYNC_LOG') || '[]'); } catch (e) { }
+  var on = false; try { on = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'mailSync'; }); } catch (e) { }
+  return { on: on, at: P_().getProperty('MAILSYNC_AT') || '', sources: Object.keys(MAIL_SOURCES).map(function (k) { return MAIL_SOURCES[k].name; }), log: log.slice(-15).reverse() };
+}
+// Trigger 15 phut/lan (chay duoi quyen chu so huu)
+function mailSync() {
+  var lock = LockService.getScriptLock(); if (!lock.tryLock(20000)) return;
+  try { mailSync_({}); } catch (e) { log_('mailsync_error', 'trigger', String(e && e.stack || e).slice(0, 800)); } finally { lock.releaseLock(); }
+}
+// Chay 1 lan trong trinh soan thao de cap quyen Gmail (chi doc) + cai lich 15 phut
+function installMailSync() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'mailSync') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('mailSync').timeBased().everyMinutes(15).create();
+  var r = mailSync_({ days: 3, by: 'cai-dat' });
+  Logger.log('MAILSYNC ' + JSON.stringify({ scanned: r.scanned, events: r.events.length, info: mailSyncInfo_() }));
+  return r;
 }
 // Hoa don GTGT phi dich vu (ban nhap -> quan tri duyet -> phat hanh qua nha cung cap HDDT & gui khach)
 function feeInvoice_(o) {
@@ -577,7 +743,7 @@ function adminConfig_(b) {
   var out = {}; ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'ADMIN_EMAILS', 'VOUCHER_FEE_CAP_PCT'].forEach(function (k) { out[k] = cfg_(k); });
   out.WEBHOOK_URL = ScriptApp.getService().getUrl() + '?a=webhook&key=' + P_().getProperty('WEBHOOK_KEY');
   if (!P_().getProperty('STATS_KEY')) P_().setProperty('STATS_KEY', rnd_());
-  out.STATS_KEY = P_().getProperty('STATS_KEY'); out.BACKEND_URL = ScriptApp.getService().getUrl();
+  out.STATS_KEY = P_().getProperty('STATS_KEY'); out.BACKEND_URL = ScriptApp.getService().getUrl(); out.MAILSYNC = mailSyncInfo_();
   out.SHEET_URL = ss_().getUrl(); out.fee_table = feeTable_();
   return out;
 }
@@ -661,7 +827,8 @@ function doPost(e) {
       'admin.members': function () { return adminList_(b, 'Members', function (m) { return { email: m.email, name: m.name, phone: m.phone, address: m.address, role: m.role, created_at: m.created_at, last_login: m.last_login }; }); },
       'admin.config': function () { return adminConfig_(b); },
       'admin.stats': function () { return adminStats_(b); },
-      'admin.backup': function () { session_(b.token, true); dailyBackup(); return { ok: true }; }
+      'admin.backup': function () { session_(b.token, true); dailyBackup(); return { ok: true }; },
+      'admin.mailsync': function () { var s2 = session_(b.token, true), lk = LockService.getScriptLock(); lk.waitLock(25000); try { var r2 = mailSync_({ by: s2.email }); r2.info = mailSyncInfo_(); return r2; } finally { lk.releaseLock(); } }
     };
     if (!R[a]) throw err_('Thao tác không hỗ trợ: ' + a, 404);
     return json_(R[a]());
@@ -691,6 +858,7 @@ function setup() {
   ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('hourly').timeBased().everyHours(1).create();
   ScriptApp.newTrigger('dailyBackup').timeBased().everyDays(1).atHour(2).create();
+  ScriptApp.newTrigger('mailSync').timeBased().everyMinutes(15).create(); // dong bo lenh mua tu email nguon (Tiki)
   Logger.log('KK-MALL backend OK. Sheet: ' + ss_().getUrl());
 }
 var WARRANTY_SEED = [

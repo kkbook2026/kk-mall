@@ -28,7 +28,8 @@ const srcName = s => (SRC[s] || [s])[0];
   main.insertAdjacentHTML('beforeend', `
   <section class="sec" id="t-po"><h2>Lệnh mua tại nhà cung cấp <span style="font-weight:600;font-size:12px;color:var(--muted)" id="poCount"></span></h2>
     <div class="note">Mỗi đơn đã thanh toán tự sinh lệnh mua cho từng sản phẩm. Hệ thống <b>tự lập kế hoạch</b>: nguồn rẻ nhất còn hàng đã qua Bộ lọc Tin cậy, đúng mã sản phẩm, ưu tiên nguồn <b>xuất được hóa đơn GTGT</b> nếu khách yêu cầu, áp <b>biên dung sai trượt giá</b>. Người vận hành chỉ cần: <b>Mở trang nguồn → dán thông tin giao hàng (đã chép sẵn) → thanh toán → bấm "Đã đặt"</b>. Hệ thống tự hạch toán chi hộ, bù trượt giá, báo khách.</div>
-    <div class="row"><select id="poF" onchange="renderPO()"><option value="to_order">Cần đặt</option><option value="ordered">Đã đặt - chờ giao vận chuyển</option><option value="shipped">Đang giao</option><option value="">Tất cả</option></select><button class="btn2" onclick="opsLoad()">⟳ Tải lại</button></div>
+    <div class="row"><select id="poF" onchange="renderPO()"><option value="to_order">Cần đặt</option><option value="ordered">Đã đặt - chờ giao vận chuyển</option><option value="shipped">Đang giao</option><option value="">Tất cả</option></select><button class="btn2" onclick="opsLoad()">⟳ Tải lại</button><button class="btn2" id="msBtn" onclick="runMailSync()">📧 Đồng bộ email nguồn ngay</button></div>
+    <div id="mailSync"></div>
     <div id="poList"></div></section>
   <section class="sec" id="t-rma"><h2>Đổi trả & bảo hành</h2><div class="note">Khách gửi yêu cầu kèm ảnh/video trên trang theo dõi đơn. Bảo hành: hệ thống tự gửi trung tâm bảo hành chính hãng. Đổi trả: tạo yêu cầu trả hàng tại nhà cung cấp (bằng tài khoản đã đặt), nhập <b>mã vận đơn thu hồi + lịch lấy hàng</b> → khách nhận email tự động. Khi nhà cung cấp hoàn tiền về, bấm <b>Hoàn tiền</b> ở tab Đơn hàng.</div><div class="card"><table id="rmaTbl"></table></div></section>
   <section class="sec" id="t-ledger"><h2>Sổ kế toán thu hộ - chi hộ</h2><div class="note">Theo mô hình ủy quyền: tiền hàng ghi <b>TK 3388 (phải trả khác - thu hộ, chi hộ)</b>, chỉ <b>phí dịch vụ</b> ghi doanh thu <b>TK 5113</b> + thuế GTGT đầu ra <b>TK 33311</b>; trượt giá KK-MALL bù ghi <b>TK 632</b>; hoàn phí ghi <b>TK 5213</b>. Mỗi mã đơn đối soát 1-1: tiền khách chuyển vào ↔ tiền chi nhà cung cấp.</div>
@@ -56,7 +57,7 @@ async function opsLoad() {
     const [o, cfg] = await Promise.all([OPS.call('admin.orders', { limit: 500 }), OPS.call('admin.config')]);
     OPS.orders = o.orders; OPS.tol = o.tolerance; OPS.vatSrc = o.vat_sources; OPS.cfg = cfg; FEE_TABLE = o.fee_table;
     try { const sk = sessionStorage.getItem('kk_stats_key'); if (sk && cfg.STATS_KEY !== sk) { OPS.cfg = await OPS.call('admin.config', { set: { STATS_KEY: sk } }); logAdmin('Đăng ký khóa thống kê ship cho bộ thu thập'); } } catch (e) { console.warn('stats key', e); }
-    renderOrders(); renderRev(); renderPO(); renderCmp(); renderOpsCfg();
+    renderOrders(); renderRev(); renderPO(); renderCmp(); renderOpsCfg(); renderMailSync();
     OPS.call('admin.rmas').then(r => { OPS.rmas = r.rows; renderRMA(); });
     OPS.call('admin.ledger').then(r => { OPS.ledger = r.rows; renderLedger(); });
     OPS.call('admin.invoices').then(r => { OPS.invs = r.rows; renderFeeInv(); });
@@ -149,7 +150,7 @@ function renderPO() {
           <input id="pc_${id}" placeholder="TỔNG thực trả NCC (gồm ship)" value="${pl.pick ? pl.pick.l * p.qty : ''}" style="max-width:200px" title="Tổng số tiền đã thanh toán cho nguồn, gồm tiền hàng + phí ship/phụ phí"><input id="psh_${id}" placeholder="Trong đó ship/phụ phí" value="${pl.pick ? pl.pick.sh * p.qty : ''}" style="max-width:170px" title="Phần phí vận chuyển/phụ phí thực tế tại nguồn - dùng để hệ thống tự hiệu chỉnh dự phòng ship"><input id="pi_${id}" placeholder="Mã đơn tại nguồn" style="max-width:180px">
           <label style="display:flex;gap:5px;align-items:center;font-size:12.5px;width:auto;margin:0"><input type="checkbox" id="pv_${id}" style="width:auto" ${v ? 'checked' : ''}> Đã yêu cầu xuất VAT</label>
           <button class="btn2 pri" onclick="poAct('${p.po_id}','ordered','${id}')">✅ Đã đặt & thanh toán</button><button class="btn2" onclick="poAct('${p.po_id}','cancelled','${id}')">⛔ Hủy lệnh</button></div>`
-      : `<div style="font-size:13px;margin-top:8px">Nguồn: <b>${esc(srcName(p.actual_source))}</b> · Thực trả: <b>${vnd(p.actual_cost)}</b> (${Number(p.actual_cost) > Number(p.collected_cost) ? 'bù ' + vnd(p.actual_cost - p.collected_cost) : Number(p.actual_cost) < Number(p.collected_cost) ? 'hoàn khách ' + vnd(p.collected_cost - p.actual_cost) : 'đúng giá'}) · Mã đơn nguồn: <b>${esc(p.supplier_order_id)}</b>${p.tracking ? ' · Vận đơn: <b>' + esc(p.data.carrier || '') + ' ' + esc(p.tracking) + '</b>' : ''}</div>
+      : `<div style="font-size:13px;margin-top:8px">Nguồn: <b>${esc(srcName(p.actual_source))}</b> · Thực trả: <b>${vnd(p.actual_cost)}</b> (${Number(p.actual_cost) > Number(p.collected_cost) ? 'bù ' + vnd(p.actual_cost - p.collected_cost) : Number(p.actual_cost) < Number(p.collected_cost) ? 'hoàn khách ' + vnd(p.collected_cost - p.actual_cost) : 'đúng giá'}) · Mã đơn nguồn: <b>${esc(p.supplier_order_id)}</b>${p.tracking ? ' · Vận đơn: <b>' + esc(p.data.carrier || '') + ' ' + esc(p.tracking) + '</b>' : ''}${p.data.eta ? ' · Dự kiến giao: <b>' + esc(p.data.eta) + '</b>' : ''}${p.data.auto ? ' · <span style="color:#1D4ED8;font-weight:700">🤖 tự gắn từ email nguồn</span>' : ''}${Number(p.data.refund_due) > 0 ? ' · <span style="color:#B45309;font-weight:700">phải hoàn khách ' + vnd(p.data.refund_due) + '</span>' : ''}</div>
         ${p.status === 'ordered' ? `<div class="row" style="margin-top:8px"><input id="pk_${id}" placeholder="Đơn vị vận chuyển (GHN, SPX...)" style="max-width:200px"><input id="pt_${id}" placeholder="Mã vận đơn" style="max-width:200px"><button class="btn2 pri" onclick="poAct('${p.po_id}','shipped','${id}')">🚚 Đã giao vận chuyển</button></div>` : ''}
         ${p.status === 'shipped' ? `<div class="row" style="margin-top:8px"><button class="btn2 pri" onclick="poAct('${p.po_id}','delivered','${id}')">📦 Khách đã nhận hàng</button></div>` : ''}`}</div>`;
   }).join('') || '<div class="card" style="color:var(--muted)">Không có lệnh mua ở trạng thái này. 🎉</div>';
@@ -246,4 +247,22 @@ async function showShipStats() {
     const S = j.sources || {}; const ks = Object.keys(S); if (!ks.length) { box.textContent = 'Chưa có lệnh mua nào ghi nhận ship thực tế (90 ngày).'; return; }
     box.innerHTML = '<table><tr><th>Nguồn</th><th>Số lệnh</th><th>Ship thực tế TB</th><th>Mức 75%</th></tr>' + ks.map(k => `<tr><td>${esc(srcName(k))}</td><td>${S[k].n}</td><td>${vnd(S[k].avg)}</td><td><b>${vnd(S[k].p75)}</b></td></tr>`).join('') + '</table><div style="color:var(--muted)">Bộ thu thập dùng "mức 75%" làm dự phòng tối thiểu cho nguồn (từ 5 lệnh trở lên).</div>';
   } catch (e) { box.textContent = '⚠ ' + e.message; }
+}
+
+/* ---------- tự đồng bộ lệnh mua từ email nguồn (Tiki) ---------- */
+const MS_TYPE = { confirm: '✅ Xác nhận đơn', shipped: '🚚 Đang vận chuyển', delivered: '📦 Giao thành công', cancelled: '⛔ Nguồn hủy', unpaid: '⚠️ Chưa thanh toán', notice: 'ℹ️ Thông báo', invoice: '🧾 Hóa đơn' };
+function renderMailSync(extra) {
+  const el = document.getElementById('mailSync'); if (!el) return;
+  const m = OPS.cfg && OPS.cfg.MAILSYNC;
+  if (!m) { el.innerHTML = ''; return; }
+  const when = m.at ? new Date(m.at).toLocaleString('vi-VN') : 'chưa chạy';
+  el.innerHTML = `<div class="note" style="margin-top:10px;${m.on ? '' : 'background:#FFF7ED;border-color:#FED7AA;color:#9A3412'}">📧 <b>Tự đồng bộ từ email ${esc((m.sources || []).join(', '))}</b>: ${m.on ? 'đang bật, 15 phút/lần' : '<b>CHƯA BẬT</b> - chạy hàm installMailSync trong dự án Apps Script'} · lần cuối: <b>${esc(when)}</b>${extra ? ' · ' + esc(extra) : ''}<br>
+    <span style="font-size:12.5px">Đặt hàng tại nguồn với SĐT người nhận = SĐT khách, thanh toán trước (không COD). Email "Xác nhận đơn hàng" sẽ tự gắn mã đơn + thực trả vào lệnh mua; "Đang vận chuyển" / "Giao thành công" tự cập nhật trạng thái và báo khách.</span>
+    ${(m.log || []).length ? `<table style="margin-top:8px;font-size:12.5px"><tr><th>Lúc</th><th>Nguồn</th><th>Mã đơn nguồn</th><th>Sự kiện</th><th>Lệnh mua</th><th>Kết quả</th></tr>${m.log.slice(0, 10).map(e => `<tr><td>${esc(new Date(e.at).toLocaleString('vi-VN'))}</td><td>${esc(srcName(e.src))}</td><td>${esc(e.id)}</td><td>${MS_TYPE[e.type] || esc(e.type)}</td><td>${esc(e.po || '-')}</td><td>${esc(e.note || '')}</td></tr>`).join('')}</table>` : ''}</div>`;
+}
+async function runMailSync() {
+  const b = document.getElementById('msBtn'); if (b) { b.disabled = true; b.textContent = '⏳ Đang đọc email...'; }
+  try { const r = await OPS.call('admin.mailsync'); if (OPS.cfg) OPS.cfg.MAILSYNC = r.info; logAdmin('Đồng bộ email nguồn: ' + r.events.length + ' sự kiện'); await opsLoad(); renderMailSync('vừa quét ' + r.scanned + ' email, ' + r.events.length + ' cập nhật'); }
+  catch (e) { alert(e.message); }
+  if (b) { b.disabled = false; b.textContent = '📧 Đồng bộ email nguồn ngay'; }
 }
