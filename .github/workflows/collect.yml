@@ -28,6 +28,12 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
+      - name: Nap bo nho dem gia ban le (Hoang Ha, Phuc Anh, An Phat) - chi doc
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.retail-cache
+          key: retail-${{ github.run_id }}
+          restore-keys: retail-
       - name: Thu thap & tinh gia (cau hinh noi bo tu Secrets)
         env:
           PRICING_TIERS: ${{ secrets.PRICING_TIERS }}     # bieu loi theo bac gia (bi mat kinh doanh)
@@ -49,7 +55,7 @@ jobs:
           ACCESSTRADE_KEY: ${{ secrets.ACCESSTRADE_KEY }}  # access key AccessTrade (pub.accesstrade.vn/accounts/profile)
           ACCESSTRADE_DOMAINS: ${{ vars.ACCESSTRADE_DOMAINS }}
           FEED_URLS: ${{ secrets.FEED_URLS }}            # datafeed chinh thuc: moi dong <ma-nguon>|<url>
-          FEED_MAX_TOTAL: ${{ vars.FEED_MAX_TOTAL || '30000' }}  # tran tong so SP nap tu feed
+          FEED_MAX_TOTAL: ${{ vars.FEED_MAX_TOTAL || '80000' }}  # tran tong so SP nap tu feed
           FEED_MAX_NEW: ${{ vars.FEED_MAX_NEW || '5000' }}      # tran SP moi moi lan chay
         run: node collector/collect.js
       - name: Luu du lieu moi (giu lich su gon - amend 1 commit du lieu)

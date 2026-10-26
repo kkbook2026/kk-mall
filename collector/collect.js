@@ -18,7 +18,8 @@ const { publish } = require('./publish');
 const SITE = path.join(__dirname, '..', 'site');
 const API = path.join(SITE, 'api');
 const PRICING = require('./pricing').create(process.env); // bieu loi theo bac gia - bi mat kinh doanh, tu GitHub Secret
-const LANDEDM = require('./landed');                      // gia thuc tra = gia nguon + ship uoc tinh (tu hieu chinh tu PO that)
+const LANDEDM = require('./landed');
+const RETAIL = require('./retail');                       // gia cong khai website ban le (Hoang Ha, Phuc Anh, An Phat)                      // gia thuc tra = gia nguon + ship uoc tinh (tu hieu chinh tu PO that)
 const CYCLE_MIN = 180;                                   // chu ky thu thap: 3 gio/lan
 const sha = s => crypto.createHash('sha256').update(s).digest('hex');
 const rj = f => JSON.parse(fs.readFileSync(path.join(API, f), 'utf8'));
@@ -49,11 +50,22 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   const fidx = fs.existsSync(FIDX_FILE) ? JSON.parse(fs.readFileSync(FIDX_FILE, 'utf8')) : { map: {}, origin: {} };
   const MAX_TOTAL = parseInt(process.env.FEED_MAX_TOTAL || '30000', 10), MAX_NEW = parseInt(process.env.FEED_MAX_NEW || '5000', 10);
   const feed = await FEEDS.collectFeeds(process.env);
+  /* ===== GIA BAN LE CONG KHAI: doc bo nho dem do retail.js thu (khong tai lai o day) ===== */
+  { let n = 0, un = 0; for (const r of RETAIL.rows(FEEDS)) {
+      if (!r.name || r.name.length < 6 || r.price < 1000 || r.price > 2e9) continue;
+      r.grp = FEEDS.classify(r.name, r.cat); if (!r.grp) { un++; continue; }
+      r.key = FEEDS.normKey(r.name); feed.offers.push(r); n++; }
+    feed.stat.retail = n; feed.stat.retailUnclassified = un; console.log(`Gia ban le cong khai: ${n} offer (bo ${un} chua phan loai)`); }
   const SHIP = LANDEDM.create(process.env, await LANDEDM.fetchStats(process.env)); console.log('Gia thuc tra: ' + SHIP.desc);
   const feedBySku = {};
   feed.stat.matched = 0; feed.stat.added = 0; feed.stat.capped = 0;
   if (feed.offers.length) {
     const byName = {}; for (const p of full) byName[FEEDS.normKey(p.name)] = p.sku;
+    // GHEP CHEO NGUON THEO MA MODEL (vd LS32DG502EEXXV, QA55Q60C): chi ma xuat hien o DUY NHAT 1 SP trong cung nhom
+    const codesOf = s => [...new Set(String(s || '').toUpperCase().replace(/[()\[\],/|+]/g, ' ').split(/\s+/).map(t => t.replace(/^-+|-+$/g, ''))
+      .filter(t => t.length >= 6 && /[A-Z]/.test(t) && /\d/.test(t) && !/^\d+(GB|TB|MB|MAH|W|HZ|MM|CM|INCH|K|MP|L|KG|ML|V|BTU|GHZ|MHZ)$/.test(t) && !/^(RTX|GTX|RX|I[3579]|CORE|ULTRA|RYZEN|DDR|LPDDR|USB|WIFI|PCIE|GEN|M\d)/.test(t)))];
+    const byModel = new Map(); for (const p of full) for (const c of codesOf(p.name)) { const k = p.grp + '|' + c; byModel.set(k, byModel.has(k) ? null : p.sku); }
+    feed.stat.modelMatched = 0;
     const g2c = {}; for (const p of full) g2c[p.grp] = [p.category_id, p.category_name];
     const fullBySku = new Map(full.map(p => [p.sku, p]));
     let nextId = Math.max(...full.map(p => parseInt(p.sku.slice(2), 10) || 0)) + 1;
@@ -61,6 +73,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     const nowFeedTotal = Object.keys(fidx.origin).length;
     for (const [key, offs] of Object.entries(groups)) {
       let sku = fidx.map[key] || byName[key];
+      if (!sku) { for (const o of offs) { for (const c of codesOf(o.name)) { const m = byModel.get(o.grp + '|' + c); if (m) { sku = m; break; } } if (sku) { feed.stat.modelMatched++; break; } } }
       if (sku && !fs.existsSync(path.join(API, 'products', sku + '.json'))) sku = null;
       if (!sku) {
         if (feed.stat.added >= MAX_NEW || nowFeedTotal + feed.stat.added >= MAX_TOTAL) { feed.stat.capped++; continue; }
@@ -98,7 +111,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       }
       fidx.map[key] = sku;
       const per = {}; for (const o of offs) if (!per[o.src] || (o.stock && o.price < per[o.src].price)) per[o.src] = o;
-      feedBySku[sku] = Object.values(per).map(o => ({ source: o.src, price: o.price, in_stock: o.stock, url: o.url, image: o.image, name: o.name, fetched_at: now, fs: /freeship|mi[eê]n ph[ií] v[aâ]n chuy[eê]n/i.test(o.name || '') ? 1 : 0 }));
+      feedBySku[sku] = Object.values(per).map(o => ({ source: o.src, price: o.price, in_stock: o.stock, url: o.url, image: o.image, name: o.name, fetched_at: now, fs: /freeship|mi[eê]n ph[ií] v[aâ]n chuy[eê]n/i.test(o.name || '') ? 1 : 0, st: o.stale ? 1 : 0 }));
     }
   }
   if (feed.dropKeys && feed.dropKeys.size) {
@@ -131,7 +144,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     if (feedBySku[p.sku] || fidx.origin[p.sku]) {
       // GIA THAT tu datafeed chinh thuc (san pham tu feed khong co gia mo phong; mat khoi feed => tam het hang)
       offerState = feedBySku[p.sku] || [];
-      for (const o of offerState) { o.ship = SHIP.shipFor(o.source, o.price, p.grp, { freeship: o.fs }); o.landed = o.price + o.ship; }
+      for (const o of offerState) { o.ship = SHIP.shipFor(o.source, o.price, p.grp, { freeship: o.fs, stale: o.st }); o.landed = o.price + o.ship; }
     } else for (const src of sources) {
       const rnd = mulberry32((seed + hash32(p.sku + src)) >>> 0);
       const price = round1000(d.base_price * (0.91 + rnd() * 0.18));
@@ -239,7 +252,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   // Chi sinh khi co khoa (GitHub Secret ADMIN_PORTAL_KEY); nguoi ngoai khong giai ma duoc.
   const AKEY = (process.env.ADMIN_PORTAL_KEY || '').trim(); // tu cat khoang trang/xuong dong khi dan Secret
   if (AKEY) {
-    const SRCMETA = { dienmayxanh: ['\u0110i\u1ec7n M\u00e1y Xanh', '#2e7d32'], thegioididong: ['Th\u1ebf Gi\u1edbi Di \u0110\u1ed9ng', '#f9a825'], fptshop: ['FPT Shop', '#f37021'], cellphones: ['CellphoneS', '#d70018'], dienmaycholon: ['\u0110M Ch\u1ee3 L\u1edbn', '#0066b3'], tiki: ['Tiki', '#1a94ff'], shopee: ['Shopee', '#ee4d2d'], tiktok: ['TikTok Shop', '#111'], lazada: ['Lazada', '#0f146d'], sendo: ['Sendo', '#d0021b'] };
+    const SRCMETA = { dienmayxanh: ['\u0110i\u1ec7n M\u00e1y Xanh', '#2e7d32'], thegioididong: ['Th\u1ebf Gi\u1edbi Di \u0110\u1ed9ng', '#f9a825'], fptshop: ['FPT Shop', '#f37021'], cellphones: ['CellphoneS', '#d70018'], dienmaycholon: ['\u0110M Ch\u1ee3 L\u1edbn', '#0066b3'], tiki: ['Tiki', '#1a94ff'], shopee: ['Shopee', '#ee4d2d'], tiktok: ['TikTok Shop', '#111'], lazada: ['Lazada', '#0f146d'], sendo: ['Sendo', '#d0021b'] , hoangha: ['Ho\u00e0ng H\u00e0 Mobile', '#c2185b'], phucanh: ['Ph\u00fac Anh', '#1565c0'], anphat: ['An Ph\u00e1t', '#d84315'] };
     // Lich su cap nhat: giai ma goi cu -> noi them ban ghi lan chay nay
     const ENC = path.join(SITE, 'admin', 'data.enc');
     const prev = ULOG.decryptFile(ENC, AKEY);
