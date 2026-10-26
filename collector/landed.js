@@ -30,6 +30,10 @@ const DEFAULT_RULES = {
   lazada: { tiers: [[500000, 10000], [100000, 15000], [0, 25000]], bulky: 60000, note: 'Freeship Max có điều kiện' },
   tiktok: { tiers: [[300000, 8000], [0, 18000]], bulky: 60000, note: 'Voucher freeship thường xuyên' },
   sendo: { tiers: [[300000, 12000], [0, 25000]], bulky: 60000, note: 'Freeship có điều kiện' },
+  // Website ban le (thu thap gia cong khai, 10/2026):
+  hoangha: { tiers: [[300000, 0], [0, 15000]], bulky: 0, note: 'Miễn phí vận chuyển toàn quốc (dự phòng 15k đơn nhỏ)' },
+  phucanh: { tiers: [[500000, 25000], [0, 35000]], bulky: 60000, note: 'Miễn phí giao từ 500k nội thành HN; khách tỉnh qua chuyển phát - dự phòng' },
+  anphat: { tiers: [[3000000, 30000], [500000, 35000], [0, 40000]], bulky: 80000, note: 'Miễn phí theo bán kính 10-40km quanh HN, ngoài bán kính 6.000đ/km - dự phòng khách tỉnh' },
 };
 const DEFAULT_SAFETY = 0; // % du phong them tren gia hang (0 = tin luat ship; dat 1-2 khi vao mua cao diem)
 
@@ -51,6 +55,7 @@ function create(env = process.env, stats = null) {
     let fee = 0; for (const [min, f] of [...r.tiers].sort((a, b) => b[0] - a[0])) if (price >= min) { fee = f; break; }
     if (grp && BULKY_GRP.has(grp)) fee = Math.max(fee, r.bulky || 0);
     if (calib[src] != null) fee = Math.max(fee, calib[src]);                            // thuc te > uoc tinh -> theo thuc te
+    if (flags && flags.stale) fee += Math.round(price * 0.01 / 1000) * 1000;            // gia ban le thu thap > 48h: du phong 1%
     return fee + Math.round(price * safety / 100 / 1000) * 1000;
   };
   const landed = (src, price, grp, flags) => price + shipFor(src, price, grp, flags);

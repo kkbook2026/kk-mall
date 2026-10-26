@@ -44,7 +44,7 @@ var VOUCHERS = [ // giam tren PHI DICH VU, tong giam toi da VOUCHER_FEE_CAP_PCT%
   { code: 'GIADUNG30', title: 'Giảm phí dịch vụ ngành Gia dụng, đơn từ 300K', type: 'fixed', value: 30000, min: 300000, scope: 'gia-dung', group: 'category' }
 ];
 // Nguon co he thong xuat hoa don GTGT dien tu on dinh (sieu thi / chuoi ban le / gian hang chinh hang)
-var VAT_SOURCES = ['dienmayxanh', 'thegioididong', 'fptshop', 'cellphones', 'dienmaycholon', 'tiki'];
+var VAT_SOURCES = ['dienmayxanh', 'thegioididong', 'fptshop', 'cellphones', 'dienmaycholon', 'tiki', 'hoangha', 'phucanh', 'anphat'];
 var FL = { HOLD: 1, USED: 2, NO_SOURCE: 32 };
 // Nganh co bao hanh ky thuat cua hang (dien tu, dien may, thiet bi) - nganh khac: dung doi tra
 var WARRANTY_CATS = ['dien-thoai-may-tinh-bang', 'laptop-may-tinh', 'thiet-bi-am-thanh-deo', 'tivi-giai-tri', 'dien-lanh', 'gia-dung', 'noi-that-trang-tri', 'o-to-xe-may', 'the-thao-du-lich'];

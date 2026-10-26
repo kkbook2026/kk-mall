@@ -58,7 +58,31 @@
   const ACC_GRP = new Set(['op lung phu kien', 'pin du phong sac']);
 
   /* ---------- giá trong câu truy vấn ---------- */
+  // so doc bang chu (tim bang giong noi): "nam trieu" -> "5 trieu", "muoi lam trieu" -> "15 trieu", "nam tram nghin" -> "500 nghin"
+  const DIG = { khong: 0, mot: 1, hai: 2, ba: 3, bon: 4, tu: 4, nam: 5, lam: 5, sau: 6, bay: 7, tam: 8, chin: 9 };
+  function words2num(qn) {
+    const W = '(khong|mot|hai|ba|bon|tu|nam|lam|sau|bay|tam|chin|muoi|tram|ruoi)';
+    qn = qn.replace(new RegExp('\\b((?:' + W + '\\s+)*' + W + ')\\s+(trieu|tr|nghin|ngan|k)\\b', 'g'), (m, seq, a, b, unit) => {
+      let t = seq.split(/\s+/), lead = '';
+      while (t.length > 1 && (t[0] === 'tam' || t[0] === 'tu')) { lead += t.shift() + ' '; }   // "tam"=tầm (khoảng), "tu"=từ - khong phai so 8, 4
+      let v = 0, cur = 0, ok = true;
+      for (const w of t) {
+        if (w === 'muoi') cur = (cur || 1) * 10;
+        else if (w === 'tram') { v += (cur || 1) * 100; cur = 0; }
+        else if (w === 'ruoi') cur += 0.5;
+        else if (w in DIG) cur = cur >= 10 && cur % 10 === 0 ? cur + DIG[w] : (cur ? cur * 10 + DIG[w] : DIG[w]);
+        else { ok = false; break; } }
+      v += cur; return ok && v > 0 ? lead + v + unit : m;
+    });
+    // "tu nam den bay trieu": ve dau khoang chua co don vi -> doi so chu thanh so
+    qn = qn.replace(new RegExp('\\b(tu\\s+)?((?:' + W + '\\s+)*' + W + ')\\s+(den|toi)\\s+(?=\\d)', 'g'), (m, tu, seq) => {
+      let v = 0, cur = 0; for (const w of seq.split(/\s+/)) { if (w === 'muoi') cur = (cur || 1) * 10; else if (w === 'tram') { v += (cur || 1) * 100; cur = 0; } else if (w === 'ruoi') cur += 0.5; else if (w in DIG) cur = cur >= 10 && cur % 10 === 0 ? cur + DIG[w] : (cur ? cur * 10 + DIG[w] : DIG[w]); else return m; }
+      return (tu || '') + (v + cur) + ' den '; });
+    return qn.replace(/(\d+(?:\.\d+)?)\s*(trieu|tr)\s+ruoi\b/g, (m, v, u) => (parseFloat(v) + 0.5) + u)   // "7 trieu ruoi" -> 7.5trieu
+      .replace(/(\d+(?:\.\d+)?)\s+(trieu|tr|nghin|ngan)\b/g, '$1$2');                                   // gop so + don vi nhu norm()
+  }
   function parsePrice(qn) {
+    qn = words2num(qn);
     const num = (v, u) => { v = parseFloat(String(v).replace(/\.(?=\d{3}\b)/g, '')); u = u || ''; if (/^(tr|trieu|m)$/.test(u)) return v * 1e6; if (/^(k|ngan|nghin)$/.test(u)) return v * 1e3; return v < 1000 ? v * 1e6 : v; };
     const U = '(trieu|tr|nghin|ngan|m|k)?';
     const pats = [
@@ -159,7 +183,7 @@
   /* ================= TRUY VẤN ================= */
   function query(ix, q, opt) {
     opt = opt || {};
-    let qn = norm(q); const price = parsePrice(qn); if (price) qn = qn.replace(norm(price.text), ' ').replace(/(^|\s)gia(\s|$)/g, ' ');
+    let qn = words2num(norm(q)); const price = parsePrice(qn); if (price) qn = qn.replace(norm(price.text), ' ').replace(/(^|\s)gia(\s|$)/g, ' ');
     const qt = qn.split(' ').filter(Boolean);
     const wantAcc = ACC_Q.test(qt.join(' '));
     const wantToy = /\b(do choi|be|tre em|cho be|tre con|kid|kids|mo hinh|lego)\b/.test(qt.join(' ')), toy = ix.toy;
@@ -219,6 +243,6 @@
     return { ids: R2.slice(0, lim).map(x => x[0]), skus: R2.slice(0, lim).map(x => ix.rows[x[0]][0]), rel: R2.slice(0, lim).map(x => Math.round(x[1] / top * 100) / 100), total: R2.length, relaxed, fix: uniq(fix.map(f => [f[0], f[1]])).filter(f => f[0] !== f[1]), price: price ? price.range : null, groups, concepts: C.map(c => c.text) };
   }
 
-  const API = { build, query, norm, fold, parsePrice, version: '1.0.0' };
+  const API = { build, query, norm, fold, parsePrice, words2num, version: '1.1.0' };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.KKS = API;
 })(typeof self !== 'undefined' ? self : this);

@@ -14,7 +14,7 @@
  * (c) Nguyen Duy Dien (KK-2026). All rights reserved.
  */
 
-const SOURCES = ['dienmayxanh', 'thegioididong', 'fptshop', 'cellphones', 'dienmaycholon', 'tiki', 'shopee', 'tiktok', 'lazada', 'sendo'];
+const SOURCES = ['dienmayxanh', 'thegioididong', 'fptshop', 'cellphones', 'dienmaycholon', 'tiki', 'shopee', 'tiktok', 'lazada', 'sendo', 'hoangha', 'phucanh', 'anphat'];
 const CONCURRENCY = 4, TIMEOUT_MS = 90000, MAX_BYTES = 80 * 1024 * 1024;
 
 /* ---------- cau hinh ---------- */
@@ -99,7 +99,7 @@ const inStockOf = v => { const s = String(v ?? '').toLowerCase().trim(); if (!s)
 function normRow(o) {
   const name = String(pick(o, ['title', 'name', 'productname', 'tensanpham']) || '')
     // BI MAT KINH DOANH: xoa moi dau vet ten san / kenh ban khoi ten san pham truoc khi len web
-    .replace(/[\[(【]?\s*(tiki\s*trading|tikinow|shopee\s*mall|lazmall|lazada|shopee|tiki|sendo|tiktok\s*shop|tiktok|điện máy xanh|dien may xanh|thế giới di động|the gioi di dong|fpt\s*shop|cellphones|chợ lớn|cho lon)\s*[\])】]?/gi, ' ')
+    .replace(/[\[(【]?\s*(tiki\s*trading|tikinow|shopee\s*mall|lazmall|lazada|shopee|tiki|sendo|tiktok\s*shop|tiktok|điện máy xanh|dien may xanh|thế giới di động|the gioi di dong|fpt\s*shop|cellphones|chợ lớn|cho lon|hoàng hà mobile|hoang ha mobile|hoanghamobile|phúc anh|phuc anh|phucanh|an phát computer|an phat computer|anphatpc|an phát pc)\s*[\])】]?/gi, ' ')
     .replace(/\s+/g, ' ').replace(/^[\s\-–|:]+|[\s\-–|:]+$/g, '').trim();
   const sale = parsePrice(pick(o, ['saleprice', 'discountprice', 'giaban', 'finalprice', 'price_sale'.replace(/_/g, '')]));
   const reg = parsePrice(pick(o, ['price', 'gia', 'originalprice', 'listprice', 'regularprice']));
@@ -306,4 +306,4 @@ async function collectFeeds(env) {
   return { offers, stat, dropKeys, unclassSample: sample };
 }
 
-module.exports = { collectFeeds, feedList, parsePrice, parseAny, normRow, classify, classifyPriority, normKey, SOURCES };
+module.exports = { collectFeeds, feedList, parsePrice, parseAny, normRow, inStockOf, classify, classifyPriority, normKey, SOURCES };
