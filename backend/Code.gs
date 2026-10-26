@@ -11,7 +11,7 @@
  */
 
 /* =========================== CẤU HÌNH =========================== */
-var VERSION = '1.1.0';
+var VERSION = '1.2.0';
 var CONSENT_VERSION = 'UQ-2026-10';
 var SHEETS = {
   Orders: ['code', 'created_at', 'status', 'payment_status', 'email', 'phone', 'name', 'goods', 'fee', 'total', 'paid_at', 'data', 'updated_at'],
@@ -126,7 +126,7 @@ function product_(sku, fresh) {
   var r = UrlFetchApp.fetch(cfg_('SITE') + '/api/products/' + sku + '.json?t=' + Date.now(), { muteHttpExceptions: true, followRedirects: true });
   if (r.getResponseCode() !== 200) throw err_('Không tìm thấy sản phẩm ' + sku, 404);
   var d = JSON.parse(r.getContentText());
-  var p = { sku: d.sku, name: d.name, brand: d.brand, category_id: d.category_id, grp: d.grp, image: d.image, kk_price: d.kk_price, in_stock: d.in_stock, fl: d.trust ? d.trust.fl : 0, warranty: (d.specs || {})['Bảo hành'] || '' };
+  var p = { sku: d.sku, name: d.name, brand: d.brand, category_id: d.category_id, grp: d.grp, image: d.image, kk_price: d.kk_price, in_stock: d.in_stock, sh: Number(d.sh) || 0, fl: d.trust ? d.trust.fl : 0, warranty: (d.specs || {})['Bảo hành'] || '' };
   try { c.put(k, JSON.stringify(p), 120); } catch (e) { }
   return p;
 }
@@ -140,7 +140,7 @@ function quote_(items, codes, fresh) {
     var p = product_(it.sku, fresh);
     if (!sellable_(p)) { bad.push({ sku: p.sku, name: p.name, reason: (p.fl & FL.NO_SOURCE) ? 'Đang kết nối nguồn hàng' : (p.fl & FL.HOLD) ? 'Đang xác minh giá' : 'Hết hàng' }); return; }
     var cost = toCost_(p.kk_price), fee = p.kk_price - cost;
-    lines.push({ sku: p.sku, name: p.name, brand: p.brand, category_id: p.category_id, image: p.image, qty: qty, unit: p.kk_price, unit_cost: cost, unit_fee: fee, line_total: p.kk_price * qty, line_cost: cost * qty, line_fee: fee * qty });
+    lines.push({ sku: p.sku, name: p.name, brand: p.brand, category_id: p.category_id, image: p.image, qty: qty, unit: p.kk_price, unit_cost: cost, unit_fee: fee, ship_est: p.sh || 0, line_total: p.kk_price * qty, line_cost: cost * qty, line_fee: fee * qty });
   });
   var goods = lines.reduce(function (a, l) { return a + l.line_cost; }, 0), fee = lines.reduce(function (a, l) { return a + l.line_fee; }, 0);
   var sub = goods + fee;
@@ -343,7 +343,7 @@ function markPaid_(o, amount, ref, by) {
   // LENH MUA (PO) cho tung dong hang -> trang quan tri tu lap ke hoach nguon re nhat
   o.lines.forEach(function (l, i) {
     append_('PO', { po_id: o.code + '-' + (i + 1), order_code: o.code, sku: l.sku, name: l.name, qty: l.qty, status: 'to_order', collected_cost: l.line_cost, actual_source: '', actual_cost: '', supplier_order_id: '', tracking: '',
-      data: JSON.stringify({ ship_to: o.customer, vat: o.vat, unit_cost: l.unit_cost, brand: l.brand, category_id: l.category_id }), updated_at: nowIso_() });
+      data: JSON.stringify({ ship_to: o.customer, vat: o.vat, unit_cost: l.unit_cost, ship_est: l.ship_est || 0, brand: l.brand, category_id: l.category_id }), updated_at: nowIso_() });
   });
   saveOrder_(o);
   mail_(o.customer.email, 'Đã nhận thanh toán đơn ' + o.code, '<p>KK-MALL đã nhận <b>' + vnd_(amount) + '</b> cho đơn <b>' + o.code + '</b>. Hệ thống đang đặt mua tại nhà cung cấp tốt nhất và sẽ gửi mã vận đơn ngay khi có.</p>' + orderTable_(o));
@@ -470,6 +470,9 @@ function adminPoUpdate_(b) {
     if (st === 'ordered') {
       var cost = Number(b.actual_cost); if (!(cost > 0)) throw err_('Nhập số tiền thực trả nhà cung cấp');
       upd.actual_source = str_(b.actual_source, 40); upd.actual_cost = cost; upd.supplier_order_id = str_(b.supplier_order_id, 60);
+      if (b.ship_paid !== undefined && b.ship_paid !== '') d.ship_paid = Math.max(0, Math.round(Number(b.ship_paid) || 0)); // phi ship/phu phi thuc tra tai nguon (da nam trong actual_cost)
+      var lineFee = (o.lines.filter(function (l) { return l.sku === p.sku; })[0] || {}).line_fee || 0;
+      if (cost - Number(p.collected_cost) > lineFee) adminsMail_('⚠️ Lệnh mua ' + p.po_id + ' LỖ: thực trả vượt phí dịch vụ', '<p>Thực trả nhà cung cấp <b>' + vnd_(cost) + '</b> cao hơn tiền hàng đã thu <b>' + vnd_(p.collected_cost) + '</b> quá phí dịch vụ của dòng này (' + vnd_(lineFee) + '). Kiểm tra lại dự phòng ship của nguồn <b>' + esc_(upd.actual_source) + '</b>.</p>');
       d.source_url = str_(b.source_url, 500); d.ordered_at = nowIso_(); d.vat_requested = !!b.vat_requested;
       ledger_(o.code, upd.supplier_order_id, '3388', '', Math.min(cost, Number(p.collected_cost)), 'Chi hộ tiền hàng cho nhà cung cấp (' + upd.actual_source + ')');
       if (cost > Number(p.collected_cost)) ledger_(o.code, upd.supplier_order_id, '632', '', cost - Number(p.collected_cost), 'KK-MALL bù trượt giá trong biên dung sai');
@@ -525,6 +528,23 @@ function adminRmaUpdate_(b) {
   log_('admin_rma', s.email, b.rma_id + ' ' + b.status);
   return { ok: true };
 }
+/* Thong ke chenh lech (thuc tra - da thu) tren moi lenh mua theo nguon, 90 ngay - de bo thu thap tu hieu chinh du phong ship.
+   Chi tra ve so lieu tong hop (n, trung binh, p75) - can khoa STATS_KEY (GitHub Secret BACKEND_STATS_KEY). */
+function shipStats_(key) {
+  if (!key || key !== P_().getProperty('STATS_KEY')) throw err_('Sai khóa', 403);
+  var since = Date.now() - 90 * 864e5, by = {};
+  rows_('PO').forEach(function (p) {
+    if (!p.actual_source || !(Number(p.actual_cost) > 0) || ['ordered', 'shipped', 'delivered'].indexOf(p.status) < 0) return;
+    if (Date.parse(p.updated_at || '') < since) return;
+    var d = parseData_(p), unitL = Number(d.unit_cost) || 0, qty = Number(p.qty) || 1;
+    var ship = Number(d.ship_paid); var delta = Number.isFinite(ship) && d.ship_paid !== '' && d.ship_paid != null ? ship : (Number(p.actual_cost) - Number(p.collected_cost));
+    var est = Number(d.ship_est) || 0;                                   // ship da du phong khi dinh gia
+    (by[p.actual_source] = by[p.actual_source] || []).push(Math.max(0, delta + est));  // phi ship thuc te cua nguon (uoc)
+  });
+  var out = {};
+  Object.keys(by).forEach(function (k) { var a = by[k].sort(function (x, y) { return x - y; }); out[k] = { n: a.length, avg: Math.round(a.reduce(function (s, v) { return s + v; }, 0) / a.length), p75: a[Math.min(a.length - 1, Math.floor(a.length * 0.75))] }; });
+  return { at: nowIso_(), days: 90, sources: out };
+}
 function adminList_(b, name, outFn) { session_(b.token, true); return { rows: rows_(name).reverse().slice(0, 1000).map(outFn) }; }
 function adminConfig_(b) {
   var s = session_(b.token, true);
@@ -535,6 +555,8 @@ function adminConfig_(b) {
   }
   var out = {}; ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'ADMIN_EMAILS', 'VOUCHER_FEE_CAP_PCT'].forEach(function (k) { out[k] = cfg_(k); });
   out.WEBHOOK_URL = ScriptApp.getService().getUrl() + '?a=webhook&key=' + P_().getProperty('WEBHOOK_KEY');
+  if (!P_().getProperty('STATS_KEY')) P_().setProperty('STATS_KEY', rnd_());
+  out.STATS_KEY = P_().getProperty('STATS_KEY'); out.BACKEND_URL = ScriptApp.getService().getUrl();
   out.SHEET_URL = ss_().getUrl(); out.fee_table = feeTable_();
   return out;
 }
@@ -575,6 +597,7 @@ function doGet(e) {
   try {
     if (a === 'config') return json_(publicConfig_());
     if (a === 'health') return json_({ ok: true, version: VERSION, at: nowIso_() });
+    if (a === 'shipstats') return json_(shipStats_(e.parameter.key));
     return json_({ error: 'Không hỗ trợ' });
   } catch (x) {
     if (x.code) return json_({ error: x.message, code: x.code });
@@ -639,6 +662,7 @@ function setup() {
   var root;
   if (!p.getProperty('BACKUP_FOLDER_ID')) { root = DriveApp.createFolder('KK-MALL Backend'); p.setProperty('ROOT_FOLDER_ID', root.getId()); p.setProperty('BACKUP_FOLDER_ID', root.createFolder('Sao luu hang ngay').getId()); p.setProperty('RMA_FOLDER_ID', root.createFolder('Doi tra - anh video').getId()); DriveApp.getFileById(p.getProperty('SHEET_ID')).moveTo(root); }
   if (!p.getProperty('WEBHOOK_KEY')) p.setProperty('WEBHOOK_KEY', rnd_());
+  if (!p.getProperty('STATS_KEY')) p.setProperty('STATS_KEY', rnd_());
   pepper_();
   if (!p.getProperty('PRICING_TIERS')) p.setProperty('PRICING_TIERS', '500001:32000,200000:26000,0:18000'); // bieu phi dich vu (chi nam trong du an Apps Script rieng tu)
   if (!rows_('Warranty').length) WARRANTY_SEED.forEach(function (w) { append_('Warranty', w); });

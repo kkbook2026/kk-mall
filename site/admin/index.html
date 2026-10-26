@@ -449,7 +449,7 @@ function renderDash(){
 let FEE_TABLE=null;
 function tierLabel(r){
   const k=n=>n>=1e6?(n/1e6).toLocaleString('vi-VN')+'tr':Math.round(n/1000)+'k';
-  if(FEE_TABLE&&r.best){const c=r.best.p;const t=FEE_TABLE.find(t=>c>=t.from&&(t.to==null||c<=t.to));if(t)return t.to==null?'> '+k(t.from-1):(t.from?k(t.from)+'-'+k(t.to):'< '+k(t.to+1))}
+  if(FEE_TABLE&&r.best){const c=r.best.l!=null?r.best.l:r.best.p;const t=FEE_TABLE.find(t=>c>=t.from&&(t.to==null||c<=t.to));if(t)return t.to==null?'> '+k(t.from-1):(t.from?k(t.from)+'-'+k(t.to):'< '+k(t.to+1))}
   return r.margin!=null?'phí '+k(r.margin):'-'}
 /* ===== SO SANH GIA ===== */
 function filtered(){
@@ -464,21 +464,21 @@ function renderCmp(){
   const rows=R.slice((page-1)*PER,page*PER);
   const keys=Object.keys(SRC);
   const num=n=>Number(n).toLocaleString('vi-VN');
-  const head='<tr><th class="l st">Sản phẩm</th><th>Giá gốc NCC rẻ nhất<span class="hd">chi phí hàng (đ)</span></th><th>Khung phí</th><th>Phí DV KK-MALL<span class="hd">doanh thu (đ)</span></th><th>Giá bán KK-MALL<span class="hd">= gốc + phí (đ)</span></th>'+
+  const head='<tr><th class="l st">Sản phẩm</th><th>Giá niêm yết NCC<span class="hd">rẻ nhất (đ)</span></th><th>Ship/phụ phí NCC<span class="hd">dự phòng (đ)</span></th><th>Giá thực trả<span class="hd">= niêm yết + ship (đ)</span></th><th>Khung phí</th><th>Phí DV KK-MALL<span class="hd">doanh thu (đ)</span></th><th>Giá bán KK-MALL<span class="hd">= gốc + phí (đ)</span></th>'+
     keys.map(k=>`<th><span class="src-dot" style="background:${SRC[k][1]}"></span><span class="hd">${esc(SRC[k][0])}</span></th>`).join('')+
     '<th>Nguồn rẻ nhất</th><th>Chênh lệch<span class="hd">cao - thấp</span></th><th>Số nguồn<span class="hd">còn hàng</span></th></tr>';
   const body=rows.map(r=>{
     const bySrc=Object.fromEntries(r.offers.map(o=>[o.s,o]));
-    const inS=r.offers.filter(o=>o.k).map(o=>o.p);
+    const inS=r.offers.filter(o=>o.k).map(o=>o.l!=null?o.l:o.p);
     const lo=inS.length?Math.min(...inS):null,hi=inS.length?Math.max(...inS):null;
     const cells=keys.map(k=>{const o=bySrc[k];
       if(!o)return '<td class="na">-</td>';
       const isBest=r.best&&r.best.s===k&&o.k;
-      const pct=lo&&o.k&&!isBest?'+'+((o.p-lo)/lo*100).toFixed(1)+'%':(isBest?'★ rẻ nhất':'hết hàng');
-      return `<td class="${isBest?'best':''}${o.k?'':' oos'}" title="${esc(SRC[k][0])}: ${num(o.p)} đ${o.u?' · bấm để mở trang sản phẩm tại nguồn':''}">${o.u?`<a href="${safeUrl(o.u)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none">${num(o.p)} ↗</a>`:num(o.p)}<span class="pct">${pct}</span></td>`}).join('');
+      const L=o.l!=null?o.l:o.p;const pct=lo&&o.k&&!isBest?'+'+((L-lo)/lo*100).toFixed(1)+'%':(isBest?'★ thực trả rẻ nhất':'hết hàng');
+      return `<td class="${isBest?'best':''}${o.k?'':' oos'}" title="${esc(SRC[k][0])}: niêm yết ${num(o.p)} đ${o.sh?' + ship dự phòng '+num(o.sh)+' đ = thực trả '+num(L)+' đ':' (không phí ship)'}${o.u?' · bấm để mở trang sản phẩm tại nguồn':''}">${o.u?`<a href="${safeUrl(o.u)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none">${num(L)} ↗</a>`:num(L)}${o.sh?`<span class="pct" style="color:#B45309">gồm ship ${num(o.sh)}</span>`:''}<span class="pct">${pct}</span></td>`}).join('');
     const spread=lo!=null?hi-lo:0;
     return `<tr><td class="l st"><b>${esc(r.name)}</b>${r.feed?' <span class="badge" style="background:#DCFCE7;color:#166534">giá feed thật</span>':''}<br><span style="color:var(--muted);font-size:11px">${r.sku} · ${esc(r.brand)} · ${esc(r.grp)}${r.stock?'':' · <span class="warn">hết hàng</span>'}</span></td>
-      <td style="font-weight:700">${r.best?num(r.best.p):'-'}</td><td style="font-size:11.5px;white-space:nowrap">${tierLabel(r)}</td><td class="mg">${r.margin!=null?'+'+num(r.margin):'-'}</td><td class="kk sum">${num(r.kk)}</td>${cells}
+      <td>${r.best?num(r.best.p):'-'}</td><td style="color:${r.best&&r.best.sh?'#B45309':'var(--muted)'}">${r.best?(r.best.sh?'+'+num(r.best.sh):'0'):'-'}</td><td style="font-weight:700">${r.best?num(r.best.l!=null?r.best.l:r.best.p):'-'}</td><td style="font-size:11.5px;white-space:nowrap">${tierLabel(r)}</td><td class="mg">${r.margin!=null?'+'+num(r.margin):'-'}</td><td class="kk sum">${num(r.kk)}</td>${cells}
       <td class="l" style="font-size:12px">${r.best?`<span class="src-dot" style="background:${SRC[r.best.s][1]}"></span><b>${esc(SRC[r.best.s][0])}</b>`:'-'}</td>
       <td>${num(spread)}<span class="pct">${lo?(spread/lo*100).toFixed(1)+'%':''}</span></td>
       <td style="text-align:center">${inS.length}/${r.offers.length}</td></tr>`}).join('');
@@ -489,10 +489,10 @@ function dl(content,fname,type){const a=document.createElement('a');a.href=URL.c
 const csvq=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
 function exportCmp(){
   const R=filtered(),keys=Object.keys(SRC);
-  const head=['SKU','Sản phẩm','Thương hiệu','Ngành','Nhóm','Giá gốc NCC rẻ nhất (chi phí hàng)','Khung phí','Phí DV KK-MALL (doanh thu)','Giá bán KK-MALL',...keys.map(k=>SRC[k][0]),'Nguồn rẻ nhất','Chênh lệch cao-thấp','Còn hàng/Tổng nguồn'];
+  const head=['SKU','Sản phẩm','Thương hiệu','Ngành','Nhóm','Giá niêm yết NCC rẻ nhất','Ship/phụ phí NCC dự phòng','Giá thực trả (chi phí hàng)','Khung phí','Phí DV KK-MALL (doanh thu)','Giá bán KK-MALL',...keys.map(k=>SRC[k][0]),'Nguồn rẻ nhất','Chênh lệch cao-thấp','Còn hàng/Tổng nguồn'];
   const lines=[head.map(csvq).join(',')];
   for(const r of R){const by=Object.fromEntries(r.offers.map(o=>[o.s,o]));const inS=r.offers.filter(o=>o.k).map(o=>o.p);
-    lines.push([r.sku,r.name,r.brand,r.catName,r.grp,r.best?r.best.p:'',tierLabel(r),r.margin??'',r.kk,...keys.map(k=>by[k]?(by[k].k?by[k].p:by[k].p+' (hết)'):''),r.best?SRC[r.best.s][0]:'',inS.length?Math.max(...inS)-Math.min(...inS):'',inS.length+'/'+r.offers.length].map(csvq).join(','))}
+    lines.push([r.sku,r.name,r.brand,r.catName,r.grp,r.best?r.best.p:'',r.best?(r.best.sh||0):'',r.best?(r.best.l!=null?r.best.l:r.best.p):'',tierLabel(r),r.margin??'',r.kk,...keys.map(k=>by[k]?(by[k].k?by[k].p:by[k].p+' (hết)'):''),r.best?SRC[r.best.s][0]:'',inS.length?Math.max(...inS)-Math.min(...inS):'',inS.length+'/'+r.offers.length].map(csvq).join(','))}
   dl('﻿'+lines.join('\r\n'),`kk-mall-so-sanh-gia-${new Date().toISOString().slice(0,10)}.csv`,'text/csv;charset=utf-8');
   logAdmin('Xuất bảng so sánh giá - '+R.length+' mặt hàng');
 }
@@ -887,7 +887,7 @@ async function renderSys(){
   if(lc)lc.innerHTML='<b style="color:var(--ink)">Nhật ký quản trị trên thiết bị này (100 gần nhất)</b><table style="margin-top:8px"><tr><th>Thời gian</th><th>Hành động</th></tr>'+log.slice(0,20).map(l=>`<tr><td style="white-space:nowrap">${new Date(l.t).toLocaleString('vi-VN')}</td><td>${esc(l.act)}</td></tr>`).join('')+'</table>';
 }
 </script>
-<script src="../config.js?v=2610240302"></script>
-<script src="ops.js?v=2610240302"></script>
+<script src="../config.js?v=2610260422"></script>
+<script src="ops.js?v=2610260422"></script>
 </body>
 </html>

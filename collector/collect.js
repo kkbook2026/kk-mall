@@ -18,6 +18,7 @@ const { publish } = require('./publish');
 const SITE = path.join(__dirname, '..', 'site');
 const API = path.join(SITE, 'api');
 const PRICING = require('./pricing').create(process.env); // bieu loi theo bac gia - bi mat kinh doanh, tu GitHub Secret
+const LANDEDM = require('./landed');                      // gia thuc tra = gia nguon + ship uoc tinh (tu hieu chinh tu PO that)
 const CYCLE_MIN = 180;                                   // chu ky thu thap: 3 gio/lan
 const sha = s => crypto.createHash('sha256').update(s).digest('hex');
 const rj = f => JSON.parse(fs.readFileSync(path.join(API, f), 'utf8'));
@@ -48,6 +49,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   const fidx = fs.existsSync(FIDX_FILE) ? JSON.parse(fs.readFileSync(FIDX_FILE, 'utf8')) : { map: {}, origin: {} };
   const MAX_TOTAL = parseInt(process.env.FEED_MAX_TOTAL || '30000', 10), MAX_NEW = parseInt(process.env.FEED_MAX_NEW || '5000', 10);
   const feed = await FEEDS.collectFeeds(process.env);
+  const SHIP = LANDEDM.create(process.env, await LANDEDM.fetchStats(process.env)); console.log('Gia thuc tra: ' + SHIP.desc);
   const feedBySku = {};
   feed.stat.matched = 0; feed.stat.added = 0; feed.stat.capped = 0;
   if (feed.offers.length) {
@@ -70,7 +72,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
         const name = TRUST.cleanText(best.name).replace(/\s*[-–|]\s*(hàng chính hãng|chính hãng|hàng nhập khẩu)\s*$/i, '').slice(0, 140);
         const brand = (offs.find(o => o.brand) || {}).brand || name.split(' ').find(w => /^[A-Z][A-Za-z0-9&.-]{1,}$/.test(w)) || 'KK Select';
         const base = offs.map(o => o.list || o.price).sort((a, b) => a - b)[Math.floor(offs.length / 2)];
-        const initKK = PRICING.ok ? PRICING.sell(Math.min(...offs.map(o => o.price))) : base; // khong bao gio de 0d
+        const initKK = PRICING.ok ? PRICING.sell(Math.min(...offs.map(o => SHIP.landed(o.src, o.price, best.grp, { freeship: /freeship/i.test(o.name || '') })))) : base; // gia thuc tra, khong bao gio de 0d
         const slug = FEEDS.normKey(name).replace(/ /g, '-').slice(0, 80) + '-' + sku.toLowerCase();
         const d = { id: nextId - 1, sku, spu_id: nextId - 1, variant: '', name, slug, category_id: cid, category_name: cname, grp: best.grp, brand,
           image: withImg.image, description: name + ' chính hãng, mới 100%. Giá được KK-MALL so sánh và cập nhật tự động 3 giờ/lần.',
@@ -96,7 +98,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       }
       fidx.map[key] = sku;
       const per = {}; for (const o of offs) if (!per[o.src] || (o.stock && o.price < per[o.src].price)) per[o.src] = o;
-      feedBySku[sku] = Object.values(per).map(o => ({ source: o.src, price: o.price, in_stock: o.stock, url: o.url, image: o.image, name: o.name, fetched_at: now }));
+      feedBySku[sku] = Object.values(per).map(o => ({ source: o.src, price: o.price, in_stock: o.stock, url: o.url, image: o.image, name: o.name, fetched_at: now, fs: /freeship|mi[eê]n ph[ií] v[aâ]n chuy[eê]n/i.test(o.name || '') ? 1 : 0 }));
     }
   }
   if (feed.dropKeys && feed.dropKeys.size) {
@@ -129,19 +131,18 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     if (feedBySku[p.sku] || fidx.origin[p.sku]) {
       // GIA THAT tu datafeed chinh thuc (san pham tu feed khong co gia mo phong; mat khoi feed => tam het hang)
       offerState = feedBySku[p.sku] || [];
-      for (const o of offerState) if (o.in_stock && (!best || o.price < best)) { best = o.price; bestSrc = o.source; }
+      for (const o of offerState) { o.ship = SHIP.shipFor(o.source, o.price, p.grp, { freeship: o.fs }); o.landed = o.price + o.ship; }
     } else for (const src of sources) {
       const rnd = mulberry32((seed + hash32(p.sku + src)) >>> 0);
       const price = round1000(d.base_price * (0.91 + rnd() * 0.18));
       const inStock = rnd() > 0.06 ? 1 : 0;
-      offerState.push({ source: src, price, in_stock: inStock, fetched_at: now });
-      if (inStock && (!best || price < best)) { best = price; bestSrc = src; }
+      offerState.push({ source: src, price, in_stock: inStock, fetched_at: now, ship: 0, landed: price });
     }
     /* ===== BO LOC TIN CAY: loai offer ngoai lai truoc khi chon gia ===== */
     const flt = TRUST.filterOffers(d, offerState, PRICING.ok ? PRICING.toCost : 0);
     const hadLive = offerState.some(o => o.in_stock);
-    best = null; bestSrc = null;
-    for (const o of flt.valid) if (o.in_stock && (!best || o.price < best)) { best = o.price; bestSrc = o.source; }
+    best = null; bestSrc = null; let bestListed = null, bestShip = 0;   // best = GIA THUC TRA (da gom ship nguon)
+    for (const o of flt.valid) if (o.in_stock && (!best || o.landed < best)) { best = o.landed; bestListed = o.price; bestShip = o.ship; bestSrc = o.source; }
     for (const o of flt.dropped) o.x = o.why;
     trustStat.dropped += flt.dropped.length;
     if (hadLive && !best) { d.hold = 1; d.hold_why = flt.dropped[0] ? flt.dropped[0].why : 'Không còn nguồn giá hợp lệ'; trustStat.hold++; }
@@ -156,7 +157,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     ULOG.track(run, p, d.kk_price, kk, d.in_stock, inStock);
     // Tuyet doi khong ghi danh tinh nguon / gia nguon ra du lieu cong khai
     delete d.offers; delete d.sources; delete d.best_source; delete d.best_price; delete d.best_url;
-    d.in_stock = inStock; d.updated_at = now;
+    d.in_stock = inStock; d.updated_at = now; d.sh = best ? bestShip : 0;   // phan ship nguon da du phong trong gia (khong lo danh tinh nguon)
     if (priceChanged) {
       changed++;
       d.kk_price = kk;
@@ -189,8 +190,8 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       base: d.base_price, kk: d.kk_price, stock: inStock, rating: p.rating, sold: p.sold,
       img: (d.image || '').startsWith('http') ? d.image : '',
       sp: Object.keys(d.specs || {}).length,
-      best: best ? { s: bestSrc, p: best } : null, margin: best ? d.kk_price - best : null,
-      offers: offerState.map(o => ({ s: o.source, p: o.price, k: o.in_stock, u: o.url || '', x: o.x || '' })).sort((a, b) => a.p - b.p), feed: feedBySku[p.sku] ? 1 : 0,
+      best: best ? { s: bestSrc, p: bestListed, sh: bestShip, l: best } : null, margin: best ? d.kk_price - best : null,   // margin = lai thuc sau ship
+      offers: offerState.map(o => ({ s: o.source, p: o.price, sh: o.ship || 0, l: o.landed || o.price, k: o.in_stock, u: o.url || '', x: o.x || '' })).sort((a, b) => a.l - b.l), feed: feedBySku[p.sku] ? 1 : 0,
       hold: d.hold ? d.hold_why : '', fl: ev.fl, disc: ev.disc });
   }
   /* ===== MERKLE ROOT toan so cai + proof tung SP, roi moi ghi file ===== */
