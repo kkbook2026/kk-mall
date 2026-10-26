@@ -27,6 +27,23 @@ function publish({ API, pub: pubIn, meta, now, seq, mk, recent, log = console.lo
   }
   wj('catalog-full.json', pub);
 
+  /* ---- "cung loai" / bien the nhung trong trang SP: bo SP da go, cap nhat gia + ton kho hien hanh ---- */
+  { const PM = new Map(pub.map(p => [p.sku, p])); let fixed = 0;
+    for (const p of pub) {
+      const f = path.join(API, 'products', p.sku + '.json'); let d; try { d = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { continue; }
+      let ch = false;
+      for (const k of ['related', 'variants']) {
+        if (!Array.isArray(d[k])) continue;
+        const nx = d[k].filter(x => x && PM.has(x.sku)).map(x => { const c = PM.get(x.sku); return (x.kk_price === c.kk_price && x.in_stock === c.in_stock && x.name === c.name) ? x : (ch = true, { ...x, name: c.name, kk_price: c.kk_price, in_stock: c.in_stock }); });
+        if (nx.length !== d[k].length) ch = true; d[k] = nx;
+      }
+      if (ch) { fs.writeFileSync(f, JSON.stringify(d)); fixed++; }
+    }
+    if (fixed) log(`Dong bo SP cung loai/bien the: ${fixed} trang`);
+    // xoa trang SP mo coi (khong con trong danh muc): khong cho mo/dat qua link truc tiep
+    let orphan = 0; for (const f of fs.readdirSync(path.join(API, 'products'))) { const sku = f.replace(/\.json$/, ''); if (/^KK\d+$/.test(sku) && !PM.has(sku)) { fs.unlinkSync(path.join(API, 'products', f)); orphan++; } }
+    if (orphan) log(`Xoa ${orphan} trang SP mo coi khong con kinh doanh`); }
+
   /* ---- tach theo nganh ---- */
   fs.mkdirSync(path.join(API, 'cat'), { recursive: true });
   const byCat = {}; for (const p of pub) (byCat[p.category_id] = byCat[p.category_id] || []).push(p);
