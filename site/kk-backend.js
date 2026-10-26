@@ -159,6 +159,13 @@ if (KKB.on) {
       if (x.code === 409) { toast('Giá/tồn kho vừa thay đổi - đang chốt lại...'); setTimeout(openCheckout, 1000); } }
   };
   const copyBtn = (t) => `<button type="button" class="vbtn" style="padding:2px 8px;margin-left:6px" data-v="${esc(String(t))}" onclick="navigator.clipboard.writeText(this.dataset.v);toast('Đã sao chép')">Sao chép</button>`;
+  window.paidClaim = async function (code, phone) {
+    const b = $('#claimBtn'); if (b) { b.disabled = true; b.textContent = 'Đang gửi...'; }
+    try { const r = await KKB.call('order.paid_claim', { code, phone, token: KKB.token() });
+      const msg = r.already ? '✅ Đơn đã được xác nhận thanh toán.' : '✅ Đã báo KK-MALL. Bộ phận đối soát kiểm tra giao dịch và xác nhận trong giờ làm việc (thường vài phút) - trang này tự cập nhật khi xong.';
+      if (b) { b.textContent = '✓ Đã báo chuyển khoản'; } const s = $('#payState'); if (s) s.innerHTML = msg; toast(msg.slice(0, 60)); }
+    catch (e) { if (b) { b.disabled = false; b.textContent = '✅ Tôi đã chuyển khoản'; } toast(e.message); }
+  };
   window.payScreen = function (o, p, phone) {
     phone = String(phone || '').replace(/\D/g, '').slice(0, 11); window._payPhone = phone;
     clearInterval(_poll);
@@ -168,7 +175,8 @@ if (KKB.on) {
       ${p && p.ready ? `<div style="display:grid;grid-template-columns:240px 1fr;gap:20px;align-items:center" class="payg"><img src="${esc(p.qr)}" alt="Mã VietQR" style="width:240px;border-radius:14px;border:1px solid var(--line);background:#fff" referrerpolicy="no-referrer">
         <div style="font-size:14px;line-height:2">Ngân hàng: <b>${esc(p.bank)}</b><br>Số tài khoản: <b>${esc(p.acc)}</b>${copyBtn(p.acc)}<br>Chủ tài khoản: <b>${esc(p.name)}</b><br>Số tiền: <b style="color:var(--coral);font-size:18px">${vnd(p.amount)}</b>${copyBtn(p.amount)}<br>Nội dung: <b>${esc(p.content)}</b>${copyBtn(p.content)}</div></div>
         <div class="note" style="margin-top:14px">📲 Mở app ngân hàng bất kỳ → <b>Quét mã QR</b> (đã điền sẵn số tiền & nội dung) → xác nhận. Hệ thống tự ghi nhận trong vài giây, không cần gửi ảnh chụp.</div>
-        <div id="payState" class="lock" style="margin-top:10px">⏳ Đang chờ thanh toán... (tự cập nhật)</div>`
+        <div id="payState" class="lock" style="margin-top:10px">⏳ Đang chờ thanh toán... (tự cập nhật)</div>
+        <button type="button" id="claimBtn" class="btn g" style="margin-top:10px" onclick="paidClaim(${esc(JSON.stringify(String(o.code)))},_payPhone)">✅ Tôi đã chuyển khoản</button>`
         : `<div class="note">KK-MALL sẽ gọi điện / gửi email thông tin chuyển khoản cho đơn <b>${o.code}</b> trong giờ làm việc.</div>`}
       <div class="sum" style="margin-top:14px"><div class="row"><span>Tiền hàng thanh toán hộ nhà cung cấp</span><b>${vnd(o.goods)}</b></div><div class="row"><span>Phí dịch vụ KK-MALL (gồm VAT)</span><b>${vnd(o.fee_net)}</b></div><div class="row t"><span>Tổng</span><span style="color:var(--coral)">${vnd(o.total)}</span></div></div>
       <button class="btn i" onclick="showTrack(${esc(JSON.stringify(String(o.code)))},_payPhone)">📦 Theo dõi đơn hàng</button></div>`;
@@ -191,6 +199,7 @@ if (KKB.on) {
       $('#tBox').innerHTML = `<div style="padding:28px"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;color:var(--ink)">Đơn ${o.code}</h2><button class="x" onclick="closeAll()">✕</button></div>
         <div class="${paid ? 'okm' : 'err'}" style="display:block;margin:10px 0">${paid ? '✅ Đã thanh toán' : '⏳ Chưa thanh toán'} · <b>${esc(o.status_text)}</b></div>
         ${!paid && d.payment && d.payment.ready && !['cancelled'].includes(o.status) ? `<button class="btn g" onclick="payScreen(_trk.o,${JSON.stringify(d.payment).replace(/"/g, '&quot;')},_trk.phone)">📲 Thanh toán ngay bằng VietQR</button>` : ''}
+        ${!paid && !['cancelled'].includes(o.status) ? (o.paid_claim_at ? `<div class="note" style="margin:8px 0">💸 Bạn đã báo chuyển khoản lúc ${new Date(o.paid_claim_at).toLocaleString('vi-VN')} - KK-MALL đang đối soát, đơn sẽ tự chuyển sang "Đã thanh toán".</div>` : `<button type="button" id="claimBtn" class="btn" style="margin:8px 0;background:#fff;color:var(--ink);border:1px solid var(--line)" onclick="paidClaim(${esc(JSON.stringify(String(o.code)))},_trk.phone)">✅ Tôi đã chuyển khoản</button>`) : ''}
         <div class="timeline">${steps.map(([t, on]) => `<div class="tl ${on ? 'on' : ''}"><span class="d"></span><div><b>${t}</b></div></div>`).join('')}</div>
         <table class="cmp">${o.lines.map(l => { const sh = o.shipments.filter(s => s.sku === l.sku); const st = sh[0]; return `<tr><td>${esc(l.name)} × ${l.qty}${st ? `<br><span style="font-size:12px;color:var(--muted)">${SHIP[st.status] || st.status}${st.tracking ? ` · ${esc(st.carrier)} <b>${esc(st.tracking)}</b>` : ''}</span>` : ''}</td><td style="text-align:right">${vnd(l.line_total)}</td>
           <td style="white-space:nowrap">${paid ? `${l.warranty_ok ? `<button class="vbtn" onclick="openRma('${l.sku}','warranty')">🛠 Bảo hành</button> ` : ''}<button class="vbtn" onclick="openRma('${l.sku}','return')">↩️ Đổi trả</button>` : ''}</td></tr>`; }).join('')}
