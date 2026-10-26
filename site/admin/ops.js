@@ -47,7 +47,16 @@ function opsGate() {
   g.innerHTML = `<div class="card" style="border-color:#FED7AA;background:#FFFBEB"><b style="color:#92400E">🔐 Kết nối máy chủ đơn hàng</b> - xác thực mã OTP gửi tới email quản trị
     <div class="row" style="margin:10px 0 0"><input id="opsEm" value="${esc(sessionStorage.getItem('kk_admin_email') || '')}" style="max-width:280px"><button class="btn2 pri" onclick="opsOtp()">Gửi mã</button><input id="opsCode" placeholder="Mã 6 số" style="max-width:140px" inputmode="numeric"><button class="btn2 pri" onclick="opsVerify()">Xác thực</button><span id="opsMsg" style="font-size:12.5px"></span></div></div>`;
 }
-async function opsOtp() { const m = $('#opsMsg'); try { await OPS.call('otp.request', { email: $('#opsEm').value.trim() }); m.textContent = '✓ Đã gửi mã, kiểm tra email'; } catch (e) { m.textContent = '⚠ ' + e.message; } }
+async function opsOtp() {
+  const m = $('#opsMsg'), b = document.querySelector('#opsGate button.pri'); if (b && b.disabled) return;
+  try {
+    if (b) b.disabled = true; const r = await OPS.call('otp.request', { email: $('#opsEm').value.trim() });
+    const t = new Date(Date.now() - ((r.reused ? 600 - (r.expires_in || 600) : 0) * 1000)).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    m.textContent = r.reused ? '✓ Mã đã gửi lúc ' + t + ' vẫn dùng được - mở email mới nhất và nhập mã' : '✓ Đã gửi mã lúc ' + t + ' - nhập mã trong email MỚI NHẤT (hiệu lực 10 phút)';
+    let w = r.wait || 60; const lab = b ? b.textContent : ''; if (b) { const iv = setInterval(() => { w--; b.textContent = 'Gửi lại (' + w + 's)'; if (w <= 0) { clearInterval(iv); b.disabled = false; b.textContent = 'Gửi mã'; } }, 1000); }
+    const ci = $('#opsCode'); if (ci) ci.focus();
+  } catch (e) { m.textContent = '⚠ ' + e.message; if (b) b.disabled = false; }
+}
 async function opsVerify() { const m = $('#opsMsg'); try { const r = await OPS.call('otp.verify', { email: $('#opsEm').value.trim(), code: $('#opsCode').value.trim(), scope: 'admin' }); if (r.member.role !== 'admin') { m.textContent = '⚠ Email này không có quyền quản trị'; return; } sessionStorage.setItem('kk_adm_tok', r.token); opsGate(); opsLoad(); } catch (e) { m.textContent = '⚠ ' + e.message; } }
 
 /* ---------- tải dữ liệu ---------- */
