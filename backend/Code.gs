@@ -11,7 +11,7 @@
  */
 
 /* =========================== CẤU HÌNH =========================== */
-var VERSION = '1.2.0';
+var VERSION = '1.2.2';
 var CONSENT_VERSION = 'UQ-2026-10';
 var SHEETS = {
   Orders: ['code', 'created_at', 'status', 'payment_status', 'email', 'phone', 'name', 'goods', 'fee', 'total', 'paid_at', 'data', 'updated_at'],
@@ -299,7 +299,7 @@ function orderCreate_(b) {
 }
 function payInfo_(o) { var b = bank_(); return b.ready ? { type: 'vietqr', ready: true, bank: b.label, acc: b.acc, name: b.name, amount: o.total, content: o.code, qr: qrUrl_(o) } : { type: 'vietqr', ready: false, note: 'KK-MALL sẽ liên hệ gửi thông tin thanh toán' }; }
 function publicOrder_(o, pos, invs, rmas) {
-  return { code: o.code, created_at: o.created_at, status: o.status, status_text: ST[o.status] || o.status, payment_status: o.payment_status, paid_at: o.paid_at || '',
+  return { code: o.code, created_at: o.created_at, status: o.status, status_text: ST[o.status] || o.status, payment_status: o.payment_status, paid_at: o.paid_at || '', paid_claim_at: o.paid_claim_at || '',
     customer: { name: o.customer.name, phone: maskPhone_(o.customer.phone), address: o.customer.address }, vat: o.vat ? { name: o.vat.name, tax_code: o.vat.tax_code } : null,
     lines: o.lines.map(function (l) { return { sku: l.sku, name: l.name, image: l.image, category_id: l.category_id, warranty_ok: WARRANTY_CATS.indexOf(l.category_id) >= 0, qty: l.qty, unit: l.unit, unit_cost: l.unit_cost, unit_fee: l.unit_fee, line_total: l.line_total, line_cost: l.line_cost, line_fee: l.line_fee }; }),
     goods: o.goods, fee: o.fee, discount: o.discount, vouchers: o.vouchers, fee_net: o.fee_net, fee_pre_tax: o.fee_pre_tax, fee_vat: o.fee_vat, total: o.total, refund_due: o.refund_due || 0,
@@ -315,6 +315,20 @@ function saveOrder_(o, extra) {
   update_('Orders', row, upd);
 }
 function setStatus_(o, s, by, note) { o.status = s; (o.history = o.history || []).push({ at: nowIso_(), s: s, by: by || 'system', note: note || '' }); }
+/* Khach bao "Toi da chuyen khoan" (khi chua co SePay/Casso tu doi soat): ghi lich su + email quan tri doi soat ngay */
+function paidClaim_(b) {
+  var o = ownedOrder_(b, false);
+  if (o.payment_status === 'paid') return { ok: true, already: true };
+  if (o.status === 'cancelled') throw err_('Đơn đã hủy - vui lòng liên hệ KK-MALL để được hỗ trợ hoàn tiền nếu đã chuyển khoản');
+  rate_('claim_' + o.code, 3, 3600);
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try { o = loadOrder_(o.code); o.paid_claim_at = nowIso_(); (o.history = o.history || []).push({ at: nowIso_(), s: o.status, by: 'customer', note: 'Khách báo đã chuyển khoản ' + vnd_(o.total) }); saveOrder_(o); }
+  finally { lock.releaseLock(); }
+  var bk = bank_();
+  adminsMail_('💸 Khách báo ĐÃ CHUYỂN KHOẢN đơn ' + o.code + ' - ' + vnd_(o.total), '<p>Khách <b>' + esc_(o.customer.name) + '</b> báo đã chuyển <b>' + vnd_(o.total) + '</b>, nội dung <b>' + o.code + '</b> vào tài khoản <b>' + esc_(bk.label) + ' ' + esc_(bk.acc) + '</b>.</p><p>1. Kiểm tra giao dịch trong app ngân hàng.<br>2. Vào <a href="' + cfg_('SITE') + '/admin/">Quản trị → Đơn hàng</a> → bấm <b>Xác nhận đã nhận tiền</b> đơn ' + o.code + ' → hệ thống tự lập lệnh mua tại nguồn rẻ nhất.</p><p style="color:#64748B">Đăng ký SePay để bước này tự động hoàn toàn (Webhook URL trong Quản trị → Hệ thống).</p>');
+  log_('paid_claim', o.customer.email, o.code);
+  return { ok: true };
+}
 function orderGet_(b) {
   var o = ownedOrder_(b, true);
   var pos = rows_('PO').filter(function (p) { return p.order_code === o.code; });
@@ -550,8 +564,15 @@ function adminConfig_(b) {
   var s = session_(b.token, true);
   if (b.set) {
     var allow = ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'VOUCHER_FEE_CAP_PCT', 'STATS_KEY'];
-    Object.keys(b.set).forEach(function (k) { if (allow.indexOf(k) >= 0) P_().setProperty(k, str_(b.set[k], 2000)); });
-    log_('admin_config', s.email, Object.keys(b.set).join(','));
+    var kept = [];
+    Object.keys(b.set).forEach(function (k) {
+      if (allow.indexOf(k) < 0) return;
+      var v = str_(b.set[k], 2000);
+      // BAO VE TAI KHOAN NHAN TIEN: khong cho ghi de trong (form cu/tab cu) - muon xoa phai gui clear_bank: true
+      if (!v && ['BANK_ACC', 'BANK_NAME', 'BANK_BIN'].indexOf(k) >= 0 && cfg_(k) && b.clear_bank !== true) { kept.push(k); return; }
+      P_().setProperty(k, v);
+    });
+    log_('admin_config', s.email, Object.keys(b.set).join(',') + (kept.length ? ' | GIU NGUYEN (gia tri trong): ' + kept.join(',') : ''));
   }
   var out = {}; ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'ADMIN_EMAILS', 'VOUCHER_FEE_CAP_PCT'].forEach(function (k) { out[k] = cfg_(k); });
   out.WEBHOOK_URL = ScriptApp.getService().getUrl() + '?a=webhook&key=' + P_().getProperty('WEBHOOK_KEY');
@@ -619,6 +640,7 @@ function doPost(e) {
       'quote': function () { return quote_(b.items, b.voucher_codes, !!b.fresh); },
       'order.create': function () { return orderCreate_(b); },
       'order.get': function () { return orderGet_(b); },
+      'order.paid_claim': function () { return paidClaim_(b); },
       'orders.mine': function () { return ordersMine_(b); },
       'otp.request': function () { return otpRequest_(b); },
       'otp.verify': function () { return otpVerify_(b); },
