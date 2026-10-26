@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>KK-MALL Auto Order</title>
+<style>
+  :root { --ink:#0F172A; --muted:#64748B; --line:#E2E8F0; --pri:#1D4ED8; --ok:#166534; --warn:#B45309; --err:#B91C1C; --pay:#7C3AED; }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 460px; font: 13px/1.45 "Segoe UI", Arial, sans-serif; color: var(--ink); background: #F8FAFC; }
+  header { background: linear-gradient(90deg, #EA580C, #1D4ED8); color: #fff; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+  header b { font-size: 15px; } header small { opacity: .85; }
+  main { padding: 10px 12px 14px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  label { font-weight: 600; font-size: 12px; color: var(--muted); display: block; margin: 6px 0 3px; }
+  input[type=text], input[type=password], input[type=number] { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+  button { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 6px 10px; font: 600 12.5px "Segoe UI", Arial; cursor: pointer; }
+  button.pri { background: var(--pri); color: #fff; border-color: var(--pri); }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 11.5px; font-weight: 700; }
+  .auto { background: #DBEAFE; color: var(--pri); } .manual { background: #F1F5F9; color: var(--muted); } .failed, .hold { background: #FEE2E2; color: var(--err); } .busy { background: #EDE9FE; color: var(--pay); }
+  .banner { border-radius: 10px; padding: 9px 12px; margin-bottom: 10px; font-weight: 600; }
+  .b-pause { background: #FEF2F2; color: var(--err); border: 1px solid #FECACA; } .b-job { background: #EEF2FF; color: var(--pri); border: 1px solid #C7D2FE; } .b-pay { background: #F5F3FF; color: var(--pay); border: 1px solid #DDD6FE; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; } td { border-top: 1px solid var(--line); padding: 5px 4px; vertical-align: top; }
+  .log { max-height: 170px; overflow: auto; font-size: 11.5px; } .log div { padding: 2px 0; border-bottom: 1px dashed var(--line); }
+  .e { color: var(--err); } .ok { color: var(--ok); } .pay { color: var(--pay); } .w { color: var(--warn); }
+  details summary { cursor: pointer; font-weight: 700; }
+  .muted { color: var(--muted); font-size: 11.5px; }
+</style>
+</head>
+<body>
+<header><div><b>KK-MALL Auto Order</b><br><small>Tự đặt hàng tại nguồn · anh chỉ nhập OTP</small></div><div class="row"><button id="run" class="pri">▶ Chạy ngay</button></div></header>
+<main>
+  <div id="banners"></div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><b>Hàng đợi lệnh mua</b><span class="muted" id="qAt"></span></div>
+    <table id="queue"></table>
+  </div>
+  <div class="card">
+    <details id="setBox">
+      <summary>⚙ Cài đặt</summary>
+      <label>Khóa bot (Quản trị → Hệ thống → 🔑 Tạo khóa bot)</label><input type="password" id="botKey" placeholder="kkbot_…" autocomplete="off">
+      <label>Khóa quản trị (để đọc link nguồn trong gói dữ liệu mã hóa)</label><input type="password" id="adminKey" placeholder="nhập khi mở Chrome" autocomplete="off">
+      <div class="row muted"><label style="display:flex;gap:6px;align-items:center;margin:4px 0;color:var(--ink)"><input type="checkbox" id="remember"> Ghi nhớ khóa quản trị trên máy này</label></div>
+      <div class="row"><div style="flex:1"><label>Thẻ ưu tiên (4 số cuối, tùy chọn)</label><input type="text" id="cardLast4" maxlength="4"></div><div style="flex:1"><label>Trần mỗi đơn (đ)</label><input type="number" id="maxOrder" step="100000"></div></div>
+      <div class="row"><div style="flex:1"><label>Tự chạy từ (giờ)</label><input type="number" id="hourFrom" min="0" max="23"></div><div style="flex:1"><label>đến (giờ)</label><input type="number" id="hourTo" min="0" max="24"></div><div style="flex:1"><label>Quét mỗi (phút)</label><input type="number" id="pollMin" min="1" max="60"></div></div>
+      <label style="display:flex;gap:6px;align-items:center;color:var(--ink);font-size:13px;margin-top:8px"><input type="checkbox" id="auto"> <b>Tự động đặt khi có lệnh mua mới</b> (trong giờ đã chọn)</label>
+      <div class="row" style="margin-top:8px"><button class="pri" id="save">💾 Lưu</button><button id="test">🔌 Kiểm tra kết nối</button><span id="msg" class="muted"></span></div>
+      <p class="muted">An toàn: không bao giờ chọn tiền mặt khi nhận hàng; chỉ bấm Đặt hàng khi tổng tiền ≤ tiền hàng đã thu + biên dung sai và ≤ trần mỗi đơn; không đọc/lưu số thẻ; đã bấm Đặt hàng thì không tự đặt lại. Đăng nhập Tiki trên Chrome này và lưu sẵn thẻ trong tài khoản Tiki.</p>
+    </details>
+  </div>
+  <div class="card"><b>Nhật ký</b><div class="log" id="log"></div></div>
+</main>
+<script src="popup.js"></script>
+</body>
+</html>
