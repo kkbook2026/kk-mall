@@ -63,7 +63,7 @@ const foot = `</main><footer><div class="w"><p><b>KK-MALL - Đại siêu thị t
 const footP = `</main><footer><div class="w">KK-MALL · Giá cuối cùng đã gồm giao hàng, không phụ phí · <a href="/?ledger=1">Sổ cái giá</a> · <a href="/phap-ly">Chính sách</a> · © 2026 KK-MALL - Nguyễn Duy Điển (KK-2026)</div></footer></body></html>`;
 const ORG = { '@type': 'Organization', name: 'KK-MALL', url: ORIGIN };
 const crumbs = list => ({ '@type': 'BreadcrumbList', itemListElement: list.map((x, i) => ({ '@type': 'ListItem', position: i + 1, name: x[0], item: ORIGIN + x[1] })) });
-const li = r => `<li><a href="/p/${pslug(r)}.html">${esc(r.name)}</a><b>${vnd(r.kk_price)}</b><small>${r.in_stock && !((r.fl || 0) & 33) ? '✓ Còn hàng · gồm giao hàng' : 'Tạm ngừng bán'}</small></li>`;
+const li = r => `<li><a href="/p/${pslug(r)}.html">${esc(r.name)}</a><b>${(r.fl || 0) & 1 ? 'Đang xác minh giá' : vnd(r.kk_price)}</b><small>${r.in_stock && !((r.fl || 0) & 33) ? '✓ Còn hàng · gồm giao hàng' : 'Tạm ngừng bán'}</small></li>`;
 
 /* ---------- trang san pham ---------- */
 const byGrp = {}; for (const r of full) (byGrp[r.category_id + '|' + r.grp] = byGrp[r.category_id + '|' + r.grp] || []).push(r);
@@ -76,21 +76,21 @@ for (const r of full) {
   const used = !!(fl & 2), hold = !!(fl & 1) || !!(fl & 32), buy = d.in_stock && !hold;
   const slug = pslug(r), url = `${ORIGIN}/p/${slug}.html`, cat = catById[d.category_id] || { name: d.category_name, id: d.category_id };
   const specs = Object.entries(d.specs || {}).filter(([k, v]) => k && v);
-  const desc = `${T.cleanText(d.name)} - ${used ? 'hàng đã qua sử dụng' : 'chính hãng'}, thương hiệu ${d.brand}, giá ${vnd(d.kk_price)} tại KK-MALL, đã gồm giao hàng tận cửa, không phụ phí. ${specs.slice(0, 3).map(([k, v]) => k + ': ' + v).join(', ')}.`;
+  const desc = `${T.cleanText(d.name)} - ${used ? 'hàng đã qua sử dụng' : 'chính hãng'}, thương hiệu ${d.brand}${hold ? ', giá đang được xác minh lại với nguồn' : `, giá ${vnd(d.kk_price)} tại KK-MALL, đã gồm giao hàng tận cửa, không phụ phí`}. ${specs.slice(0, 3).map(([k, v]) => k + ': ' + v).join(', ')}.`;
   const hist = (d.d90 || []).slice(-10).reverse();
   const rel = (byGrp[d.category_id + '|' + d.grp] || []).filter(x => x.sku !== d.sku).slice(0, 8);
   const ld = { '@context': 'https://schema.org', '@graph': [
     { '@type': 'Product', name: T.cleanText(d.name), sku: d.sku, mpn: d.sku, brand: { '@type': 'Brand', name: d.brand || 'KK-MALL' }, image: /^https:/.test(d.image || '') ? [d.image] : undefined, description: desc, category: `${cat.name} > ${d.grp}`, url,
-      offers: { '@type': 'Offer', url, priceCurrency: 'VND', price: d.kk_price, priceValidUntil: new Date(Date.now() + 2 * 86400e3).toISOString().slice(0, 10),
+      offers: hold ? undefined : { '@type': 'Offer', url, priceCurrency: 'VND', price: d.kk_price, priceValidUntil: new Date(Date.now() + 2 * 86400e3).toISOString().slice(0, 10),
         availability: buy ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', itemCondition: used ? 'https://schema.org/UsedCondition' : 'https://schema.org/NewCondition', seller: ORG,
         shippingDetails: { '@type': 'OfferShippingDetails', shippingRate: { '@type': 'MonetaryAmount', value: 0, currency: 'VND' }, shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'VN' } },
         hasMerchantReturnPolicy: { '@type': 'MerchantReturnPolicy', applicableCountry: 'VN', returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow', merchantReturnDays: 7, returnFees: 'https://schema.org/FreeReturn' } } },
     crumbs([['Trang chủ', '/'], [cat.name, `/c/${cat.id}.html`], [d.grp, `/n/${gslug(d.category_id, d.grp)}.html`], [T.cleanText(d.name), `/p/${slug}.html`]])] };
-  const html = head({ title: `${T.cleanText(d.name)} - giá ${vnd(d.kk_price)} | KK-MALL`, desc, url, img: /^https:/.test(d.image || '') ? d.image : '', ld, type: 'product' })
+  const html = head({ title: hold ? `${T.cleanText(d.name)} | KK-MALL` : `${T.cleanText(d.name)} - giá ${vnd(d.kk_price)} | KK-MALL`, desc, url, img: /^https:/.test(d.image || '') ? d.image : '', ld, type: 'product' })
     + `<nav class="bc"><a href="/">Trang chủ</a> › <a href="/c/${cat.id}.html">${esc(cat.name)}</a> › <a href="/n/${gslug(d.category_id, d.grp)}.html">${esc(d.grp)}</a></nav>
 <article class="pd"><div class="im"><img src="${/^https:/.test(d.image || '') ? esc(d.image) : '/logo.svg'}" alt="${esc(d.name)}" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='/logo.svg'"></div><div>
 <h1>${esc(d.name)}</h1><div>${used ? '<span class="badge u">♻️ Đã qua sử dụng</span>' : '<span class="badge">✓ Chính hãng</span>'}${hold ? '<span class="badge h">⏸ Đang xác minh giá</span>' : ''}${fl & 4 ? '<span class="badge">📉 Đáy giá lịch sử</span>' : ''}<span class="badge">${esc(d.brand)}</span><span class="badge">SKU ${d.sku}</span></div>
-<div class="price">${vnd(d.kk_price)}</div><div class="ok">✓ Giá cuối cùng - đã gồm giao hàng tận cửa, không phụ phí${disc ? ` · giảm ${disc}% đã xác minh` : ''}</div>
+${hold ? '<div class="price" style="color:#64748B">Đang xác minh giá</div>' : `<div class="price">${vnd(d.kk_price)}</div><div class="ok">✓ Giá cuối cùng - đã gồm giao hàng tận cửa, không phụ phí${disc ? ` · giảm ${disc}% đã xác minh` : ''}</div>`}
 <div class="proof">🔗 Lịch sử giá niêm phong SHA-256 + Merkle - không thể sửa lùi. Hóa đơn điện tử, hoàn tiền 100% nếu hết hàng.</div>
 <p><a class="cta" href="/?sp=${d.sku}">${buy ? '🛒 Đặt mua ngay tại KK-MALL' : 'Xem tình trạng hàng'} →</a></p>
 ${specs.length ? `<h2>Thông số kỹ thuật</h2><table>${specs.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</table>` : ''}

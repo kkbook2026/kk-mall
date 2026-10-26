@@ -81,6 +81,9 @@ function filterOffers(d, offers, offset) {
     if (o.in_stock && o.price > 0) {
       if (Hsrc > 0 && o.price < 0.5 * Hsrc) why = 'Thấp hơn 50% trung vị lịch sử niêm phong';
       else if (M > 0 && o.price < 0.5 * M) why = 'Thấp hơn 50% trung vị các nguồn';
+      else if (Hsrc > 0 && o.price > 2.5 * Hsrc) why = 'Cao hơn 2,5 lần trung vị lịch sử niêm phong (nghi lấy nhầm giá niêm yết/biến thể)';
+      else if (M > 0 && o.price > 2.5 * M) why = 'Cao hơn 2,5 lần trung vị các nguồn';
+      else if (d.base_price > 0 && o.price > 2.5 * d.base_price) why = 'Cao hơn 2,5 lần giá niêm yết đã xác minh (nghi lấy nhầm giá gạch/biến thể)';
       else if (o.name && !mainIsAcc && isAccessory(o.name)) why = 'Biến thể là phụ kiện/linh kiện';
       else if (floor && o.price < floor) why = 'Dưới sàn giá máy chính của nhóm';
     }
@@ -102,6 +105,8 @@ function evaluate(d) {
   if (d.hold) { fl |= FL.HOLD; why.push(d.hold_why || 'Không còn nguồn giá hợp lệ'); }
   else if (kk && FLOOR[d.grp] && looksMain(d.name, d.grp) && kk < FLOOR[d.grp]) { fl |= FL.HOLD; why.push('Giá thấp bất thường so với sàn giá máy chính'); }
   else if (kk && H && kk < 0.5 * H) { fl |= FL.HOLD; why.push('Giá sụt > 50% so với trung vị lịch sử niêm phong'); }
+  else if (kk && base && kk > 2.5 * base + 32000) { fl |= FL.HOLD; why.push('Giá cao bất thường so với giá niêm yết đã xác minh - đang đối chiếu lại với nguồn'); }
+  else if (kk && H && kk > 2.5 * H) { fl |= FL.HOLD; why.push('Giá tăng bất thường > 2,5 lần trung vị lịch sử - đang xác minh lại với nguồn'); }
   // Gia tham chieu tin cay:
   //  - co lich su niem phong xac nhan (H > gia hien tai): ref = min(gia niem yet, H) - bao thu, tran 50% (ND 81/2018)
   //  - chi co gia niem yet cua nguoi ban (chua co lich su xac nhan): tran tin cay 40%, vuot => "gia goc ao"

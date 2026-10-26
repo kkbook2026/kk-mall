@@ -214,7 +214,8 @@ async function lgSearch() {
 let _PR = null;
 async function packRows() {
   if (_PR) return _PR;
-  let rows = null; try { const c = JSON.parse(localStorage.getItem('kk_pack') || 'null'); if (c && c.rows) rows = c.rows; } catch { }
+  let rows = null; try { const c = JSON.parse(localStorage.getItem('kk_pack') || 'null'); const M = window.META || (typeof META !== 'undefined' ? META : null);
+    if (c && c.rows && M && (c.v === M.packV || c.v === M.lastSync)) rows = c.rows; } catch { } // chi dung ban luu cuc bo neu cung phien ban danh muc hien hanh
   if (!rows) rows = (await api('/api/catalog-pack')).rows;
   for (const r of rows) r._h = kFold(r[1] + ' ' + r[2] + ' ' + r[5]);
   return (_PR = rows);

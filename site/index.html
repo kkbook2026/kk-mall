@@ -68,7 +68,7 @@ header.hd .wrap{display:flex;align-items:center;gap:18px;height:88px}
 .banner h1 em{font-style:normal;color:var(--gold2)}
 .banner p{margin:0 0 10px;color:#E0E7FF;font-size:12px;line-height:1.5;max-width:560px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 
-function pmRange(btn,days){btn.parentNode.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===btn));if(!window._pmP)return;$('#pmChart').innerHTML=priceChart(window._pmP,days,'pmc');bindChart('pmc')}
+function pmRange(btn,days){btn.parentNode.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===btn));if(!window._pmP||isHold(window._pmP))return;$('#pmChart').innerHTML=priceChart(window._pmP,days,'pmc');bindChart('pmc')}
 /* ===== O DEAL CHOP NHOANG + DONG HO DONG BO ===== */
 .flash{flex:1.05;min-width:215px;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;box-shadow:var(--sh);display:flex;flex-direction:column;gap:8px}
 .fhead{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted)}
@@ -462,9 +462,9 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
   <form class="aif" onsubmit="aiSend(event)"><input id="aiIn" placeholder="Hỏi tôi: 'tủ lạnh dưới 12 triệu'..." autocomplete="off"><button class="b" type="submit">Gửi</button></form>
 </div>
 
-<script src="config.js?v=2610240302"></script>
+<script src="config.js?v=2610260332"></script>
 <script src="demo-shim.js"></script>
-<script src="kk-smart.js"></script>
+<script src="kk-smart.js?v=2610260332"></script>
 <script>
 /* ===== ANH SAN PHAM: 3 lop du phong - anh goc -> anh SVG noi bo -> placeholder sinh tai cho (khong bao gio trong) ===== */
 const CAT_ICON={'dien-thoai-may-tinh-bang':'📱','laptop-may-tinh':'💻','thiet-bi-am-thanh-deo':'🎧','tivi-giai-tri':'📺','dien-lanh':'❄️','gia-dung':'🍳','noi-that-trang-tri':'🛋️','thoi-trang':'👗','suc-khoe-lam-dep':'💄','me-be':'🍼','bach-hoa':'🛒','the-thao-du-lich':'⚽','o-to-xe-may':'🏍️','sach-van-phong-pham':'📚','voucher-dich-vu':'🎫'};
@@ -525,7 +525,7 @@ document.addEventListener('click',e=>{if(!e.target.closest('.search'))$('#sug').
 function renderSug(q,out,total){const s=$('#sug'),L=$('#sugList');
   if(!out.length){L.innerHTML=$('#semSug').innerHTML?'':'<div class="st0">Không có kết quả khớp từ khóa - thử mô tả nhu cầu, ví dụ "quà tặng sếp dưới 1 triệu"</div>';s.classList.add('show');return}
   L.innerHTML='<div class="st0">⚡ '+total+' kết quả - tìm tức thời trên thiết bị của bạn (không gửi truy vấn đi đâu)</div>'+
-    out.map(r=>'<div class="si" onclick="openProduct(\''+r[0]+'\')"><span>'+esc(r[1])+' <small style="color:var(--muted)">· '+esc(r[5])+'</small></span><b>'+(r[6]?vnd(r[6]):'hết hàng')+'</b></div>').join('');
+    out.map(r=>'<div class="si" onclick="openProduct(\''+r[0]+'\')"><span>'+esc(r[1])+' <small style="color:var(--muted)">· '+esc(r[5])+'</small></span><b>'+((r[11]||0)&1?'Đang xác minh':r[6]?vnd(r[6]):'hết hàng')+'</b></div>').join('');
   s.classList.add('show')}
 // Tim bang giong noi
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -593,8 +593,8 @@ function card(p){const off=discOf(p),hold=isHold(p),buy=canBuy(p);
   return `<div class="card${hold?' is-hold':''}">${p._need?`<span class="need">${esc(p._need)}</span>`:''}${!p.in_stock&&!hold?'<span class="tag out">Hết hàng</span>':hold?'<span class="tag out">Đang xác minh</span>':off>0?`<span class="tag" title="Mức giảm đã xác minh với giá tham chiếu tin cậy">-${off}%</span>`:''}<img class="im" src="${imgSrc(p)}" alt="${esc(p.name)}" loading="lazy" ${imgAttrs(p)} onclick="openProduct('${p.sku}')">
   <div class="bd"><div class="nm" onclick="openProduct('${p.sku}')">${esc(p.name)}</div>
   <div class="src">${trustBadges(p)||'<span class="dot" style="background:var(--ok)"></span>Mua hộ từ nguồn giá tốt nhất · AI tối ưu'}</div>
-  <div class="price">${p.kk_price?vnd(p.kk_price):'-'}${off>0&&p.base_price>p.kk_price?` <s style="color:var(--muted);font-size:12px;font-weight:500">${vnd(Math.round(p.kk_price/(1-off/100)/1000)*1000)}</s>`:''}<small>Giá cuối cùng - đã gồm giao hàng</small></div>
-  ${proofLine(p)}
+  <div class="price">${hold?'<span style="color:var(--muted);font-size:15px">Đang xác minh giá</span>':p.kk_price?vnd(p.kk_price):'-'}${!hold&&off>0&&p.base_price>p.kk_price?` <s style="color:var(--muted);font-size:12px;font-weight:500">${vnd(Math.round(p.kk_price/(1-off/100)/1000)*1000)}</s>`:''}${hold?'':'<small>Giá cuối cùng - đã gồm giao hàng</small>'}</div>
+  ${hold?'':proofLine(p)}
   <div class="meta"><span>⭐ ${p.rating}</span><span>Đã bán ${p.sold}</span></div>
   <button class="add" ${buy?'':'disabled'} onclick="addCart('${p.sku}')">${hold?'⏸ Đang xác minh giá':noSource(p)?'⏳ Đang kết nối nguồn':'+ Thêm vào giỏ'}</button></div></div>`}
 
@@ -613,14 +613,14 @@ async function openProduct(sku){closeAll();const p=await api('/api/products/'+sk
   <div class="note ok" style="margin-top:16px">🤝 <b>KK-MALL mua hộ - bạn không phải tự dò giá</b><br>AI chọn nhà cung cấp chính hãng có giá tốt nhất, đặt hàng thay bạn và giao thẳng đến bạn. Nhà cung cấp xuất hóa đơn tiền hàng & bảo hành theo hãng; KK-MALL lo trọn quy trình đặt hàng, theo dõi, đổi trả.</div>
   <div class="phist"><div class="ph-h"><b>📈 Lịch sử giá niêm phong</b><span class="ledger-badge">🔗 SHA-256 + Merkle</span></div>
   <div class="ctabs"><button class="on" onclick="pmRange(this,30)">30 ngày</button><button onclick="pmRange(this,90)">90 ngày</button></div>
-  <div id="pmChart">${priceChart(p,30,'pmc')}</div>${(()=>{const st=histStats(p);return st?`<div class="hstat sm"><div><span>Thấp nhất</span><b>${vnd(st.min)}</b></div><div><span>Trung vị</span><b>${vnd(st.med)}</b></div><div><span>Cao nhất</span><b>${vnd(st.max)}</b></div></div>`:''})()}
+  <div id="pmChart">${isHold(p)?'<div style="padding:18px;color:var(--muted);font-size:13px">Biểu đồ giá tạm ẩn trong lúc xác minh lại giá với nguồn. Lịch sử niêm phong vẫn kiểm chứng được bên dưới.</div>':priceChart(p,30,'pmc')}</div>${(()=>{const st=isHold(p)?null:histStats(p);return st?`<div class="hstat sm"><div><span>Thấp nhất</span><b>${vnd(st.min)}</b></div><div><span>Trung vị</span><b>${vnd(st.med)}</b></div><div><span>Cao nhất</span><b>${vnd(st.max)}</b></div></div>`:''})()}
   <button class="vbtn ver" onclick="openLedger('${p.sku}')">🔍 Kiểm chứng SHA-256 ngay (${(p.ledger||[]).length} bản ghi)</button></div></div>
   <div><div style="font-size:12px;color:var(--muted)">${esc(p.category_name)} › ${esc(p.grp)} · ${esc(p.brand)} · SKU ${p.sku}</div><h2>${esc(p.name)}</h2>
   <div>⭐ ${p.rating} (${p.reviewStat.n||0} đánh giá xác thực) · Đã bán ${p.sold} · Còn ${p.stock_qty} suất</div>
   ${p.variants.length>1?`<div style="margin:8px 0;display:flex;gap:8px;flex-wrap:wrap">${p.variants.map(v=>`<button class="vbtn ${v.sku===p.sku?'on':''}" onclick="openProduct('${v.sku}')">${esc(v.variant||'Bản chuẩn')} · ${vnd(v.kk_price)}</button>`).join('')}</div>`:''}
   <div style="margin:6px 0">${trustBadges(p)}</div>
-  <div class="big">${p.kk_price?vnd(p.kk_price):'Tạm hết hàng'} ${p.kk_price&&discOf(p)>0?`<s style="font-size:16px;color:var(--muted);font-weight:500">${vnd(Math.round(p.kk_price/(1-discOf(p)/100)/1000)*1000)}</s> <span class="tag" style="position:static;display:inline-block;vertical-align:middle" title="Mức giảm đã xác minh với giá tham chiếu tin cậy & lịch sử niêm phong">-${discOf(p)}%</span>`:''}</div>
-  ${p.kk_price?`<div style="font-size:13px;color:var(--ok);font-weight:600">✓ Giá cuối cùng - đã bao gồm giao hàng tận cửa, không phụ phí</div>`:''}${proofLine(p,true)}
+  <div class="big">${isHold(p)?'<span style="color:var(--muted);font-size:22px">Đang xác minh giá</span>':p.kk_price?vnd(p.kk_price):'Tạm hết hàng'} ${!isHold(p)&&p.kk_price&&discOf(p)>0?`<s style="font-size:16px;color:var(--muted);font-weight:500">${vnd(Math.round(p.kk_price/(1-discOf(p)/100)/1000)*1000)}</s> <span class="tag" style="position:static;display:inline-block;vertical-align:middle" title="Mức giảm đã xác minh với giá tham chiếu tin cậy & lịch sử niêm phong">-${discOf(p)}%</span>`:''}</div>
+  ${p.kk_price&&!isHold(p)?`<div style="font-size:13px;color:var(--ok);font-weight:600">✓ Giá cuối cùng - đã bao gồm giao hàng tận cửa, không phụ phí</div>`+proofLine(p,true):''}
   ${isHold(p)?`<div class="note" style="border-color:#FCD34D;background:#FFFBEB">⏸ <b>Đang xác minh giá:</b> AI phát hiện giá nguồn bất thường (${esc(((p.trust||{}).why||[]).join('; ')||'chênh lệch lớn so với lịch sử')}). Sản phẩm tạm ngừng đặt để bảo vệ bạn khỏi giá ảo / nhầm phụ kiện - sẽ mở lại sau khi xác minh.</div>`:''}
   ${(flOf(p)&KFL.REF_INFLATED)?`<div style="font-size:11.5px;color:var(--muted);margin-top:6px">ℹ️ Không hiển thị % giảm: ${esc(((p.trust||{}).why||[]).find(w=>/Giá gốc/.test(w))||'giá gốc niêm yết tại nguồn chưa đáng tin cậy')}.</div>`:''}
   <div class="note">🚚 Giao <b>thẳng đến bạn</b> từ kho đối tác chính hãng. Hóa đơn điện tử ký số gửi email. Hoàn tiền 100% nếu hết hàng. Không COD.</div>
@@ -678,7 +678,7 @@ function openLightbox(src){const lb=$('#lb');$('#lbImg').src=src;lb.style.displa
 /* ===== MO TA TU DONG tu thong so ===== */
 function genDesc(p){
   const sp=p.specs||{};const parts=[];
-  parts.push(`${p.name} thuộc nhóm ${p.grp} của thương hiệu ${p.brand}, hiện có giá ${vnd(p.kk_price)} tại KK-MALL (đã gồm giao hàng tận cửa).`);
+  parts.push(`${p.name} thuộc nhóm ${p.grp} của thương hiệu ${p.brand}, ${isHold(p)?'giá đang được KK-MALL xác minh lại với nguồn.':`hiện có giá ${vnd(p.kk_price)} tại KK-MALL (đã gồm giao hàng tận cửa).`}`);
   const hl=Object.entries(sp).filter(([k])=>k!=='Bảo hành').slice(0,4).map(([k,v])=>`${k.toLowerCase()}: ${v}`);
   if(hl.length)parts.push(`Điểm nổi bật: ${hl.join(' · ')}.`);
   parts.push(`Sản phẩm được KK-MALL tổng hợp giá tự động mỗi 3 giờ và niêm phong lịch sử giá bằng sổ cái mật mã để bạn luôn mua đúng giá tốt.`);
@@ -702,8 +702,11 @@ async function openCompare(sku){
 
 /* ===== VUA XEM GAN DAY ===== */
 function trackViewed(p){try{let v=JSON.parse(localStorage.getItem('kk_viewed')||'[]');v=v.filter(x=>x.sku!==p.sku);v.unshift({sku:p.sku,name:p.name,image:p.image,kk_price:p.kk_price,rating:p.rating,category_id:p.category_id});localStorage.setItem('kk_viewed',JSON.stringify(v.slice(0,12)));}catch{}}
-function renderViewed(){try{const v=JSON.parse(localStorage.getItem('kk_viewed')||'[]');const sec=$('#viewedSec');if(!v.length||!sec)return;sec.style.display='block';
-  $('#viewedRow').innerHTML=v.map(x=>(x.image&&/^https?:/.test(x.image))||x._h?x:(x._h=1,setTimeout(()=>{const im=document.querySelector(`#viewedRow img[data-sku="${x.sku}"]`);if(im)hydrateImg(im,x.sku)},0),x)).map(x=>`<div class="card" style="min-width:170px;max-width:170px;cursor:pointer" onclick="openProduct('${x.sku}')"><img class="im" style="height:120px" src="${imgSrc(x)}" ${imgAttrs(x)} alt=""><div class="bd" style="padding:8px 10px"><div class="n" style="font-size:12px;max-height:2.8em;overflow:hidden">${esc(x.name)}</div><div style="color:var(--coral);font-weight:800;font-size:13px">${vnd(x.kk_price)}</div></div></div>`).join('')}catch{}}
+async function renderViewed(){try{let v=JSON.parse(localStorage.getItem('kk_viewed')||'[]');const sec=$('#viewedSec');if(!v.length||!sec)return;
+  // dong bo gia/ton kho theo danh muc hien hanh: bo SP da go, cap nhat gia moi (khong dung gia chup luc xem)
+  try{const rows=await packRows();const M=new Map(rows.map(r=>[r[0],r]));v=v.filter(x=>M.has(x.sku)).map(x=>{const r=M.get(x.sku);return{...x,name:r[1],kk_price:r[6],in_stock:r[7],hold:!!((r[11]||0)&1)}});localStorage.setItem('kk_viewed',JSON.stringify(v))}catch{v=[]}
+  if(!v.length){sec.style.display='none';return}sec.style.display='block';
+  $('#viewedRow').innerHTML=v.map(x=>(x.image&&/^https?:/.test(x.image))||x._h?x:(x._h=1,setTimeout(()=>{const im=document.querySelector(`#viewedRow img[data-sku="${x.sku}"]`);if(im)hydrateImg(im,x.sku)},0),x)).map(x=>`<div class="card" style="min-width:170px;max-width:170px;cursor:pointer" onclick="openProduct('${x.sku}')"><img class="im" style="height:120px" src="${imgSrc(x)}" ${imgAttrs(x)} alt=""><div class="bd" style="padding:8px 10px"><div class="n" style="font-size:12px;max-height:2.8em;overflow:hidden">${esc(x.name)}</div><div style="color:var(--coral);font-weight:800;font-size:13px">${x.hold?'<span style="color:var(--muted)">Đang xác minh giá</span>':x.in_stock===0?'<span style="color:var(--muted)">Hết hàng</span>':vnd(x.kk_price)}</div></div></div>`).join('')}catch{}}
 
 async function sendReview(sku){try{const r=await api('/api/reviews',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sku,order_code:$('#rvOrder').value.trim(),phone:$('#rvPhone').value.trim(),rating:$('#rvStar').value,content:$('#rvText').value,device:navigator.userAgent})});toast(r.note)}catch(e){toast(e.message)}}
 function qd(d){const i=$('#pq');i.value=Math.max(1,Math.min(20,(+i.value||1)+d))}
@@ -780,7 +783,12 @@ async function showTrack(code,phone){try{const d=await api(`/api/orders/${code}?
   <div class="timeline"><div class="tl on"><span class="d"></span><div><b>Đặt hàng</b> ${new Date(o.created_at).toLocaleString('vi-VN')}${o.discount?` · voucher -${vnd(o.discount)} (${(o.vouchers||[]).map(v=>v.code).join('+')})`:''}</div></div><div class="tl ${paid?'on':''}"><span class="d"></span><div><b>Thanh toán</b> ${paid?'Đã nhận - mã GD '+esc(o.payment_ref||''):'Chờ thanh toán'}</div></div><div class="tl ${['sourced','completed'].includes(o.status)?'on':''}"><span class="d"></span><div><b>Đặt tại nguồn & giao hàng</b><br>${d.fulfillments.map(f=>`• ${esc(f.product_name)} × ${f.qty}: ${FS[f.status]||f.status}${f.tracking_code?' · Vận đơn '+esc(f.tracking_code):''}`).join('<br>')||'Chờ thanh toán'}</div></div><div class="tl ${d.invoice&&d.invoice.status==='sent'?'on':''}"><span class="d"></span><div><b>Hóa đơn điện tử</b> ${d.invoice?esc(d.invoice.number)+' - '+(d.invoice.status==='sent'?'đã gửi email':d.invoice.status==='approved'?'đã ký số, đang gửi':'đang lập'):'Lập sau khi thanh toán'}</div></div></div>
   <table class="cmp">${o.items.map(i=>`<tr><td>${esc(i.name)}</td><td>× ${i.qty}</td><td style="text-align:right">${vnd(i.line_total)}</td></tr>`).join('')}${o.discount?`<tr><td colspan="2">Giảm giá voucher</td><td style="text-align:right;color:var(--ok)">-${vnd(o.discount)}</td></tr>`:''}<tr style="font-weight:800"><td colspan="2">Tổng thanh toán (đã gồm giao hàng)</td><td style="text-align:right;color:var(--coral)">${vnd(o.total)}</td></tr></table>
   <div style="font-size:12.5px;color:var(--muted)">Giao đến: ${esc(o.customer_name)} · ${esc(o.customer_phone)} · ${esc(o.customer_address)}</div></div>`;show('#tm')}catch(e){toast(e.message);openTrack()}}
-init();renderViewed();
+init();renderViewed();syncCart();
+// gio hang luu tren may: cap nhat gia hien hanh, danh dau SP da go / het hang (khong giu gia cu)
+async function syncCart(){if(!cart.length)return;try{const rows=await packRows();const M=new Map(rows.map(r=>[r[0],r]));let ch=false;
+  const gone=cart.filter(c=>!M.has(c.sku));if(gone.length){cart=cart.filter(c=>M.has(c.sku));ch=true;toast('Đã bỏ '+gone.length+' sản phẩm không còn kinh doanh khỏi giỏ hàng')}
+  for(const c of cart){const r=M.get(c.sku);const un=!r||!r[7]||((r[11]||0)&(1|32));if(r&&(c.kk_price!==r[6]||c.name!==r[1])){c.kk_price=r[6];c.name=r[1];ch=true}if(!!c.unavailable!==!!un){c.unavailable=!!un;ch=true}}
+  if(ch){save();renderCart()}}catch{}}
 
 /* ===== THANH VIEN: dang ky toi gian 3 truong - khong can mat khau ===== */
 function getMember(){try{return JSON.parse(localStorage.getItem('kk_member'))}catch{return null}}
@@ -875,6 +883,6 @@ async function aiSend(e){e.preventDefault&&e.preventDefault();const q=$('#aiIn')
   aiChips(['Rẻ hơn nữa','Cao cấp hơn','Chính sách đổi trả']);
   window._aiLast=q}
 </script>
-<script src="kk-backend.js?v=2610240302"></script>
+<script src="kk-backend.js?v=2610260332"></script>
 </body>
 </html>
