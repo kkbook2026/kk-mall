@@ -509,6 +509,7 @@ onmessage=e=>{const d=e.data;
 let W=null, packReady=false, _kkReady=null, _kkOk=null; const _kkWait=new Map(); let _kkId=0;
 _kkReady=new Promise(r=>_kkOk=r);
 async function initLocalSearch(){
+  try{$('#q').placeholder='Tìm trong '+(Math.floor((META.totalProducts||20000)/1000)*1000).toLocaleString('vi-VN')+'+ mặt hàng: tên, hãng, "tủ lạnh dưới 8 triệu"...'}catch{}
   try{
     W=new Worker(URL.createObjectURL(new Blob([workerSrc],{type:'text/javascript'})));
     W.onmessage=e=>{const d=e.data;
@@ -551,7 +552,7 @@ async function init(){
   META=await api('/api/meta');
   $('#syncMin').textContent=META.syncMinutes; $('#lastSync').textContent=META.lastSync?new Date(META.lastSync).toLocaleTimeString('vi-VN'):'-';
   $('#ledgerSeq').textContent=(META.ledgerHead&&META.ledgerHead.seq||0).toLocaleString('vi-VN');
-  $('#totalProducts').textContent=META.totalProducts.toLocaleString('vi-VN');try{$('#q').placeholder='Tìm trong '+(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN')+'+ mặt hàng: tên, hãng, "tủ lạnh dưới 8 triệu"...'}catch{}try{$('#vfactN').textContent=(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN');$('#q').placeholder=`Tìm tức thời trong ${(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN')}+ mặt hàng (chạy ngay trên máy bạn, 0ms)...`}catch{} $('#hotline').textContent=META.company.phone;
+  $('#totalProducts').textContent=META.totalProducts.toLocaleString('vi-VN');try{$('#vfactN').textContent=(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN');$('#q').placeholder=`Tìm tức thời trong ${(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN')}+ mặt hàng (chạy ngay trên máy bạn, 0ms)...`}catch{} $('#hotline').textContent=META.company.phone;
   $('#coName').textContent=META.company.name;$('#coAddr').textContent=META.company.address;$('#coTax').textContent=META.company.taxCode;$('#coEmail').textContent=META.company.email;
   if(META.company.moit)$('#moit').textContent='Số đăng ký Bộ Công Thương: '+META.company.moit;
   renderNav();
