@@ -59,3 +59,9 @@
 - **Lần chạy đầu (26/10):** +382 SP mới (PC & linh kiện, laptop, màn hình...), định giá đúng: ví dụ ThinkBook 14 G9 An Phát 31.990.000 + ship 30.000 + phí 32.000 = 32.052.000đ. Trần tổng SP từ nguồn nâng lên 80.000 (biến `FEED_MAX_TOTAL`).
 - **Tìm bằng giọng nói:** nói xong tự tìm, hiển thị chữ ngay khi đang nói, nút micro nhấp nháy đỏ khi nghe (bấm lần nữa để dừng), báo lỗi cụ thể (chưa cấp quyền micro + cách bật, không nghe thấy, mất mạng, không có micro), trình duyệt không hỗ trợ thì gợi ý bàn phím giọng nói của điện thoại; hiểu số đọc bằng chữ ("dưới năm triệu", "từ mười lăm đến hai mươi triệu", "bảy triệu rưỡi", "năm trăm nghìn"), phân biệt "tầm/từ" với "tám/tư".
 - **Theo dõi:** repo git ~650MB, tăng theo số SP; khi vượt ~2GB nên chuyển dữ liệu sản phẩm ra khỏi git (lưu trữ ngoài + build lúc deploy).
+
+## THANH TOÁN & BẢO VỆ TÀI KHOẢN NHẬN TIỀN (26/10/2026, backend v1.2.2 - Version 7)
+- **Sự cố đơn KK261026A7B4B (87.200đ):** đơn tạo 15:39, email có QR ACB; 15:44 một lần Lưu "Cấu hình vận hành" từ form trống đã xóa STK → `bank_ready=false`. Chưa có webhook ngân hàng nên tiền vào không tự xác nhận → đơn vẫn "Chờ thanh toán", chưa tạo PO.
+- **Luồng đúng:** tiền vào → (webhook SePay/Casso tự động, hoặc quản trị bấm "💰 Đã nhận tiền") → hệ thống tạo PO theo nguồn có giá thực trả thấp nhất → nhân viên đặt tại NCC theo PO (sàn không có API cho người mua) → nhập mã đơn NCC/vận đơn.
+- **Đã sửa:** server giữ nguyên BANK_ACC/BANK_NAME/BANK_BIN khi form gửi giá trị trống (nhật ký ghi "GIU NGUYEN"); trang quản trị hỏi xác nhận khi ô STK trống; khách có nút "✅ Tôi đã chuyển khoản" (giới hạn 3 lần/giờ) → email báo quản trị + huy hiệu "💸 Khách báo đã CK" trong danh sách đơn.
+- **Khuyến nghị:** kết nối SePay với tài khoản ACB, dán Webhook URL có sẵn trong Admin → đơn tự xác nhận và tự lập PO trong vài giây.
