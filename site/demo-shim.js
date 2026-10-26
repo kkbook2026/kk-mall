@@ -138,6 +138,7 @@
     clear: { test: r => r.in_stock && r.disc >= 10 && !(r.fl & BLOCK) && !GENERIC.test(String(r.brand || '').trim()) && r.rating >= 4.5, sort: (a, b) => (b.disc * Math.log(b.sold + 2)) - (a.disc * Math.log(a.sold + 2)) },
     combo: { test: r => r.in_stock && (r.fl & 8) && !(r.fl & 3), sort: (a, b) => (b.disc - a.disc) || (b.sold - a.sold) },
   };
+  let SCACHE = null; // ket qua tim kiem gan nhat (phan trang khong tinh lai)
   async function listProducts(qs) {
     const q = Object.fromEntries(new URLSearchParams(qs));
     const limit = Math.min(60, +q.limit || 24); const page = Math.max(1, +q.page || 1);
@@ -153,12 +154,33 @@
     } else {                                     // tim kiem / tat ca: loc tren chi muc gon, roi lay chi tiet dung trang can xem
       const pk = await getPack();
       const lite = pk.rows.map(r => ({ sku: r[0], name: r[1], brand: r[2], category_id: r[3], category_name: r[4], grp: r[5], kk_price: r[6], in_stock: r[7], rating: r[8], sold: r[9], disc: r[10] || 0, fl: r[11] || 0 }));
-      let hit;
-      if (q.f && SMART[q.f]) { const F = SMART[q.f]; const sq = { ...q }; delete sq.sort; hit = filterRows(lite.filter(F.test), sq); if (!q.sort) hit.sort(F.sort); }
-      else hit = filterRows(lite, q);
+      let hit, search = null, brands = [];
+      if (q.q && window.kkSearch) {                // KK-SEARCH: xep theo do phu hop (Worker), roi ap cac bo loc phu
+        let ks = SCACHE && SCACHE.q === q.q ? SCACHE.r : await window.kkSearch(q.q);
+        if (ks) {
+          SCACHE = { q: q.q, r: ks };
+          const order = new Map(ks.skus.map((k, i) => [k, i])), by = new Map(lite.map(r => [r.sku, r]));
+          const rel = new Map(ks.skus.map((k, i) => [k, ks.rel ? ks.rel[i] : 1]));
+          hit = ks.skus.map(k => by.get(k)).filter(Boolean);
+          if (q.sort) hit = hit.filter(r => rel.get(r.sku) >= 0.35);   // sap xep lai (gia/ban chay): chi giu ket qua lien quan manh
+          const bc = {}; for (const r of hit) bc[r.brand] = (bc[r.brand] || 0) + 1;
+          brands = Object.entries(bc).filter(([b]) => !GENERIC.test(String(b || '').trim())).sort((a, b) => b[1] - a[1]).slice(0, 30).map(([brand, n]) => ({ brand, n }));
+          if (q.group) hit = hit.filter(r => r.grp === q.group);
+          if (q.brand) hit = hit.filter(r => r.brand === q.brand);
+          if (q.min) hit = hit.filter(r => r.kk_price >= +q.min);
+          if (q.max) hit = hit.filter(r => r.kk_price <= +q.max);
+          if (q.stock === '1') hit = hit.filter(r => r.in_stock);
+          hit.sort(SORTERS[q.sort] || ((a, b) => order.get(a.sku) - order.get(b.sku)));
+          search = { fix: ks.fix, relaxed: ks.relaxed, price: ks.price, groups: ks.groups, total: ks.total };
+        }
+      }
+      if (!hit) {
+        if (q.f && SMART[q.f]) { const F = SMART[q.f]; const sq = { ...q }; delete sq.sort; hit = filterRows(lite.filter(F.test), sq); if (!q.sort) hit.sort(F.sort); }
+        else hit = filterRows(lite, q);
+      }
       const slice = hit.slice((page - 1) * limit, page * limit);
       const det = await bySkus(slice.map(r => r.sku));
-      return jr({ total: hit.length, page, limit, items: slice.map(r => det[r.sku] ? fixImg(toRow(det[r.sku])) : r), brands: [] });
+      return jr({ total: hit.length, page, limit, items: slice.map(r => det[r.sku] ? fixImg(toRow(det[r.sku])) : r), brands, search });
     }
     const brandCount = {};
     if (brandSrc) for (const r of brandSrc) brandCount[r.brand] = (brandCount[r.brand] || 0) + 1;

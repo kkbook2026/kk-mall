@@ -120,8 +120,15 @@ const nd = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-
 /* Luat phan loai: [nhom, regex tren chuoi KHONG dau (co ranh gioi tu), regex xac nhan tren chuoi CO dau (tuy chon)]
    Thu tu quan trong: loai tru -> thiet bi y te -> do choi -> sach -> thuc pham dac thu -> dien tu -> gia dung -> thoi trang... */
 const W = alt => new RegExp('(^|[^\\p{L}\\p{N}])(' + alt + ')(?![\\p{L}\\p{N}])', 'u'); // nguyen tu, ho tro chu co dau
-const EXCLUDE = /\b(bao cao su|gel boi tron|do choi nguoi lon|sextoy|thuoc la|vape|pod dien tu|ruou|bia \d|thuoc ke don)\b/;
+const EXCLUDE = /\b(buyback|cam ket gia thu|bao cao su|gel boi tron|do choi nguoi lon|sextoy|thuoc la|vape|pod dien tu|ruou|bia \d|thuoc ke don)\b/;
 const RULES = [
+  /* --- Uu tien cao: tu de nham nhom (rà soát 26/10/2026) --- */
+  ['Thực phẩm chức năng', /\bdieu hoa (kinh nguyet|noi tiet|huyet ap|tieu hoa|than nhiet|hormone|chu ky|mo mau|kinh)\b|\b(kinh nguyet|noi tiet to|ich mau|bo huyet)\b|\b(ho tro|giup|vien|bot|powder|siro|phan hoa|tra|nuoc uong|cao|thuc pham)\b.*\bdieu hoa\b(?! (inverter|\d|mot chieu|hai chieu|2 chieu|1 chieu))|\bdieu hoa (chuc nang|giac ngu|co the|sinh ly|than kinh|nhip tim|duong ruot|mien dich)\b/],
+  ['Nội thất phòng ngủ', /\b(chieu|dem|nem|goi|chan|tam lot)( \w+)? dieu hoa\b/],
+  ['Quạt & Máy lọc không khí', /\bquat (dieu hoa|hoi nuoc|lam mat)\b|\bmay lam mat khong khi\b/, W('quạt')],
+  ['Dụng cụ & Sửa chữa', /^(tua vit|bo tua vit)\b|\bbo dung cu sua chua\b/, W('tua vít|tuốc nơ vít|dụng cụ sửa chữa')],
+  ['Túi xách & Ba lô', /\b(bao da|tui|cap|balo|ba lo)\b.*\b(laptop|macbook|surface|may tinh xach tay)\b/, W('túi|cặp|balo|ba lô|bao da')],
+  ['Ốp lưng & Phụ kiện', /^(?!.*\bbang keo\b).*\b(dan|bo dan|mieng dan|op|op lung|op vien|bao da|kinh cuong luc|cuong luc|bao ve camera)\b.*\b(iphone|ipad|samsung|galaxy|macbook|laptop|airpods|apple watch|dien thoai|xiaomi|oppo|vivo|realme|surface|man hinh|camera|tab)\b/, W('dán|bộ dán|miếng dán|ốp|ốp lưng|ốp viền|bao da|kính cường lực|cường lực|bảo vệ camera')],
   /* --- Bo sung tu phan tich du lieu feed that (mau ban ghi chua phan loai) --- */
   ['Thiết bị làm đẹp & sức khỏe', /\b(kem cat da|kem mong|kem nghia|dua mong|sui da|bam mong|cat mong|son mong|may lam mong)\b/],
   ['Chăm sóc da', /\b(tham dau|phim tham|giay tham)\b/],
@@ -215,6 +222,8 @@ const RULES = [
   ['Trang trí & Cây cảnh', /\b(cay canh|cay gia|hoa gia|tranh treo|trang tri|binh hoa|chau cay)\b/],
   ['Thẻ nạp & Thẻ game', /\b(the nap|the game|the cao|garena|steam wallet)\b/], ['Voucher ăn uống & giải trí', /\b(voucher|e-?voucher|phieu qua tang)\b/], ['Dịch vụ số', /\b(goi cuoc|ban quyen|license|phan mem|subscription|netflix|spotify|youtube premium)\b/],
 ];
+const PRIORITY_N = 6; // so luat uu tien dau RULES (them 26/10/2026)
+function classifyPriority(name) { const s = nd(name), a = String(name || '').toLowerCase(); for (const [g, re, acc] of RULES.slice(0, PRIORITY_N)) if (re.test(s) && (!acc || acc.test(a))) return g; return null; }
 function classifyOne(text) {
   const s = nd(text), a = String(text || '').toLowerCase();
   if (!s.trim()) return null;
@@ -297,4 +306,4 @@ async function collectFeeds(env) {
   return { offers, stat, dropKeys, unclassSample: sample };
 }
 
-module.exports = { collectFeeds, feedList, parsePrice, parseAny, normRow, classify, normKey, SOURCES };
+module.exports = { collectFeeds, feedList, parsePrice, parseAny, normRow, classify, classifyPriority, normKey, SOURCES };
