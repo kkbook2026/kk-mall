@@ -5,7 +5,7 @@
 (function (root) {
   'use strict';
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd')
-    .replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+    .replace(/([a-z])(\d)/g, '$1 $2').replace(/(\d)([a-z])/g, '$1 $2').replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim(); // tach chu-so dinh lien ("Văn phòng289")
   const digits = s => { let d = String(s || '').replace(/\D/g, ''); if (d.startsWith('84') && d.length === 11) d = '0' + d.slice(2); return d; };
   const money = s => Math.round(Number(String(s || '').replace(/[^\d]/g, '')) || 0);
 
