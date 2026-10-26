@@ -1,6 +1,6 @@
 # KK-MALL - Đại siêu thị trực tuyến
 
-> KK-MALL (www.kk-mall.com) tổng hợp hơn 21.000 mặt hàng chính hãng từ các nền tảng thương mại điện tử lớn tại Việt Nam, 15 ngành hàng. Giá hiển thị là giá cuối cùng: đã gồm thuế GTGT và giao hàng tận cửa, không phụ phí. Giá cập nhật tự động mỗi 3 giờ; mọi thay đổi giá được niêm phong bằng chuỗi SHA-256 và Merkle root công khai, ai cũng tự kiểm chứng được.
+> KK-MALL (www.kk-mall.com) tổng hợp hơn 20.000 mặt hàng chính hãng từ các nền tảng thương mại điện tử lớn tại Việt Nam, 15 ngành hàng. Giá hiển thị là giá cuối cùng: đã gồm thuế GTGT và giao hàng tận cửa, không phụ phí. Giá cập nhật tự động mỗi 3 giờ; mọi thay đổi giá được niêm phong bằng chuỗi SHA-256 và Merkle root công khai, ai cũng tự kiểm chứng được.
 
 ## Trang chính
 - [Trang chủ](https://www.kk-mall.com/): tìm kiếm, bộ lọc Săn Deal (giảm giá đã xác minh), Đáy Giá Lịch Sử, Xả Kho Chính Hãng, Combo Tiết Kiệm
