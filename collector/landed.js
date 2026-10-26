@@ -58,7 +58,9 @@ function create(env = process.env, stats = null) {
 }
 /* Lay thong ke chenh lech thuc tra tu backend (neu cau hinh) - khong bao gio lam hong chu ky thu thap */
 async function fetchStats(env = process.env) {
-  const url = String(env.KK_BACKEND_URL || '').trim(), key = String(env.BACKEND_STATS_KEY || '').trim();
+  let url = String(env.KK_BACKEND_URL || '').trim(), key = String(env.BACKEND_STATS_KEY || '').trim();
+  if (!url) { try { const m = require('fs').readFileSync(require('path').join(__dirname, '..', 'site', 'config.js'), 'utf8').match(/KK_BACKEND\s*=\s*'([^']+)'/); if (m) url = m[1]; } catch { } }
+  if (!key && env.ADMIN_PORTAL_KEY) key = require('crypto').createHash('sha256').update('kk-stats|' + String(env.ADMIN_PORTAL_KEY).trim()).digest('hex'); // cung cong thuc voi trang quan tri
   if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url) || !key) return null;
   try {
     const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 20000);
