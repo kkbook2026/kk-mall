@@ -65,3 +65,15 @@
 - **Luồng đúng:** tiền vào → (webhook SePay/Casso tự động, hoặc quản trị bấm "💰 Đã nhận tiền") → hệ thống tạo PO theo nguồn có giá thực trả thấp nhất → nhân viên đặt tại NCC theo PO (sàn không có API cho người mua) → nhập mã đơn NCC/vận đơn.
 - **Đã sửa:** server giữ nguyên BANK_ACC/BANK_NAME/BANK_BIN khi form gửi giá trị trống (nhật ký ghi "GIU NGUYEN"); trang quản trị hỏi xác nhận khi ô STK trống; khách có nút "✅ Tôi đã chuyển khoản" (giới hạn 3 lần/giờ) → email báo quản trị + huy hiệu "💸 Khách báo đã CK" trong danh sách đơn.
 - **Khuyến nghị:** kết nối SePay với tài khoản ACB, dán Webhook URL có sẵn trong Admin → đơn tự xác nhận và tự lập PO trong vài giây.
+
+## TỰ ĐỒNG BỘ LỆNH MUA TỪ EMAIL NGUỒN (26/10/2026, backend v1.3.0)
+- **Quy trình đặt tại nguồn:** mở trang nguồn → Mua ngay → địa chỉ nhận = tên + SĐT + địa chỉ của khách KK-MALL → thanh toán trước bằng phương thức đã lưu (KHÔNG chọn tiền mặt khi nhận hàng) → bấm Đặt hàng. Claude có thể làm hộ qua Chrome tới bước thanh toán, chủ sở hữu duyệt tổng tiền rồi mới bấm Đặt hàng (sàn không có API mua hàng, thanh toán cần xác thực ngân hàng).
+- **Tự động sau khi đặt** (hàm `mailSync`, 15 phút/lần, đọc hộp thư chủ sở hữu với quyền CHỈ ĐỌC `gmail.readonly` qua dịch vụ Gmail API nâng cao):
+  - "Xác nhận đơn hàng #ID" (noreply@tiki.vn): gắn mã đơn Tiki vào lệnh mua "Cần đặt" khi SĐT người nhận trùng khách đã thanh toán và tên SP khớp ≥ 60%; thực trả = tổng giá trị đơn Tiki (chia theo dòng nếu nhiều SP), ship thực = phí vận chuyển - giảm giá vận chuyển → sổ kế toán, bù trượt giá/phải hoàn khách, email "đã đặt tại nhà cung cấp".
+  - "Đang vận chuyển": lệnh mua → Đang giao, lưu đơn vị (TED) + dự kiến giao, email khách; trang theo dõi đơn hiển thị dự kiến giao.
+  - "Giao thành công": lệnh mua + đơn → Đã giao, tự lập nháp hóa đơn phí dịch vụ, email khách.
+  - Cảnh báo quản trị: đơn nguồn để COD cho khách KK-MALL, nguồn hủy đơn, chưa thanh toán tại nguồn, SĐT khớp khách nhưng sai sản phẩm. Đơn Tiki cá nhân (SĐT khác khách) bị bỏ qua.
+- **Quản trị → Lệnh mua:** dòng trạng thái "Tự đồng bộ từ email Tiki" + nhật ký 10 sự kiện gần nhất + nút "📧 Đồng bộ email nguồn ngay"; thẻ lệnh mua hiện "🤖 tự gắn từ email nguồn", dự kiến giao, số phải hoàn khách.
+- **Manifest** `backend/appsscript.json`: khai báo quyền tối thiểu (spreadsheets, drive, script.send_mail, script.external_request, script.scriptapp, gmail.readonly). Cài lịch: chạy `installMailSync` trong trình soạn thảo (lần đầu cần chủ sở hữu cấp quyền Gmail chỉ đọc).
+- **Mở rộng nguồn khác:** thêm vào `MAIL_SOURCES` + bộ đọc mẫu email tương ứng (Shopee, Lazada...).
+- **Kiểm thử:** 114 kiểm tra máy chủ (thêm 24 cho đồng bộ email, dùng mẫu email Tiki thật) + 28 kiểm tra trình duyệt đạt.
