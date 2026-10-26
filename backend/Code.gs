@@ -11,7 +11,7 @@
  */
 
 /* =========================== CẤU HÌNH =========================== */
-var VERSION = '1.4.0';
+var VERSION = '1.4.1';
 var CONSENT_VERSION = 'UQ-2026-10';
 var SHEETS = {
   Orders: ['code', 'created_at', 'status', 'payment_status', 'email', 'phone', 'name', 'goods', 'fee', 'total', 'paid_at', 'data', 'updated_at'],
@@ -206,12 +206,29 @@ function ownedOrder_(b, adminOk) {
   if (!normPhone_(b.phone) || normPhone_(b.phone) !== o.customer.phone) { guardFail_(code); throw err_(NF, 404); }
   return o;
 }
+// Gioi han theo CUA SO CO DINH (khong keo dai thoi gian khoa moi lan thu) - tra ve so giay con lai neu vuot
+function rateFixed_(key, max, sec) {
+  var c = CacheService.getScriptCache(), win = Math.floor(Date.now() / (sec * 1000)), k = key + '_' + win, n = parseInt(c.get(k) || '0', 10);
+  if (n >= max) return Math.ceil(((win + 1) * sec * 1000 - Date.now()) / 1000);
+  c.put(k, String(n + 1), sec); return 0;
+}
 function otpRequest_(b) {
   var email = str_(b.email, 120).toLowerCase(); if (!isEmail_(email)) throw err_('Email không hợp lệ');
-  rate_('otp_e_' + email, 3, 900); rate_('otp_d_' + email, 10, 86400); rate_('otp_all', 25, 3600);
-  if (!mailBudget_(30)) throw err_('Hệ thống đang tạm giới hạn gửi email, vui lòng thử lại sau', 503); // giu han muc email cho don hang
+  var c = CacheService.getScriptCache(), cur = null; try { cur = JSON.parse(c.get('otp_' + email) || 'null'); } catch (e) { cur = null; }
+  // bam "Gui ma" lien tiep (bam dup / mang cham): KHONG gui ma moi trong 60 giay - ma vua gui van dung duoc
+  if (cur && cur.at && Date.now() - cur.at < 60000) return { ok: true, sent: true, reused: true, wait: Math.ceil((60000 - (Date.now() - cur.at)) / 1000), expires_in: Math.max(0, Math.round((cur.at + 600000 - Date.now()) / 1000)) };
+  var adm = adminEmails_().indexOf(email) >= 0, day = Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'yyyyMMdd');
+  var w = rateFixed_('otp15_' + email, adm ? 6 : 3, 900);
+  if (w) throw err_('Đã gửi nhiều mã trong 15 phút - dùng mã MỚI NHẤT trong email, hoặc thử lại sau ' + Math.ceil(w / 60) + ' phút', 429);
+  var cd = CacheService.getScriptCache(), dk = 'otpday_' + email + '_' + day, dn = parseInt(cd.get(dk) || '0', 10);
+  if (dn >= (adm ? 40 : 10)) throw err_('Email này đã nhận quá nhiều mã hôm nay - vui lòng thử lại vào ngày mai', 429);
+  cd.put(dk, String(dn + 1), 21600); // CacheService toi da 6 gio; khoa theo ngay nam trong ten khoa
+  if (rateFixed_('otp_all', 40, 3600)) throw err_('Hệ thống đang nhận nhiều yêu cầu, vui lòng thử lại sau ít phút', 429);
+  if (!mailBudget_(adm ? 5 : 30)) throw err_('Hệ thống đang tạm giới hạn gửi email, vui lòng thử lại sau', 503); // giu han muc email cho don hang
   var code = otpCode_();
-  CacheService.getScriptCache().put('otp_' + email, JSON.stringify({ h: hash_(email + '|' + code), t: 0 }), 600);
+  // giu ca ma truoc (neu con han) de ma trong email cu van dung khi 2 email den lech nhau
+  var prev = cur && cur.h && cur.at && Date.now() - cur.at < 600000 ? { h: cur.h, at: cur.at } : null;
+  c.put('otp_' + email, JSON.stringify({ h: hash_(email + '|' + code), at: Date.now(), t: cur && prev ? (cur.t || 0) : 0, p: prev }), 600);
   var ok = mail_(email, 'Mã đăng nhập KK-MALL: ' + code, '<p>Mã xác thực của bạn là:</p><p style="font-size:30px;font-weight:900;letter-spacing:6px;color:#1E3A8A">' + code + '</p><p>Mã có hiệu lực <b>10 phút</b>. Không chia sẻ mã này cho bất kỳ ai, kể cả nhân viên KK-MALL.</p>');
   if (!ok) throw err_('Không gửi được email, vui lòng thử lại', 500);
   log_('otp_sent', email, '');
@@ -223,7 +240,8 @@ function otpVerify_(b) {
   if (!raw) throw err_('Mã đã hết hạn hoặc chưa được gửi', 401);
   var o = JSON.parse(raw);
   if (o.t >= 5) { c.remove('otp_' + email); throw err_('Nhập sai quá 5 lần - vui lòng lấy mã mới', 401); }
-  if (hash_(email + '|' + code) !== o.h) { o.t++; c.put('otp_' + email, JSON.stringify(o), 600); throw err_('Mã xác thực không đúng', 401); }
+  var hc = hash_(email + '|' + code), prevOk = o.p && o.p.h === hc && Date.now() - o.p.at < 600000;
+  if (hc !== o.h && !prevOk) { o.t = (o.t || 0) + 1; c.put('otp_' + email, JSON.stringify(o), 600); throw err_('Mã xác thực không đúng' + (o.t >= 3 ? ' (còn ' + (5 - o.t) + ' lần thử)' : ''), 401); }
   c.remove('otp_' + email);
   var isAdm = adminEmails_().indexOf(email) >= 0, role = isAdm && b.scope === 'admin' ? 'admin' : 'member'; // quyen quan tri chi cap khi dang nhap tu /admin
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
