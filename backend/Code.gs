@@ -488,7 +488,8 @@ function reviewSubmit_(b) {
   if (!(rating >= 1 && rating <= 5)) throw err_('Chọn số sao từ 1 đến 5');
   var line = o.lines.filter(function (l) { return l.sku === sku; })[0]; if (!line) throw err_('Sản phẩm không có trong đơn này');
   var po = rows_('PO').filter(function (p) { return p.order_code === o.code && p.sku === sku; })[0];
-  if (!(o.status === 'delivered' || o.status === 'completed' || (po && po.status === 'delivered'))) throw err_('Bạn có thể đánh giá sau khi đã nhận hàng');
+  // co lenh mua cho dong hang: chi danh gia khi CHINH dong do da giao (dong bi huy/hoan do nguon het hang thi khach chua tung nhan hang)
+  if (po ? po.status !== 'delivered' : !(o.status === 'delivered' || o.status === 'completed')) throw err_('Bạn có thể đánh giá sau khi đã nhận hàng');
   rate_('rv_' + o.code, 6, 21600);
   var content = str_(b.content, 600), lk = LockService.getScriptLock(); lk.waitLock(20000);
   try {
