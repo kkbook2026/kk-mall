@@ -24,7 +24,7 @@ const srcName = s => (SRC[s] || [s])[0];
 (function injectTabs() {
   const nav = document.getElementById('nav'), main = document.querySelector('main');
   const addTab = (key, label, after) => { const b = document.createElement('button'); b.dataset.t = key; b.textContent = label; b.onclick = () => go(key); const ref = nav.querySelector(`[data-t="${after}"]`); ref ? ref.after(b) : nav.appendChild(b); };
-  addTab('po', '🛒 Lệnh mua', 'orders'); addTab('rma', '↩️ Đổi trả & BH', 'po'); addTab('ledger', '📒 Sổ kế toán', 'rev'); addTab('reviews', '⭐ Đánh giá', 'rma');
+  addTab('po', '🛒 Lệnh mua', 'orders'); addTab('rma', '↩️ Đổi trả & BH', 'po'); addTab('ledger', '📒 Sổ kế toán', 'rev'); addTab('reviews', '⭐ Đánh giá', 'rma'); addTab('smiss', '🔎 Tìm không ra', 'reviews');
   main.insertAdjacentHTML('beforeend', `
   <section class="sec" id="t-po"><h2>Lệnh mua tại nhà cung cấp <span style="font-weight:600;font-size:12px;color:var(--muted)" id="poCount"></span></h2>
     <div class="note">Mỗi đơn đã thanh toán tự sinh lệnh mua cho từng sản phẩm. Hệ thống <b>tự lập kế hoạch</b>: nguồn rẻ nhất còn hàng đã qua Bộ lọc Tin cậy, đúng mã sản phẩm, ưu tiên nguồn <b>xuất được hóa đơn GTGT</b> nếu khách yêu cầu, áp <b>biên dung sai trượt giá</b>. Người vận hành chỉ cần: <b>Mở trang nguồn → dán thông tin giao hàng (đã chép sẵn) → thanh toán → bấm "Đã đặt"</b>. Hệ thống tự hạch toán chi hộ, bù trượt giá, báo khách.</div>
@@ -39,6 +39,10 @@ const srcName = s => (SRC[s] || [s])[0];
     <div class="note">Chỉ khách có đơn KK-MALL <b>đã giao</b> mới đánh giá được (mỗi sản phẩm/đơn 1 lần). Nội dung chứa liên kết, số điện thoại, email hoặc từ ngữ thô tục tự chuyển <b>Chờ duyệt</b>. Trang sản phẩm chỉ hiện sao khi có đánh giá thật.</div>
     <div class="row"><select id="rvF" onchange="renderReviews()"><option value="pending">Chờ duyệt</option><option value="published">Đang hiển thị</option><option value="hidden">Đã ẩn</option><option value="">Tất cả</option></select><button class="btn2" onclick="loadReviewsAdm()">⟳ Tải lại</button></div>
     <div class="card"><table id="rvTbl"></table></div></section>`);
+  main.insertAdjacentHTML('beforeend', `<section class="sec" id="t-smiss"><h2>Từ khóa khách tìm không ra <span style="font-weight:600;font-size:12px;color:var(--muted)" id="smCount"></span></h2>
+    <div class="note">Ghi nhận <b>ẩn danh</b> (chỉ cụm từ - không email, SĐT, đường link, không định danh người tìm) khi khách tìm ra <b>0 kết quả</b> / chỉ kết quả gần đúng, hoặc bấm <b>"Nhờ KK-MALL tìm nguồn"</b>. Dùng để: bổ sung nguồn hàng còn thiếu, thêm từ đồng nghĩa cho bộ máy tìm kiếm. Gộp mỗi giờ; bấm Tải lại để gộp ngay.</div>
+    <div class="row"><select id="smF" onchange="renderSmiss()"><option value="">Tất cả</option><option value="request">🙋 Khách nhờ tìm nguồn</option><option value="zero">0 / ít kết quả</option></select><button class="btn2" onclick="loadSmiss()">⟳ Tải lại</button><button class="btn2" onclick="exportSmiss()">⬇ CSV</button></div>
+    <div class="card"><table id="smTbl"></table></div></section>`);
   document.querySelector('#t-orders .note').insertAdjacentHTML('afterend', '<div id="rfQueue"></div>');
   document.querySelector('#t-orders .note').innerHTML = 'Đơn hàng từ <b>máy chủ</b> (mọi khách, mọi thiết bị). Cột tách: <b>Tiền hàng thu hộ</b> (chi trả nhà cung cấp, TK 3388) và <b>Phí DV KK-MALL</b> (doanh thu, TK 5113 + VAT). Thanh toán VietQR tự xác nhận qua webhook ngân hàng; có thể xác nhận tay.';
 })();
@@ -71,7 +75,7 @@ async function opsLoad() {
     const [o, cfg] = await Promise.all([OPS.call('admin.orders', { limit: 500 }), OPS.call('admin.config')]);
     OPS.orders = o.orders; OPS.tol = o.tolerance; OPS.vatSrc = o.vat_sources; OPS.cfg = cfg; FEE_TABLE = o.fee_table;
     try { const sk = sessionStorage.getItem('kk_stats_key'); if (sk && cfg.STATS_KEY !== sk) { OPS.cfg = await OPS.call('admin.config', { set: { STATS_KEY: sk } }); logAdmin('Đăng ký khóa thống kê ship cho bộ thu thập'); } } catch (e) { console.warn('stats key', e); }
-    renderOrders(); renderRev(); renderPO(); renderCmp(); renderOpsCfg(); renderMailSync(); renderRefunds(); loadReviewsAdm();
+    renderOrders(); renderRev(); renderPO(); renderCmp(); renderOpsCfg(); renderMailSync(); renderRefunds(); loadReviewsAdm(); loadSmiss();
     OPS.call('admin.rmas').then(r => { OPS.rmas = r.rows; renderRMA(); });
     OPS.call('admin.ledger').then(r => { OPS.ledger = r.rows; renderLedger(); });
     OPS.call('admin.invoices').then(r => { OPS.invs = r.rows; renderFeeInv(); });
@@ -344,6 +348,15 @@ function renderReviews() {
     <td>${r.status !== 'published' ? `<button class="btn2 pri" onclick="rvAct('${esc(r.id)}','publish')">Hiển thị</button>` : ''}${r.status !== 'hidden' ? `<button class="btn2" onclick="rvAct('${esc(r.id)}','hide')">Ẩn</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" style="color:var(--muted)">Không có đánh giá ở trạng thái này.</td></tr>');
 }
 async function rvAct(id, action) { try { await OPS.call('admin.review.update', { id, action }); logAdmin('Đánh giá ' + id + ': ' + action); await loadReviewsAdm(); } catch (e) { alert(e.message); } }
+/* ---------- từ khóa tìm không ra (ẩn danh) ---------- */
+async function loadSmiss() { if (!OPS.on || !OPS.tok()) return; try { OPS.smiss = (await OPS.call('admin.searchmiss')).rows; renderSmiss(); } catch (e) { console.warn(e); } }
+function renderSmiss() {
+  const t = document.getElementById('smTbl'); if (!t) return; const R = OPS.smiss || [], f = ($('#smF') || {}).value || '';
+  const req = R.filter(r => r.kind === 'request').length, nb = document.querySelector('[data-t="smiss"]'); if (nb) nb.textContent = '🔎 Tìm không ra' + (req ? ` (${req})` : '');
+  const L = R.filter(r => !f || r.kind === f); $('#smCount').textContent = '· ' + L.length + ' cụm từ';
+  t.innerHTML = '<tr><th>Cụm từ khách gõ</th><th>Loại</th><th>Số lần</th><th>Kết quả lúc đó</th><th>Lần đầu</th><th>Gần nhất</th><th></th></tr>' + (L.map(r => `<tr><td><b>${esc(r.q)}</b></td><td>${r.kind === 'request' ? '🙋 Nhờ tìm nguồn' : '0 / ít kết quả'}</td><td>${r.n}</td><td>${r.results}</td><td style="font-size:12px">${esc(new Date(r.first_at).toLocaleString('vi-VN'))}</td><td style="font-size:12px">${esc(new Date(r.last_at).toLocaleString('vi-VN'))}</td><td><a class="btn2" style="text-decoration:none" target="_blank" rel="noopener" href="../?q=${encodeURIComponent(r.q)}">Thử tìm</a> ${cp(r.q)}</td></tr>`).join('') || '<tr><td colspan="7" style="color:var(--muted)">Chưa có từ khóa nào - khách đang tìm được hàng.</td></tr>');
+}
+function exportSmiss() { const R = OPS.smiss || []; const q = v => '"' + String(v).replace(/"/g, '""').replace(/^([=+\-@\t\r])/, "'$1") + '"'; const csv = '\ufeffcụm từ,loại,số lần,kết quả,lần đầu,gần nhất\n' + R.map(r => [r.q, r.kind, r.n, r.results, r.first_at, r.last_at].map(q).join(',')).join('\n'); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'kk-tim-khong-ra.csv'; a.click(); }
 /* ---------- tự kiểm toán ---------- */
 async function runAudit() {
   const el = document.getElementById('auditOut'); el.textContent = 'Đang đối soát…';

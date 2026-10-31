@@ -131,6 +131,7 @@
   }
   /* ---------- BO LOC HANH VI MUA SAM (chay tren chi muc gon, da qua Bo loc Tin cay) ---------- */
   const GENERIC = /^(kk select|no ?brand|oem|khác|không thương hiệu|generic|)$/i;
+  const NOISE_BRAND = /^(sandal|attp|vsattp|decal|sticker|xe|led|view|nam|nữ|tinh|cao|matcha|lifestyle|google|android|smart|mini|pro|plus|vnxk|hàng việt nam|việt nam)$|\d{3,}/i;   // gia tri nhieu trong truong thuong hieu cua nguon
   const BLOCK = 1 | 2 | 16 | 32; // tam giu | hang cu | gia goc ao | chua co nguon that
   const SMART = {
     deal: { test: r => r.in_stock && r.disc >= 20 && !(r.fl & BLOCK), sort: (a, b) => (b.disc - a.disc) || (b.sold - a.sold) },
@@ -156,22 +157,24 @@
       const lite = pk.rows.map(r => ({ sku: r[0], name: r[1], brand: r[2], category_id: r[3], category_name: r[4], grp: r[5], kk_price: r[6], in_stock: r[7], rating: r[8], sold: r[9], disc: r[10] || 0, fl: r[11] || 0 }));
       let hit, search = null, brands = [];
       if (q.q && window.kkSearch) {                // KK-SEARCH: xep theo do phu hop (Worker), roi ap cac bo loc phu
-        let ks = SCACHE && SCACHE.q === q.q ? SCACHE.r : await window.kkSearch(q.q);
+        const must = String(q.attr || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 4);   // bo loc thuoc tinh (55 inch, 256GB...)
+        let ks = SCACHE && SCACHE.q === q.q && SCACHE.m === must.join(',') ? SCACHE.r : await window.kkSearch(q.q, 3000, must);
         if (ks) {
-          SCACHE = { q: q.q, r: ks };
+          SCACHE = { q: q.q, m: must.join(','), r: ks };
           const order = new Map(ks.skus.map((k, i) => [k, i])), by = new Map(lite.map(r => [r.sku, r]));
           const rel = new Map(ks.skus.map((k, i) => [k, ks.rel ? ks.rel[i] : 1]));
           hit = ks.skus.map(k => by.get(k)).filter(Boolean);
           if (q.sort) hit = hit.filter(r => rel.get(r.sku) >= 0.35);   // sap xep lai (gia/ban chay): chi giu ket qua lien quan manh
           const bc = {}; for (const r of hit) bc[r.brand] = (bc[r.brand] || 0) + 1;
-          brands = Object.entries(bc).filter(([b]) => !GENERIC.test(String(b || '').trim())).sort((a, b) => b[1] - a[1]).slice(0, 30).map(([brand, n]) => ({ brand, n }));
+          const good = new Set((ks.brands || []).map(b => b.brand));          // thuong hieu that (bo may tim kiem da loc nhieu du lieu nguon)
+          brands = Object.entries(bc).filter(([b, n]) => !GENERIC.test(String(b || '').trim()) && !NOISE_BRAND.test(String(b || '').trim()) && (good.has(b) || n >= 2)).sort((a, b) => (good.has(b[0]) - good.has(a[0])) || (b[1] - a[1])).slice(0, 30).map(([brand, n]) => ({ brand, n }));
           if (q.group) hit = hit.filter(r => r.grp === q.group);
           if (q.brand) hit = hit.filter(r => r.brand === q.brand);
           if (q.min) hit = hit.filter(r => r.kk_price >= +q.min);
           if (q.max) hit = hit.filter(r => r.kk_price <= +q.max);
           if (q.stock === '1') hit = hit.filter(r => r.in_stock);
           hit.sort(SORTERS[q.sort] || ((a, b) => order.get(a.sku) - order.get(b.sku)));
-          search = { fix: ks.fix, relaxed: ks.relaxed, price: ks.price, groups: ks.groups, total: ks.total };
+          search = { fix: ks.fix, relaxed: ks.relaxed, price: ks.price, groups: ks.groups, total: ks.total, dropped: ks.dropped || [], missing: ks.missing || [], partial: ks.partial || 0, attrs: ks.attrs || [], buckets: ks.buckets || [] };
         }
       }
       if (!hit) {

@@ -114,3 +114,29 @@
 
 **Kiểm thử:** 174 kiểm tra máy chủ + 38 kiểm tra trình duyệt (thêm: địa chỉ 3 cấp, đánh giá thật qua giao diện, hoàn tiền khách→quản trị→VietQR, tự kiểm toán, khóa PBKDF2 trình duyệt = bộ thu thập) + 15 kiểm tra tiện ích; chạy lại 8 script chứng minh lỗi của rà soát → đều đã hết.
 - **Triển khai 31/10/2026:** máy chủ Version 9 (v1.5.0) chạy thật; website + bộ thu thập + giám sát đã lên `main`. Kiểm tra trên hệ thống thật: giám sát 30 phút đạt toàn bộ; 28.397 SP không còn sao/tồn kho giả (điểm 0 cho tới khi có đánh giá thật); trang SP tải đánh giá từ máy chủ; link theo dõi đơn trong email mở đúng đơn; bộ thu thập đặt commit dữ liệu lên trên commit mã nguồn (không ghi đè).
+
+## TÌM KIẾM KK-SEARCH 2 - DỄ TÌM NHẤT, CÓ ĐO LƯỜNG (31/10/2026, kk-search 2.0.0, backend v1.6.0)
+**Mục tiêu:** khách gõ thế nào cũng ra đúng hàng (có dấu / không dấu / viết tắt / gõ sai / gõ dính chữ / tiếng Anh / đơn vị), hiểu loại hàng khách cần, không bao giờ trả trang trống vô ích.
+
+**Bộ máy (chạy trong Web Worker trên máy khách, không gửi truy vấn đi đâu, ~4 ms/truy vấn, dựng chỉ mục ~1,1 giây như bản cũ):**
+- **Hiểu dấu khi khách có gõ dấu:** "giày" ≠ "giấy", "đèn" ≠ "đen", "bàn là" ≠ "bản lần"; không phân biệt kiểu bỏ dấu (hoà = hòa). Không gõ dấu vẫn tìm bình thường.
+- **Hiểu LOẠI HÀNG (từ chính của câu):** sản phẩm có tên bắt đầu bằng đúng loại hàng xếp trước (bỏ qua chữ đệm Combo/Bộ/Set, tên hãng); đẩy phụ kiện, linh kiện ("yên/đèn/mũ xe đạp", remote điều hòa, ốp lưng) xuống khi khách không tìm phụ kiện; khi khách tìm chính phụ kiện ("ốp lưng", "giá treo xe đạp", "pin dự phòng") thì không bị phạt.
+- **Cụm từ tự học từ danh mục** (2.100+ cụm: "đồng hồ", "dây da", "chạy bộ", "cửa ngang", "type c") + đồng nghĩa 2 chiều (bình nóng lạnh = máy nước nóng, ấm siêu tốc, tai phone, gaming chair, hair dryer, projector...) + mở rộng 1 chiều (ổ cứng → SSD/HDD, đồ chơi → lego/xếp hình) + tương đương đơn vị (12000BTU = 1.5HP = "1 ngựa rưỡi", 1.0HP = 1HP, 12.000 BTU, 1TB = 1000GB).
+- **Gõ lỗi:** dính chữ ("noichien", "maylocnuoc", "laptopdell"), sót phím Telex/VNI ("tur lanh", "tu3 lanh"), sai chính tả (samsng, tivj, gamng); không "sửa" tên thật danh mục chưa có (LEGO, Nike...) thành từ khác.
+- **Nói thật khi không có hàng:** loại hàng khách cần không có trong danh mục → báo "KK-MALL chưa có mặt hàng 'bàn là'" (không trả hàng khác loại); thiếu thuộc tính → hiện hàng cùng loại gần đúng + ghi rõ đã bỏ qua từ nào; ít hàng khớp đủ (vd 1 điện thoại + vài ốp lưng) → bổ sung hàng cùng loại, cùng hãng, chỉ nới thuộc tính/model, xếp trước phụ kiện. "mini/nhỏ gọn" mà không có đúng chữ → ưu tiên loại nhỏ (giá thấp trong cùng loại).
+- **Bộ lọc tự sinh theo kết quả:** RAM / Bộ nhớ trong / Kích thước / Công suất lạnh / Khối lượng / Dung lượng pin...; khoảng giá theo phân vị thực tế của kết quả; danh mục; thương hiệu thật (lọc nhiễu "Sandal", "ATTP"... từ dữ liệu nguồn).
+
+**Giao diện ô tìm kiếm:** gợi ý hoàn thành cụm từ CÓ DẤU khi gõ không dấu ("tu lanh s" → "tủ lạnh samsung · 78 SP"), chip danh mục + thương hiệu (bấm để tìm trong đó), sản phẩm có tô đậm chữ khớp, "Xem tất cả N kết quả"; phím ↑/↓/Enter/Esc, chuẩn ARIA combobox; ô trống → "Tìm gần đây" (lưu trên máy, xóa từng mục) + "Mọi người hay tìm"; URL `?q=` chia sẻ được; điện thoại: Enter ẩn bàn phím.
+
+**Tìm không ra → dữ liệu để bổ sung nguồn (ẩn danh):** từ khóa 0 kết quả / chỉ gần đúng và nút "🙋 Nhờ KK-MALL tìm nguồn hàng này" gửi `search.miss` (chỉ cụm từ; bỏ qua nếu có SĐT, email, link; trần 400 lượt/giờ) → đệm, gộp vào sheet **SearchMiss** mỗi giờ → Admin tab **"🔎 Tìm không ra"** (lọc loại, thử tìm, chép, xuất CSV).
+
+**Đo lường (nDCG@10 - chấm điểm phân cấp 2/1/0, 3 bộ truy vấn người mua thật):**
+| Bộ đánh giá | KK-SEARCH 1.1 | KK-SEARCH 2.0 |
+|---|---|---|
+| 110 truy vấn (55 chỉnh + 55 kiểm tra) - phần kiểm tra | 84,3% | 94,3% |
+| 32 truy vấn holdout (đã dùng để sửa lỗi tổng quát) | 74,5% | 85,3% |
+| 30 truy vấn viết "mù" cuối cùng - lần chạy đầu | 90,9% | 92,0% |
+| ... sau 3 sửa lỗi tổng quát (từ khóa tên riêng, "mini", nhận nhầm "Loa" là thương hiệu) | | 94,8% |
+| Truy vấn trả 0 kết quả (110 truy vấn) | 5 | 1 (bàn là - danh mục thật sự không có) |
+
+**Kiểm thử:** 181 kiểm tra máy chủ (thêm 7: ghi nhận ẩn danh, lọc dữ liệu cá nhân, trần lượt, quyền quản trị, chống chèn công thức, gộp hằng giờ), 38 kiểm tra trình duyệt toàn trang + 27 kiểm tra trình duyệt riêng ô tìm kiếm (gợi ý, dấu, phím, bộ lọc thuộc tính/giá/danh mục/thương hiệu, 0 kết quả, liên kết, điện thoại 390px, không lỗi JS/CSP). Giám sát 30 phút kiểm tra thêm phiên bản bộ máy tìm kiếm.

@@ -46,6 +46,8 @@ async function main() {
     const rv = json((await get(be + '?a=reviews&sku=' + (row ? row[0] : 'KK000001'), { timeout: 40000 })).body);
     add('Đánh giá sản phẩm (API công khai)', rv && typeof rv.n === 'number', rv ? rv.n + ' đánh giá' : 'không phản hồi');
   }
+  const ks = await get(SITE + '/kk-search.js?t=' + Date.now()); const kv = (ks.body.match(/version: '([\d.]+)'/) || [])[1];
+  add('Bộ máy tìm kiếm trên thiết bị (kk-search.js)', ks.status === 200 && /^2\./.test(kv || ''), kv ? 'phiên bản ' + kv : 'HTTP ' + ks.status);
   const adm = await get(SITE + '/admin/'); add('Trang quản trị', adm.status === 200 && /noindex/.test(adm.body), 'HTTP ' + adm.status);
   const enc = await get(SITE + '/admin/data.enc', { method: 'HEAD' }); add('Gói dữ liệu quản trị (mã hóa)', enc.status === 200, 'HTTP ' + enc.status);
   const ext = await get(SITE + '/admin/ext/kk-auto-order.zip', { method: 'HEAD' }); add('Gói tiện ích đặt hàng', ext.status === 200, 'HTTP ' + ext.status);

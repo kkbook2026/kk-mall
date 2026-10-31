@@ -35,6 +35,26 @@ header.hd .wrap{display:flex;align-items:center;gap:18px;height:88px}
 .sug .si:hover{background:#F6F4FF}
 .sug .si b{color:var(--coral);white-space:nowrap}
 .sug .st0{padding:8px 16px;font-size:11px;color:var(--muted);background:#FCFBF8}
+.sug .sg-h{padding:8px 16px 4px;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between;align-items:center}
+.sug .sg-h a{text-transform:none;font-weight:700;color:#7C3AED;cursor:pointer;letter-spacing:0}
+.sug .sg-q{display:flex;align-items:center;gap:10px;padding:8px 16px;font-size:14px;cursor:pointer;color:#475569}
+.sug .sg-q b{color:var(--ink);font-weight:800}.sug .sg-q small{margin-left:auto;color:var(--muted);font-size:11.5px}
+.sug .sg-q .x{margin-left:auto;border:0;background:transparent;color:var(--muted);font-size:14px;padding:2px 6px;border-radius:6px}.sug .sg-q .x:hover{background:#FEE2E2;color:#B91C1C}
+.sug .sg-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 16px 8px;font-size:12px;color:var(--muted)}
+.sug .sg-chips .chip{padding:4px 11px;font-size:12px}
+.sug .si mark,.sug .sg-q mark{background:transparent;color:var(--ink);font-weight:800}
+.sug .si small{color:var(--muted)}
+.sug .sg-all{padding:10px 16px;font-size:13px;font-weight:800;color:#7C3AED;cursor:pointer;border-top:1px solid #F1EEFB;text-align:center}
+.sug .opt.act{background:#F1ECFF;outline:2px solid #C4B5FD;outline-offset:-2px}
+.facets{display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%;margin-top:6px}
+.facets .fl{font-size:12px;color:var(--muted);font-weight:700;margin-right:2px}
+.facets .chip{padding:5px 12px;font-size:12.5px}
+.facets .chip small{opacity:.7;font-weight:600}
+.snote{font-size:13px;color:#334155;background:#F8FAFC;border:1px solid var(--line);border-radius:12px;padding:9px 14px;width:100%;line-height:1.55}
+.snote a{color:#7C3AED;font-weight:700;cursor:pointer}
+.zero{padding:34px 22px;text-align:center;background:#fff;border-radius:14px;grid-column:1/-1}
+.zero h3{margin:0 0 6px;font-size:18px}.zero p{color:var(--muted);margin:6px 0 14px}
+.zero .chips{justify-content:center;display:flex;flex-wrap:wrap;gap:8px}
 .hbtn{display:flex;align-items:center;gap:8px;padding:11px 16px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-weight:700;font-size:14px;position:relative;color:var(--ink)}
 .hbtn:hover{background:#F5F0FF;border-color:#D8C8F7}
 .badge{position:absolute;top:2px;right:4px;background:var(--coral);color:#fff;font-size:11px;font-weight:800;min-width:20px;height:20px;border-radius:10px;display:grid;place-items:center;padding:0 5px}
@@ -338,10 +358,10 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
 <header class="hd"><div class="wrap">
   <a class="logo" href="./"><img src="./logo.svg" alt="KK-MALL"></a>
   <form class="search" onsubmit="doSearch(event)">
-    <input id="q" placeholder="Tìm tức thời trong 20.000+ mặt hàng (chạy ngay trên máy bạn, 0ms)..." autocomplete="off">
+    <input id="q" type="search" enterkeyhint="search" placeholder="Tìm tức thời trong 20.000+ mặt hàng (chạy ngay trên máy bạn, 0ms)..." autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sug" aria-label="Tìm sản phẩm">
     <button type="button" class="mic" id="mic" title="Tìm bằng giọng nói" aria-label="Tìm bằng giọng nói" aria-pressed="false">🎙️</button>
     <button class="go">Tìm kiếm</button>
-    <div class="sug" id="sug"><div id="semSug" class="sem"></div><div id="sugList"></div></div>
+    <div class="sug" id="sug" role="listbox" aria-label="Gợi ý tìm kiếm"><div id="semSug" class="sem"></div><div id="sugList"></div></div>
   </form>
   <button class="hbtn" onclick="openMember()">👤 <span class="t" id="memLbl">Thành viên</span></button>
   <button class="hbtn" onclick="openTrack()">📦 <span class="t">Đơn hàng</span></button>
@@ -420,7 +440,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
     <div class="sec-h"><h2 id="secTitle">Tất cả sản phẩm</h2><div class="chips" id="groups"></div></div>
     <div class="toolbar">
       <select id="sort" onchange="reload()"><option value="">Nổi bật</option><option value="price_asc">Giá thấp → cao</option><option value="price_desc">Giá cao → thấp</option><option value="rating">Đánh giá cao (người đã mua)</option><option value="new">Mới nhất</option></select>
-      <select id="brand" onchange="reload()"><option value="">Tất cả thương hiệu</option></select>
+      <select id="brand" onchange="if(state.q)setSearchTitle();reload()"><option value="">Tất cả thương hiệu</option></select>
       <input id="min" type="number" placeholder="Giá từ" style="width:110px" onchange="reload()"><input id="max" type="number" placeholder="Giá đến" style="width:110px" onchange="reload()">
       <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="stock" onchange="reload()" checked> Chỉ còn hàng</label>
       <span id="count" style="margin-left:auto;color:var(--muted)"></span>
@@ -464,7 +484,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
 </div>
 
 <script src="config.js?v=2610260348"></script>
-<script src="demo-shim.js?v=2610311800"></script>
+<script src="demo-shim.js?v=2610312000"></script>
 <script src="kk-smart.js?v=2610260348"></script>
 <script>
 /* ===== ANH SAN PHAM: 3 lop du phong - anh goc -> anh SVG noi bo -> placeholder sinh tai cho (khong bao gio trong) ===== */
@@ -486,7 +506,7 @@ function navArrows(){const w=document.getElementById('catnav');if(!w)return;cons
   navFocus()}
 function navFocus(){const w=document.getElementById('catnav');if(!w||innerWidth>960)return;const on=w.querySelector('a.on');if(!on)return;const r=on.getBoundingClientRect(),wr=w.getBoundingClientRect();if(r.left<wr.left+40||r.right>wr.right-40)w.scrollTo({left:on.offsetLeft-w.clientWidth/2+on.offsetWidth/2,behavior:'smooth'})}
 const $=s=>document.querySelector(s); const vnd=n=>Number(n||0).toLocaleString('vi-VN')+' đ'; const esc=s=>String(s??'').replace(/&(amp|quot|#0?39|lt|gt|nbsp);/g,m=>({'&amp;':'&','&quot;':'"','&#39;':"'",'&#039;':"'",'&lt;':'<','&gt;':'>','&nbsp;':' '}[m])).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let META={}, state={cat:'',group:'',q:'',page:1,items:[]}, cart=[]; try{cart=JSON.parse(localStorage.getItem('kk_cart')||'[]')}catch{}
+let META={}, state={cat:'',group:'',q:'',attr:{},page:1,items:[]}, cart=[]; try{cart=JSON.parse(localStorage.getItem('kk_cart')||'[]')}catch{}
 cart=cart.filter(c=>c&&c.sku);setTimeout(()=>cart.forEach(c=>{if(!c.kk_price||c.name===c.sku)fixCartItem(c.sku)}),1500);
 const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)};
 async function api(u,o){const r=await fetch(u,o);const j=await r.json();if(!r.ok)throw new Error(j.error||'Lỗi');return j}
@@ -501,12 +521,12 @@ const telemetry=()=>({mm:TEL.mm,kp:TEL.kp,sc:TEL.sc,dt:Date.now()-TEL.t0,touch:T
 const fold=s=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase();
 // Bo may KK-SEARCH (kk-search.js) chay trong Worker: tu nguyen ven + trong so truong + IDF, dong nghia/viet tat,
 // sua loi go, go do, hieu gia ("duoi 5 trieu"), uu tien may chinh hon phu kien, noi long khi 0 ket qua
-const KKS_URL=new URL('kk-search.js?v=2610260639',location.href).href;
+const KKS_URL=new URL('kk-search.js?v=2610312000',location.href).href;
 const workerSrc=`importScripts(${JSON.stringify(KKS_URL)});let ix=null,rows=[];
 onmessage=e=>{const d=e.data;
- if(d.type==='load'){rows=d.data;ix=KKS.build(rows);postMessage({type:'ready',n:rows.length});}
- if(d.type==='q'&&ix){const r=KKS.query(ix,d.data,{limit:8});postMessage({type:'res',q:d.data,out:r.ids.map(i=>rows[i]),total:r.total,meta:{fix:r.fix,relaxed:r.relaxed,price:r.price,groups:r.groups}});}
- if(d.type==='all'&&ix){const r=KKS.query(ix,d.q,{limit:d.limit||3000});postMessage({type:'all',id:d.id,skus:r.skus,rel:r.rel,total:r.total,fix:r.fix,relaxed:r.relaxed,price:r.price,groups:r.groups});}}`;
+ if(d.type==='load'){rows=d.data;ix=KKS.build(rows);postMessage({type:'ready',n:rows.length});try{KKS.completions(ix,'a',1)}catch(x){}}
+ if(d.type==='q'&&ix){const r=KKS.suggest(ix,d.data,{limit:6});postMessage({type:'res',q:d.data,out:r.ids.map(i=>rows[i]),total:r.total,meta:{done:r.done,groups:r.groups,brands:r.brands,fix:r.fix,price:r.price,relaxed:r.relaxed,dropped:r.dropped}});}
+ if(d.type==='all'&&ix){const r=KKS.query(ix,d.q,{limit:d.limit||3000,facets:true,must:d.must||[]});postMessage({type:'all',id:d.id,skus:r.skus,rel:r.rel,total:r.total,fix:r.fix,relaxed:r.relaxed,price:r.price,groups:r.groups,dropped:r.dropped,missing:r.missing,partial:r.partial,attrs:r.attrs,buckets:r.buckets,brands:r.brands});}}`;
 let W=null, packReady=false, _kkReady=null, _kkOk=null; const _kkWait=new Map(); let _kkId=0;
 _kkReady=new Promise(r=>_kkOk=r);
 async function initLocalSearch(){
@@ -514,7 +534,7 @@ async function initLocalSearch(){
   try{
     W=new Worker(URL.createObjectURL(new Blob([workerSrc],{type:'text/javascript'})));
     W.onmessage=e=>{const d=e.data;
-      if(d.type==='ready'){packReady=true;_kkOk(true);if(document.activeElement===$('#q')&&$('#q').value.trim())$('#q').dispatchEvent(new Event('input'))}
+      if(d.type==='ready'){packReady=true;_kkOk(true);if(document.activeElement===$('#q'))$('#q').dispatchEvent(new Event('input'))}
       if(d.type==='res')renderSug(d.q,d.out,d.total,d.meta);
       if(d.type==='all'){const f=_kkWait.get(d.id);if(f){_kkWait.delete(d.id);f(d)}}};
     W.onerror=e=>{console.warn('kk-search worker',e.message);_kkOk(false)};
@@ -524,26 +544,69 @@ async function initLocalSearch(){
   }catch(e){console.warn('local search off',e);_kkOk(false)}
 }
 // tim day du (cho luoi ket qua) - tra ve danh sach SKU da xep hang theo do phu hop
-window.kkSearch=async(q,limit=3000)=>{const ok=await Promise.race([_kkReady,new Promise(r=>setTimeout(()=>r(false),8000))]);if(!ok||!W)return null;
-  return new Promise(res=>{const id=++_kkId;_kkWait.set(id,res);W.postMessage({type:'all',id,q,limit});setTimeout(()=>{if(_kkWait.has(id)){_kkWait.delete(id);res(null)}},5000)})};
-let sugTimer=null;
-$('#q').addEventListener('input',()=>{const v=$('#q').value.trim();clearTimeout(sugTimer);
-  if(!v||!packReady){$('#sug').classList.remove('show');return}
-  sugTimer=setTimeout(()=>{W.postMessage({type:'q',data:v});semanticSug(v).then(()=>{if($('#semSug').innerHTML)$('#sug').classList.add('show')})},60)});
-document.addEventListener('click',e=>{if(!e.target.closest('.search'))$('#sug').classList.remove('show')});
-const searchNote=m=>{if(!m)return'';const a=[];
-  if(m.fix&&m.fix.length)a.push('Đã sửa lỗi gõ: '+m.fix.map(f=>'<s>'+esc(f[0])+'</s> → <b>'+esc(f[1])+'</b>').join(', '));
+window.kkSearch=async(q,limit=3000,must)=>{const ok=await Promise.race([_kkReady,new Promise(r=>setTimeout(()=>r(false),8000))]);if(!ok||!W)return null;
+  return new Promise(res=>{const id=++_kkId;_kkWait.set(id,res);W.postMessage({type:'all',id,q,limit,must:must||[]});setTimeout(()=>{if(_kkWait.has(id)){_kkWait.delete(id);res(null)}},5000)})};
+// ===== O TIM KIEM: goi y khi go (cum tu, danh muc, thuong hieu, san pham), phim mui ten, lich su tim =====
+const RECENT_K='kk_recent', POPULAR=['iPhone 16','Tủ lạnh Inverter','Máy lạnh 1 HP','Nồi chiên không dầu','Laptop Dell','Tai nghe bluetooth','Robot hút bụi','Smart Tivi 55 inch','Máy lọc nước RO','Đồng hồ nam'];
+const recentGet=()=>{try{const a=JSON.parse(localStorage.getItem(RECENT_K)||'[]');return Array.isArray(a)?a.filter(x=>typeof x==='string').slice(0,8):[]}catch{return[]}};
+const recentSet=a=>{try{localStorage.setItem(RECENT_K,JSON.stringify(a.slice(0,8)))}catch{}};
+function recentAdd(q){q=String(q||'').trim().slice(0,80);if(q.length<2)return;const f=fold(q);recentSet([q,...recentGet().filter(x=>fold(x)!==f)])}
+function recentDel(q){recentSet(recentGet().filter(x=>x!==q));showSugPanel()}
+const sugOpen=on=>{$('#sug').classList.toggle('show',!!on);$('#q').setAttribute('aria-expanded',on?'true':'false');if(!on){sugSel=-1;$('#q').removeAttribute('aria-activedescendant')}};
+let sugTimer=null, sugSel=-1;
+// to dam phan khop (khong phan biet dau) trong ten SP
+function hl(name,q){const qs=fold(q).split(/\s+/).filter(w=>w.length>=2);if(!qs.length)return esc(name);
+  return String(name).split(/(\s+)/).map(w=>{const f=fold(w).replace(/[^a-z0-9]/g,'');return f&&qs.some(x=>f.startsWith(x)||x.startsWith(f)&&f.length>=3)?'<mark>'+esc(w)+'</mark>':esc(w)}).join('')}
+// hoan thanh cum tu: phan khach da go giu nguyen, phan goi y in dam
+const doneHtml=(t,q)=>{const n=q.trim().replace(/\s+/g,' ').length;return esc(t.slice(0,n))+'<b>'+esc(t.slice(n))+'</b>'};
+const attrTxt=v=>String(v).replace(/^(\d+(?:\.\d+)?)(gb|tb)$/,(m,a,u)=>a+u.toUpperCase()).replace(/^(\d+(?:\.\d+)?)inch$/,'$1 inch').replace(/^(\d+(?:\.\d+)?)hp$/,'$1 HP').replace(/^(\d+(?:\.\d+)?)btu$/,'$1 BTU').replace(/^(\d+(?:\.\d+)?)kg$/,'$1 kg').replace(/^(\d+(?:\.\d+)?)l$/,'$1 lít').replace(/^(\d+(?:\.\d+)?)w$/,'$1W').replace(/^(\d+(?:\.\d+)?)mah$/,'$1 mAh').replace(/^(\d+(?:\.\d+)?)hz$/,'$1 Hz');
+function showSugPanel(){ // o tim trong: lich su + tim nhieu
+  const R=recentGet(),L=$('#sugList');$('#semSug').innerHTML='';$('#semSug').style.display='none';
+  L.innerHTML=(R.length?`<div class="sg-h">Tìm gần đây <a data-act="clr">Xóa lịch sử</a></div>`+R.map(x=>`<div class="opt sg-q" role="option" data-act="q" data-v="${esc(x)}">🕘 <span>${esc(x)}</span><button class="x" data-act="del" data-v="${esc(x)}" aria-label="Xóa ${esc(x)} khỏi lịch sử">✕</button></div>`).join(''):'')+
+    `<div class="sg-h">Mọi người hay tìm</div><div class="sg-chips">${POPULAR.map(x=>`<button type="button" class="opt chip" role="option" data-act="q" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>`;
+  idOpts();sugOpen(true)}
+function idOpts(){document.querySelectorAll('#sug .opt').forEach((o,i)=>{o.id='sgo'+i})}
+$('#q').addEventListener('input',()=>{const v=$('#q').value.trim();clearTimeout(sugTimer);sugSel=-1;
+  if(!v){showSugPanel();return}
+  if(!packReady){sugOpen(false);return}
+  sugTimer=setTimeout(()=>{W.postMessage({type:'q',data:v});semanticSug(v).then(()=>{if($('#semSug').innerHTML)sugOpen(true)})},60)});
+$('#q').addEventListener('focus',()=>{if(!$('#q').value.trim())showSugPanel();else if(packReady)$('#q').dispatchEvent(new Event('input'))});
+$('#q').addEventListener('keydown',e=>{const O=[...document.querySelectorAll('#sug.show .opt')];
+  if(e.key==='Escape'){sugOpen(false);return}
+  if(!O.length||!['ArrowDown','ArrowUp','Enter'].includes(e.key))return;
+  if(e.key==='Enter'){if(sugSel>=0&&O[sugSel]){e.preventDefault();sugAct(O[sugSel])}return}
+  e.preventDefault();sugSel=e.key==='ArrowDown'?(sugSel+1)%O.length:(sugSel<=0?O.length-1:sugSel-1);
+  O.forEach((o,i)=>o.classList.toggle('act',i===sugSel));const c=O[sugSel];c.scrollIntoView({block:'nearest'});$('#q').setAttribute('aria-activedescendant',c.id)});
+$('#sug').addEventListener('mousedown',e=>{if(e.target.closest('.opt,[data-act]'))e.preventDefault()}); // giu focus o tim
+$('#sug').addEventListener('click',e=>{const x=e.target.closest('[data-act="del"]');if(x){e.stopPropagation();recentDel(x.dataset.v);return}
+  const c=e.target.closest('[data-act="clr"]');if(c){recentSet([]);showSugPanel();return}
+  const o=e.target.closest('.opt');if(o)sugAct(o)});
+function sugAct(o){const a=o.dataset.act,q=$('#q').value.trim();sugOpen(false);
+  if(a==='q'){searchFor(o.dataset.v)}
+  else if(a==='g'){searchFor(o.dataset.q||q,{grp:o.dataset.grp})}
+  else if(a==='b'){searchFor(o.dataset.q||q,{brand:o.dataset.v})}
+  else if(a==='p'){recentAdd(q);openProduct(o.dataset.sku)}
+  else if(a==='all'){doSearch(new Event('submit'))}}
+document.addEventListener('click',e=>{if(!e.target.closest('.search'))sugOpen(false)});
+// tra lai dung chu khach go (co dau) cho cum tu da chuan hoa ("ban la" -> "bàn là")
+function origOf(q,f){const W=String(q||'').split(/\s+/),F=W.map(w=>fold(w).replace(/[^a-z0-9.]/g,'')),T=String(f).split(' ');for(let i=0;i+T.length<=F.length;i++)if(T.every((t,j)=>F[i+j]===t))return W.slice(i,i+T.length).join(' ');return f}
+const searchNote=(m,q)=>{if(!m)return'';const a=[];
+  if(m.fix&&m.fix.length)a.push('Đã hiểu: '+m.fix.map(f=>'<s>'+esc(f[0])+'</s> → <b>'+esc(f[1])+'</b>').join(', '));
   if(m.price)a.push('Lọc giá: <b>'+(m.price[1]>=1e11?'từ '+vnd(m.price[0]):m.price[0]>0?vnd(Math.round(m.price[0]/1e3)*1e3)+' - '+vnd(Math.round(m.price[1]/1e3)*1e3):'đến '+vnd(m.price[1]))+'</b>');
-  if(m.relaxed)a.push('Không có sản phẩm khớp đủ mọi từ khóa - đang hiển thị kết quả gần đúng nhất');
+  if(m.relaxed)a.push((m.dropped&&m.dropped.length?'Chưa có sản phẩm khớp “<b>'+m.dropped.map(x=>esc(origOf(q,x))).join(', ')+'</b>” - ':'Không có sản phẩm khớp đủ mọi từ khóa - ')+'đang hiển thị kết quả gần đúng nhất');
+  else if(m.partial)a.push('Ít sản phẩm khớp đủ mọi từ khóa - bổ sung thêm '+m.partial.toLocaleString('vi-VN')+' sản phẩm cùng loại gần đúng (xếp sau)');
   return a.join(' · ')};
 function renderSug(q,out,total,meta){if(q!==$('#q').value.trim())return; // bo ket qua cua lan go cu
-  const s=$('#sug'),L=$('#sugList');
-  if(!out.length){L.innerHTML=$('#semSug').innerHTML?'':'<div class="st0">Không có kết quả khớp từ khóa - thử mô tả nhu cầu, ví dụ "quà tặng sếp dưới 1 triệu"</div>';s.classList.add('show');return}
-  const note=searchNote(meta), gr=(meta&&meta.groups||[]).filter(g=>g.n>=2).slice(0,3);
-  L.innerHTML='<div class="st0">⚡ '+total.toLocaleString('vi-VN')+' kết quả phù hợp - xếp theo độ liên quan, tìm ngay trên thiết bị của bạn'+(note?'<br>'+note:'')+'</div>'+
-    (gr.length>1?'<div class="st0" style="display:flex;gap:6px;flex-wrap:wrap;background:#fff">Trong nhóm: '+gr.map(g=>`<a class="chip" style="padding:3px 10px;font-size:12px;cursor:pointer" onclick="$('#sug').classList.remove('show');setCat(${esc(JSON.stringify(g.cat))},${esc(JSON.stringify(g.grp))})">${esc(g.grp)} (${g.n})</a>`).join('')+'</div>':'')+
-    out.map(r=>'<div class="si" onclick="openProduct(\''+r[0]+'\')"><span>'+esc(r[1])+' <small style="color:var(--muted)">· '+esc(r[5])+'</small></span><b>'+((r[11]||0)&1?'Đang xác minh':r[6]?vnd(r[6]):'hết hàng')+'</b></div>').join('');
-  s.classList.add('show')}
+  const L=$('#sugList'),m=meta||{},done=(m.done||[]).slice(0,6),gr=(m.groups||[]).filter(g=>g.n>=2).slice(0,4),br=(m.brands||[]).filter(b=>b.n>=2).slice(0,5);sugSel=-1;
+  if(!out.length&&!done.length){L.innerHTML=$('#semSug').innerHTML?'':'<div class="st0">Chưa tìm thấy “'+esc(q)+'”. Thử từ khóa ngắn hơn, tên hãng, hoặc mô tả nhu cầu như "quà tặng sếp dưới 1 triệu" - nhấn Enter để KK-MALL ghi nhận và tìm nguồn giúp bạn.</div>';sugOpen(true);return}
+  const note=searchNote(meta,q);
+  L.innerHTML=(note?'<div class="st0">'+note+'</div>':'')+
+    (done.length?'<div class="sg-h">Gợi ý tìm kiếm</div>'+done.map(d=>`<div class="opt sg-q" role="option" data-act="q" data-v="${esc(d.t)}">🔎 <span>${doneHtml(d.t,q)}</span><small>${d.n.toLocaleString('vi-VN')} SP</small></div>`).join(''):'')+
+    (gr.length?'<div class="sg-chips">Trong danh mục: '+gr.map(g=>`<button type="button" class="opt chip" role="option" data-act="g" data-grp="${esc(g.grp)}">${esc(g.grp)} · ${g.n}</button>`).join('')+'</div>':'')+
+    (br.length>1?'<div class="sg-chips">Thương hiệu: '+br.map(b=>`<button type="button" class="opt chip" role="option" data-act="b" data-v="${esc(b.brand)}">${esc(b.brand)}</button>`).join('')+'</div>':'')+
+    (out.length?'<div class="sg-h">Sản phẩm</div>'+out.map(r=>`<div class="opt si" role="option" data-act="p" data-sku="${esc(r[0])}"><span>${hl(r[1],q)} <small>· ${esc(r[5])}</small></span><b>${(r[11]||0)&1?'Đang xác minh':r[6]?vnd(r[6]):'hết hàng'}</b></div>`).join(''):'')+
+    (total?`<div class="opt sg-all" role="option" data-act="all">Xem tất cả ${total.toLocaleString('vi-VN')} kết quả cho “${esc(q)}” ↵</div>`:'');
+  idOpts();sugOpen(true)}
 // Tim bang giong noi
 // ===== TIM BANG GIONG NOI (Web Speech API, tieng Viet) =====
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let _rec=null,_recOn=false;
@@ -607,21 +670,51 @@ function revealObserve(){
 addEventListener('scroll',()=>{$('#top').classList.toggle('show',scrollY>700)},{passive:true});
 function goHome(){state.f='';$('#shop').style.display='none';$('#shelves').style.display='';$('#cats').style.display='';$('#home').style.display='';navMark('');try{if(location.search)history.replaceState({},'','./')}catch{}scrollTo({top:0,behavior:'smooth'})}
 function showShop(){$('#shop').style.display='';$('#shelves').style.display='none';$('#cats').style.display='none';$('#home').style.display='none'}
-function setCat(id,group=''){closeMega();state.f='';state.cat=id;state.group=group;state.q='';$('#q').value='';$('#brand').innerHTML='<option value="">Tất cả thương hiệu</option>';navMark('-cat');
+function setCat(id,group=''){closeMega();state.f='';state.cat=id;state.group=group;state.q='';state.attr={};state.brandKey='';$('#q').value='';$('#brand').innerHTML='<option value="">Tất cả thương hiệu</option>';navMark('-cat');try{history.replaceState({},'','?c='+encodeURIComponent(id)+(group?'&g='+encodeURIComponent(group):''))}catch{}
   const c=META.categories.find(x=>x.id===id); $('#secTitle').textContent=c?c.icon+' '+c.name+(group?' › '+group:''):'Tất cả sản phẩm';
   $('#groups').innerHTML=c?c.groups.map(g=>`<button class="chip ${g===group?'on':''}" onclick="setCat(${esc(JSON.stringify(String(id)))},${esc(JSON.stringify(String(g)))})">${esc(g)}</button>`).join(''):'';
   showShop(); scrollTo({top:0,behavior:'smooth'}); reload();}
-async function doSearch(e){e.preventDefault&&e.preventDefault();$('#sug').classList.remove('show');const qq=$('#q').value.trim();if(!qq)return;if(await showSemantic(qq))return;state.q=qq;state.f='';state.cat='';state.group='';navMark('');$('#brand').innerHTML='<option value="">Tất cả thương hiệu</option>';$('#sort').value='';$('#secTitle').textContent='🔎 Kết quả cho "'+state.q+'"';$('#groups').innerHTML='';showShop();reload()}
+function searchFor(q,o={}){$('#q').value=q;doSearch(new Event('submit'),o)}
+async function doSearch(e,o={}){e&&e.preventDefault&&e.preventDefault();sugOpen(false);const qq=$('#q').value.trim();if(!qq)return;
+  if(!o.grp&&!o.brand&&await showSemantic(qq))return;
+  recentAdd(qq);state.q=qq;state.f='';state.cat='';state.group=o.grp||'';state.attr={};state.brandKey='';navMark('');
+  $('#brand').innerHTML='<option value="">Tất cả thương hiệu</option>'+(o.brand?`<option value="${esc(o.brand)}" selected>${esc(o.brand)}</option>`:'');
+  $('#sort').value='';$('#min').value='';$('#max').value='';setSearchTitle();$('#groups').innerHTML='';showShop();
+  try{history.replaceState({},'','?q='+encodeURIComponent(qq))}catch{}
+  if(innerWidth<700)$('#q').blur();                                   // dong ban phim dien thoai de thay ket qua
+  scrollTo({top:0,behavior:'smooth'});reload()}
+function setSearchTitle(){const at=Object.values(state.attr||{});$('#secTitle').textContent='🔎 Kết quả cho "'+state.q+'"'+(state.group?' › '+state.group:'')+($('#brand').value?' · '+$('#brand').value:'')+(at.length?' · '+at.map(attrTxt).join(', '):'')}
+function attrIn(f,v){state.attr=state.attr||{};if(state.attr[f]===v)delete state.attr[f];else state.attr[f]=v;setSearchTitle();reload()}
+function searchIn(g){state.group=state.group===g?'':g;setSearchTitle();reload()}
+function priceIn(lo,hi){$('#min').value=lo||'';$('#max').value=hi||'';reload()}
+function clearFilters(){state.group='';state.attr={};$('#brand').value='';$('#min').value='';$('#max').value='';$('#stock').checked=false;if(state.q)setSearchTitle();reload()}
+const shortVnd=v=>v>=1e6?(Math.round(v/1e5)/10).toLocaleString('vi-VN')+' triệu':Math.round(v/1e3).toLocaleString('vi-VN')+'k';
+const bLab=b=>!b.min?'Dưới '+shortVnd(b.max):!b.max?'Trên '+shortVnd(b.min):shortVnd(b.min)+' - '+shortVnd(b.max);
+// tu khoa tim khong ra: gui AN DANH (chi cum tu) de KK-MALL bo sung nguon hang / tu dong nghia
+const _missSent=new Set();
+function logMiss(q,n,kind){try{if(typeof KKB==='undefined'||!KKB.on)return false;const k=(kind||'zero')+'|'+fold(q);if(_missSent.has(k))return true;_missSent.add(k);KKB.call('search.miss',{q,n,kind:kind||'zero'}).catch(()=>{});return true}catch{return false}}
+function askSource(q){toast(logMiss(q,0,'request')?'✅ Đã ghi nhận "'+q+'" - KK-MALL sẽ tìm nguồn hàng và bổ sung sớm.':'Máy chủ đang bận, vui lòng thử lại sau.')}
 async function reload(){state.page=1;state.items=[];$('#grid').innerHTML=Array.from({length:8},()=>'<div class="skel sk-card"></div>').join('');await loadMore(true)}
 async function loadMore(fresh){
   $('#sort').options[0].text=state.q?'Phù hợp nhất':'Nổi bật';
-  const p=new URLSearchParams({f:state.f||'',cat:state.cat,group:state.group,q:state.q,sort:$('#sort').value,brand:$('#brand').value,min:$('#min').value,max:$('#max').value,stock:$('#stock').checked?'1':'',page:state.page,limit:24});
+  const p=new URLSearchParams({f:state.f||'',cat:state.cat,group:state.group,q:state.q,attr:Object.values(state.attr||{}).join(','),sort:$('#sort').value,brand:$('#brand').value,min:$('#min').value,max:$('#max').value,stock:$('#stock').checked?'1':'',page:state.page,limit:24});
   const d=await api('/api/products?'+p); if(fresh)$('#grid').innerHTML='';
   state.items.push(...d.items); $('#count').textContent=d.total.toLocaleString('vi-VN')+' sản phẩm';
-  if(fresh&&d.brands.length&&$('#brand').options.length<=1)$('#brand').innerHTML='<option value="">Tất cả thương hiệu</option>'+d.brands.map(b=>`<option value="${esc(b.brand)}">${esc(b.brand)} (${b.n})</option>`).join('');
-  if(fresh&&d.search&&state.q){const m=d.search,note=searchNote(m),gr=(m.groups||[]).filter(g=>g.n>=2).slice(0,4);
-    $('#groups').innerHTML=(note?`<div class="fdesc" style="margin-bottom:6px">${note}</div>`:'')+(gr.length>1?gr.map(g=>`<button class="chip" onclick="setCat(${esc(JSON.stringify(g.cat))},${esc(JSON.stringify(g.grp))})">${esc(g.grp)} (${g.n})</button>`).join(''):'')}
-  if(!d.items.length&&fresh){$('#grid').innerHTML='<div class="empty">Không tìm thấy sản phẩm phù hợp. Thử từ khóa ngắn hơn, hoặc mô tả nhu cầu như "quà tặng sếp dưới 1 triệu".</div>'}
+  const bk=state.q+'|'+state.cat+'|'+state.group;
+  if(fresh&&d.brands.length&&state.brandKey!==bk){const cur=$('#brand').value;state.brandKey=bk;$('#brand').innerHTML='<option value="">Tất cả thương hiệu</option>'+d.brands.map(b=>`<option value="${esc(b.brand)}">${esc(b.brand)} (${b.n})</option>`).join('');if(cur)$('#brand').value=cur}
+  if(fresh&&state.q){const m=d.search||{},note=searchNote(m,state.q),gr=(m.groups||[]).filter(g=>g.n>=2).slice(0,5),filt=state.group||$('#brand').value||Object.keys(state.attr||{}).length;let h='';
+    if(note)h+=`<div class="snote">${note}</div>`;
+    if(gr.length>1||state.group)h+='<div class="facets"><span class="fl">Danh mục:</span>'+(state.group?`<button class="chip on" onclick="searchIn('')">✕ ${esc(state.group)}</button>`:'')+gr.filter(g=>g.grp!==state.group).map(g=>`<button class="chip" onclick="searchIn(${esc(JSON.stringify(g.grp))})">${esc(g.grp)} <small>${g.n}</small></button>`).join('')+'</div>';
+    for(const a of (m.attrs||[])){const on=(state.attr||{})[a.f];h+=`<div class="facets"><span class="fl">${esc(a.label)}:</span>`+a.v.map(([v,n])=>`<button class="chip${on===v?' on':''}" aria-pressed="${on===v}" onclick="attrIn(${esc(JSON.stringify(a.f))},${esc(JSON.stringify(v))})">${on===v?'✕ ':''}${esc(attrTxt(v))}${filt?'':` <small>${n}</small>`}</button>`).join('')+'</div>'}
+    if($('#min').value||$('#max').value)h+=`<div class="facets"><span class="fl">Khoảng giá:</span><button class="chip on" onclick="priceIn('','')">✕ ${esc(bLab({min:+$('#min').value||0,max:+$('#max').value||0}))}</button></div>`;
+    else if((m.buckets||[]).length>1)h+='<div class="facets"><span class="fl">Khoảng giá:</span>'+m.buckets.map(b=>`<button class="chip" onclick="priceIn(${b.min},${b.max})">${esc(bLab(b))}${filt?'':` <small>${b.n}</small>`}</button>`).join('')+'</div>';
+    $('#groups').innerHTML=h;
+    if(m.relaxed||!m.total)logMiss(state.q,m.total||0)}
+  if(!d.items.length&&fresh){
+    if(state.q&&d.search&&d.search.total>0)$('#grid').innerHTML=`<div class="zero"><h3>Không còn sản phẩm sau khi lọc</h3><p>Có ${d.search.total.toLocaleString('vi-VN')} sản phẩm khớp “${esc(state.q)}” nhưng không thỏa bộ lọc đang chọn (danh mục, thương hiệu, giá, còn hàng).</p><button class="chip on" onclick="clearFilters()">Bỏ tất cả bộ lọc</button></div>`;
+    else if(state.q){const miss=(d.search&&d.search.missing)||[];
+      $('#grid').innerHTML=`<div class="zero"><h3>Chưa có sản phẩm cho “${esc(state.q)}”</h3><p>${miss.length?'KK-MALL chưa có mặt hàng “<b>'+esc(miss.map(x=>origOf(state.q,x)).join(', '))+'</b>” trong danh mục. ':''}Thử từ khóa ngắn hơn, tên hãng, hoặc chọn gợi ý:</p><div class="chips">${POPULAR.slice(0,6).map(x=>`<button class="chip" onclick="searchFor(${esc(JSON.stringify(x))})">${esc(x)}</button>`).join('')}</div><p style="margin-top:18px"><button class="chip on" onclick="askSource(${esc(JSON.stringify(state.q))})">🙋 Nhờ KK-MALL tìm nguồn hàng này</button></p></div>`}
+    else $('#grid').innerHTML='<div class="empty">Không tìm thấy sản phẩm phù hợp. Thử bỏ bớt bộ lọc.</div>'}
   $('#grid').insertAdjacentHTML('beforeend',d.items.map(card).join('')); state.page++;
   $('#more').style.display=state.items.length<d.total?'block':'none';
 }
