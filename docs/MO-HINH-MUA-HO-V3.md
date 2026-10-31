@@ -141,3 +141,7 @@
 
 **Kiểm thử:** 181 kiểm tra máy chủ (thêm 7: ghi nhận ẩn danh, lọc dữ liệu cá nhân, trần lượt, quyền quản trị, chống chèn công thức, gộp hằng giờ), 38 kiểm tra trình duyệt toàn trang + 27 kiểm tra trình duyệt riêng ô tìm kiếm (gợi ý, dấu, phím, bộ lọc thuộc tính/giá/danh mục/thương hiệu, 0 kết quả, liên kết, điện thoại 390px, không lỗi JS/CSP). Giám sát 30 phút kiểm tra thêm phiên bản bộ máy tìm kiếm.
 - **Triển khai 31/10/2026:** website (KK-SEARCH 2.0.0) đã chạy thật trên www.kk-mall.com - kiểm tra thật: liên kết `?q=tu lanh samsung` ra 84 SP đúng + bộ lọc khoảng giá, gõ "dieu hoa 1 ngua" gợi ý đúng điều hòa 1 HP; giám sát 30 phút đạt (gồm kiểm tra phiên bản bộ máy tìm kiếm). Máy chủ v1.6.0 (ghi nhận "tìm không ra") **đã lưu trong trình soạn thảo Apps Script, chờ chủ sở hữu bấm triển khai Version 10** (Deploy → Manage deployments → ✏️ → New version); trước khi triển khai, website tự bỏ qua lệnh ghi nhận, không ảnh hưởng khách.
+
+## NGHIỆM THU THEO VAI TRÒ (31/10/2026)
+- 6 vai trò tự tạo (quản trị, thành viên A, doanh nghiệp B, khách vãng lai C, khách D, bot đặt hàng) đi trọn vòng đời đơn trên bản sao dùng đúng mã nguồn đang chạy: **72/72** kịch bản; tổng các bộ tự động **335/335**. Chi tiết: `docs/BAO-CAO-NGHIEM-THU-31-10-2026.md`.
+- Sửa 1 lỗi thật: không cho đánh giá dòng hàng đã hủy/hoàn (nguồn hết hàng) dù đơn đã giao dòng khác - có hiệu lực khi triển khai Version 10.
