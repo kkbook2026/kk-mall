@@ -24,7 +24,7 @@ const srcName = s => (SRC[s] || [s])[0];
 (function injectTabs() {
   const nav = document.getElementById('nav'), main = document.querySelector('main');
   const addTab = (key, label, after) => { const b = document.createElement('button'); b.dataset.t = key; b.textContent = label; b.onclick = () => go(key); const ref = nav.querySelector(`[data-t="${after}"]`); ref ? ref.after(b) : nav.appendChild(b); };
-  addTab('po', '🛒 Lệnh mua', 'orders'); addTab('rma', '↩️ Đổi trả & BH', 'po'); addTab('ledger', '📒 Sổ kế toán', 'rev');
+  addTab('po', '🛒 Lệnh mua', 'orders'); addTab('rma', '↩️ Đổi trả & BH', 'po'); addTab('ledger', '📒 Sổ kế toán', 'rev'); addTab('reviews', '⭐ Đánh giá', 'rma');
   main.insertAdjacentHTML('beforeend', `
   <section class="sec" id="t-po"><h2>Lệnh mua tại nhà cung cấp <span style="font-weight:600;font-size:12px;color:var(--muted)" id="poCount"></span></h2>
     <div class="note">Mỗi đơn đã thanh toán tự sinh lệnh mua cho từng sản phẩm. Hệ thống <b>tự lập kế hoạch</b>: nguồn rẻ nhất còn hàng đã qua Bộ lọc Tin cậy, đúng mã sản phẩm, ưu tiên nguồn <b>xuất được hóa đơn GTGT</b> nếu khách yêu cầu, áp <b>biên dung sai trượt giá</b>. Người vận hành chỉ cần: <b>Mở trang nguồn → dán thông tin giao hàng (đã chép sẵn) → thanh toán → bấm "Đã đặt"</b>. Hệ thống tự hạch toán chi hộ, bù trượt giá, báo khách.</div>
@@ -35,6 +35,11 @@ const srcName = s => (SRC[s] || [s])[0];
   <section class="sec" id="t-ledger"><h2>Sổ kế toán thu hộ - chi hộ</h2><div class="note">Theo mô hình ủy quyền: tiền hàng ghi <b>TK 3388 (phải trả khác - thu hộ, chi hộ)</b>, chỉ <b>phí dịch vụ</b> ghi doanh thu <b>TK 5113</b> + thuế GTGT đầu ra <b>TK 33311</b>; trượt giá KK-MALL bù ghi <b>TK 632</b>; hoàn phí ghi <b>TK 5213</b>. Mỗi mã đơn đối soát 1-1: tiền khách chuyển vào ↔ tiền chi nhà cung cấp.</div>
     <div class="cards" id="ldCards"></div><div class="row"><button class="btn2 pri" onclick="exportLedger()">⬇ Xuất sổ (CSV - Excel)</button></div>
     <div class="card"><b style="color:var(--ink)">Đối soát theo đơn</b><table id="ldRecon" style="margin-top:8px"></table></div><div class="card"><b style="color:var(--ink)">Nhật ký bút toán</b><table id="ldTbl" style="margin-top:8px"></table></div></section>`);
+  main.insertAdjacentHTML('beforeend', `<section class="sec" id="t-reviews"><h2>Đánh giá từ người đã nhận hàng <span style="font-weight:600;font-size:12px;color:var(--muted)" id="rvCount"></span></h2>
+    <div class="note">Chỉ khách có đơn KK-MALL <b>đã giao</b> mới đánh giá được (mỗi sản phẩm/đơn 1 lần). Nội dung chứa liên kết, số điện thoại, email hoặc từ ngữ thô tục tự chuyển <b>Chờ duyệt</b>. Trang sản phẩm chỉ hiện sao khi có đánh giá thật.</div>
+    <div class="row"><select id="rvF" onchange="renderReviews()"><option value="pending">Chờ duyệt</option><option value="published">Đang hiển thị</option><option value="hidden">Đã ẩn</option><option value="">Tất cả</option></select><button class="btn2" onclick="loadReviewsAdm()">⟳ Tải lại</button></div>
+    <div class="card"><table id="rvTbl"></table></div></section>`);
+  document.querySelector('#t-orders .note').insertAdjacentHTML('afterend', '<div id="rfQueue"></div>');
   document.querySelector('#t-orders .note').innerHTML = 'Đơn hàng từ <b>máy chủ</b> (mọi khách, mọi thiết bị). Cột tách: <b>Tiền hàng thu hộ</b> (chi trả nhà cung cấp, TK 3388) và <b>Phí DV KK-MALL</b> (doanh thu, TK 5113 + VAT). Thanh toán VietQR tự xác nhận qua webhook ngân hàng; có thể xác nhận tay.';
 })();
 
@@ -66,7 +71,7 @@ async function opsLoad() {
     const [o, cfg] = await Promise.all([OPS.call('admin.orders', { limit: 500 }), OPS.call('admin.config')]);
     OPS.orders = o.orders; OPS.tol = o.tolerance; OPS.vatSrc = o.vat_sources; OPS.cfg = cfg; FEE_TABLE = o.fee_table;
     try { const sk = sessionStorage.getItem('kk_stats_key'); if (sk && cfg.STATS_KEY !== sk) { OPS.cfg = await OPS.call('admin.config', { set: { STATS_KEY: sk } }); logAdmin('Đăng ký khóa thống kê ship cho bộ thu thập'); } } catch (e) { console.warn('stats key', e); }
-    renderOrders(); renderRev(); renderPO(); renderCmp(); renderOpsCfg(); renderMailSync();
+    renderOrders(); renderRev(); renderPO(); renderCmp(); renderOpsCfg(); renderMailSync(); renderRefunds(); loadReviewsAdm();
     OPS.call('admin.rmas').then(r => { OPS.rmas = r.rows; renderRMA(); });
     OPS.call('admin.ledger').then(r => { OPS.ledger = r.rows; renderLedger(); });
     OPS.call('admin.invoices').then(r => { OPS.invs = r.rows; renderFeeInv(); });
@@ -237,7 +242,8 @@ function renderOpsCfg() {
     <div class="note" style="margin-top:12px">🔗 <b>Tự động xác nhận thanh toán</b>: đăng ký SePay (sepay.vn) hoặc Casso, liên kết tài khoản ngân hàng trên, khai báo Webhook URL:<br><code style="word-break:break-all">${esc(C.WEBHOOK_URL || '')}</code> ${C.WEBHOOK_URL ? cp(C.WEBHOOK_URL, '📋 Chép') : ''}<br>Biểu phí dịch vụ: ${(C.fee_table || []).map(t => `${t.to == null ? '> ' + vnd(t.from - 1) : vnd(t.from) + '-' + vnd(t.to)}: <b>${vnd(t.fee)}</b>`).join(' · ')} (chỉ sửa trong dự án Apps Script - Script Properties).</div>
     <div class="note" style="margin-top:12px">🚚 <b>Giá thực trả tự hiệu chỉnh theo ship thực tế</b>: bộ thu thập cộng dự phòng ship của từng nguồn vào giá vốn; mỗi lệnh mua anh nhập "trong đó ship/phụ phí" sẽ được thống kê 90 ngày để nâng dự phòng nếu thực tế cao hơn. Khóa thống kê được dẫn xuất tự động từ khóa quản trị và đã đăng ký lên máy chủ ${sessionStorage.getItem('kk_stats_key') && C.STATS_KEY === sessionStorage.getItem('kk_stats_key') ? '<b style="color:#166534">✓ sẵn sàng</b>' : '<b style="color:#B45309">(chưa khớp - mở lại trang quản trị)</b>'}; bộ thu thập tự đọc qua URL máy chủ trong <code>config.js</code> - không cần cấu hình thêm.
       <button class="btn2" style="margin-left:8px" onclick="showShipStats()">📊 Xem chênh lệch ship theo nguồn</button><div id="shipStats" style="margin-top:8px;font-size:12.5px"></div></div>
-    <div class="note" style="margin-top:12px" id="botBox">${botBoxHtml(C.BOT)}</div>`;
+    <div class="note" style="margin-top:12px" id="botBox">${botBoxHtml(C.BOT)}</div>
+    <div class="note" style="margin-top:12px">🧾 <b>Tự kiểm toán</b>: hằng ngày sau sao lưu, máy chủ đối soát sổ cái từng đơn, đơn đã thu tiền thiếu lệnh mua, lệnh mua/bot/hoàn tiền bị treo, hạn mức email - có vấn đề sẽ email quản trị. <button class="btn2 pri" style="margin-left:8px" onclick="runAudit()">🧾 Kiểm toán ngay</button><div id="auditOut" style="margin-top:8px;font-size:12.5px"></div></div>`;
 }
 async function saveOpsCfg() {
   if (!$('#cAcc').value.trim() && OPS.cfg && OPS.cfg.BANK_ACC && !confirm('Ô số tài khoản đang TRỐNG trong khi máy chủ đang có tài khoản ' + OPS.cfg.BANK_LABEL + ' ' + OPS.cfg.BANK_ACC + '.\nMáy chủ sẽ GIỮ NGUYÊN tài khoản cũ. Tiếp tục lưu các mục khác?')) return;
@@ -304,4 +310,47 @@ async function botKeyNew() {
     document.getElementById('botKeyOut').innerHTML = `<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:10px 12px;font-size:13px">Khóa bot (chỉ hiện MỘT lần - dán vào ô "Khóa bot" của tiện ích): <code style="word-break:break-all">${esc(r.bot_key)}</code> ${cp(r.bot_key, '📋 Chép khóa')}</div>`;
     logAdmin('Tạo/đổi khóa bot đặt hàng'); if (OPS.cfg) OPS.cfg.BOT = Object.assign({}, OPS.cfg.BOT, { has_key: true, key_at: r.at });
   } catch (e) { alert(e.message); }
+}
+
+/* ---------- hoàn tiền: danh sách cần hoàn + VietQR chuyển đúng số tiền ---------- */
+function renderRefunds() {
+  const el = document.getElementById('rfQueue'); if (!el) return;
+  const L = (OPS.orders || []).filter(o => Number(o.refund_due) > 0);
+  const nb = document.querySelector('[data-t="orders"]'); if (nb) nb.textContent = nb.textContent.replace(/ \(💸\d+\)$/, '') + (L.length ? ` (💸${L.length})` : '');
+  if (!L.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="card" style="border-left:5px solid #B45309;margin:10px 0"><b style="color:#92400E">💸 Cần hoàn tiền cho khách · ${L.length} đơn · ${vnd(L.reduce((a, o) => a + Number(o.refund_due), 0))}</b>
+    <table style="margin-top:8px"><tr><th>Đơn</th><th>Khách</th><th>Cần hoàn</th><th>Tài khoản khách</th><th>Quét để chuyển</th><th></th></tr>${L.map(o => {
+      const a = o.refund_account, info = 'HOAN ' + o.code, id = o.code.replace(/\W/g, '');
+      const qr = a ? `https://img.vietqr.io/image/${encodeURIComponent(a.bin)}-${encodeURIComponent(a.acc)}-compact2.png?amount=${Number(o.refund_due)}&addInfo=${encodeURIComponent(info)}&accountName=${encodeURIComponent(a.name)}` : '';
+      return `<tr><td><b>${esc(o.code)}</b><br><small>${esc(OST[o.status] || o.status)}</small></td><td>${esc(o.customer.name)}<br><small>${esc(o.customer.phone)} · ${esc(o.customer.email)}</small></td><td><b>${vnd(o.refund_due)}</b>${o.refunded ? `<br><small>đã hoàn ${vnd(o.refunded)}</small>` : ''}</td>
+        <td>${a ? `${esc(a.bank_label || a.bin)}<br><b>${esc(a.acc)}</b> ${cp(a.acc)}<br>${esc(a.name)}<br><small>Nội dung: ${esc(info)}</small> ${cp(info)}` : '<span style="color:#B45309">Khách chưa khai tài khoản</span><br><small>Đã gửi email kèm link nhập TK</small>'}</td>
+        <td>${qr ? `<img src="${safeUrl(qr)}" alt="VietQR" style="width:150px;border-radius:8px;border:1px solid var(--line)" referrerpolicy="no-referrer">` : '-'}</td>
+        <td><input id="rfr_${id}" placeholder="Mã GD ngân hàng" style="width:140px"><br><button class="btn2 pri" style="margin-top:6px" onclick="refundDone('${esc(o.code)}','${id}',${Number(o.refund_due)})">✅ Đã chuyển hoàn</button></td></tr>`;
+    }).join('')}</table></div>`;
+}
+async function refundDone(code, id, amt) {
+  const ref = ($('#rfr_' + id).value || '').trim(); if (!ref) return alert('Nhập mã giao dịch ngân hàng của lần chuyển hoàn (để đối soát)');
+  if (!confirm('Xác nhận ĐÃ chuyển hoàn ' + vnd(amt) + ' cho đơn ' + code + '?\nHệ thống ghi sổ kế toán và email cho khách.')) return;
+  try { await OPS.call('admin.order.update', { code, action: 'refund', amount: amt, ref }); logAdmin('Hoàn tiền ' + code + ' ' + amt); await opsLoad(); } catch (e) { alert(e.message); }
+}
+/* ---------- kiểm duyệt đánh giá ---------- */
+const RVST = { pending: '🕓 Chờ duyệt', published: '✅ Hiển thị', hidden: '🙈 Đã ẩn', removed: '🗑 Đã xóa' };
+async function loadReviewsAdm() { if (!OPS.on || !OPS.tok()) return; try { OPS.reviews = (await OPS.call('admin.reviews')).rows; renderReviews(); } catch (e) { console.warn(e); } }
+function renderReviews() {
+  const t = document.getElementById('rvTbl'); if (!t) return; const R = OPS.reviews || [], f = ($('#rvF') || {}).value || '';
+  const pend = R.filter(r => r.status === 'pending').length, nb = document.querySelector('[data-t="reviews"]'); if (nb) nb.textContent = '⭐ Đánh giá' + (pend ? ` (${pend})` : '');
+  const L = R.filter(r => !f || r.status === f); $('#rvCount').textContent = '· ' + L.length + ' / ' + R.length;
+  t.innerHTML = '<tr><th>Lúc</th><th>Sản phẩm</th><th>Sao</th><th>Nội dung</th><th>Người đánh giá</th><th>Trạng thái</th><th></th></tr>' + (L.map(r => `<tr><td style="font-size:12px">${esc(new Date(r.created_at).toLocaleString('vi-VN'))}</td><td>${esc(r.product || r.sku)}<br><small>${esc(r.sku)} · ${esc(r.order_code)}</small></td><td>${'★'.repeat(Number(r.rating) || 0)}</td><td style="max-width:360px">${esc(r.content)}</td><td>${esc(r.name)}</td><td>${RVST[r.status] || esc(r.status)}</td>
+    <td>${r.status !== 'published' ? `<button class="btn2 pri" onclick="rvAct('${esc(r.id)}','publish')">Hiển thị</button>` : ''}${r.status !== 'hidden' ? `<button class="btn2" onclick="rvAct('${esc(r.id)}','hide')">Ẩn</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" style="color:var(--muted)">Không có đánh giá ở trạng thái này.</td></tr>');
+}
+async function rvAct(id, action) { try { await OPS.call('admin.review.update', { id, action }); logAdmin('Đánh giá ' + id + ': ' + action); await loadReviewsAdm(); } catch (e) { alert(e.message); } }
+/* ---------- tự kiểm toán ---------- */
+async function runAudit() {
+  const el = document.getElementById('auditOut'); el.textContent = 'Đang đối soát…';
+  try {
+    const r = await OPS.call('admin.audit');
+    el.innerHTML = `Đối soát ${r.orders} đơn, ${r.ledger_rows} bút toán, hạn mức email còn ${r.mail_quota < 0 ? '?' : r.mail_quota} · ${r.issues.length ? `<b style="color:#B91C1C">${r.issues.length} việc cần xử lý</b>` : '<b style="color:#166534">✓ Không phát hiện sai lệch</b>'}`
+      + (r.issues.length ? `<table style="margin-top:6px">${r.issues.map(i => `<tr><td>${i.lvl === 'high' ? '🔴' : '🟠'}</td><td><b>${esc(i.code)}</b></td><td>${esc(i.msg)}</td></tr>`).join('')}</table>` : '');
+    logAdmin('Tự kiểm toán: ' + r.issues.length + ' việc');
+  } catch (e) { el.textContent = '⚠ ' + e.message; }
 }

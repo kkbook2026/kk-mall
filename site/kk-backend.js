@@ -71,7 +71,11 @@ if (KKB.on) {
       <div class="f"><label>Địa chỉ nhận hàng mặc định</label><textarea name="address" rows="2">${esc(m.address || '')}</textarea></div><div class="err" id="memErr"></div><button class="btn o" style="margin-top:0">💾 Lưu thông tin</button></form>
       ${m.role === 'admin' ? '<a class="btn g" style="display:block;text-align:center" href="./admin">⚡ Vào trang Quản trị</a>' : ''}
       <button class="btn i" onclick="myOrders()">📦 Đơn hàng của tôi</button><div id="myOrdersBox" style="margin-top:10px"></div>
-      <button class="btn o" onclick="kkLogout()">Đăng xuất</button></div>`;
+      <button class="btn o" onclick="kkLogout()">Đăng xuất</button>
+      <details style="margin-top:12px;font-size:13px"><summary style="cursor:pointer;font-weight:700;color:var(--ink)">🔐 Dữ liệu cá nhân của tôi</summary>
+        <div style="color:var(--muted);margin:6px 0">Theo Luật Bảo vệ dữ liệu cá nhân 2025: bạn có quyền tải toàn bộ dữ liệu KK-MALL đang lưu về bạn và yêu cầu xóa tài khoản.</div>
+        <button class="btn i" style="margin:4px 0" onclick="myDataExport()">⬇ Tải dữ liệu của tôi (JSON)</button>
+        <button class="btn" style="margin:4px 0;background:#FEF2F2;color:#B91C1C;border:1.5px solid #FECACA" onclick="myDelete()">🗑 Xóa tài khoản</button><div class="err" id="pdErr"></div></details></div>`;
     show('#mm');
   };
   window.otpSend = async function (e) {
@@ -192,11 +196,32 @@ if (KKB.on) {
   /* ================= THEO DÕI ĐƠN + BẢO HÀNH / ĐỔI TRẢ ================= */
   const SHIP = { to_order: 'Đang đặt tại nhà cung cấp', ordered: 'Đã đặt - chờ giao vận chuyển', shipped: 'Đang giao', delivered: 'Đã giao', cancelled: 'Đã hủy' };
   const RMAST = { info_sent: 'Đã gửi hướng dẫn bảo hành', requested: 'Đã nhận yêu cầu', pickup_scheduled: 'Đã hẹn lấy hàng', returned: 'Nhà cung cấp đã nhận lại', refunded: 'Đã hoàn tiền', rejected: 'Không được chấp nhận', closed: 'Đã đóng' };
+  const RF_BANKS = [['970436', 'Vietcombank'], ['970415', 'VietinBank'], ['970418', 'BIDV'], ['970405', 'Agribank'], ['970407', 'Techcombank'], ['970422', 'MB Bank'], ['970416', 'ACB'], ['970432', 'VPBank'], ['970423', 'TPBank'], ['970403', 'Sacombank'], ['970441', 'VIB'], ['970443', 'SHB'], ['970437', 'HDBank'], ['970448', 'OCB'], ['970426', 'MSB'], ['970431', 'Eximbank'], ['970440', 'SeABank'], ['970454', 'VietCapital Bank'], ['970429', 'SCB'], ['970409', 'Bac A Bank'], ['970412', 'PVcomBank'], ['970419', 'NCB'], ['970427', 'VietABank'], ['970428', 'Nam A Bank'], ['970449', 'LPBank'], ['970452', 'KienlongBank'], ['970430', 'PG Bank'], ['970406', 'DongA Bank'], ['970458', 'UOB'], ['970424', 'Shinhan Bank'], ['970457', 'Woori'], ['971005', 'Viettel Money'], ['971011', 'VNPT Money']];
+  window.refundForm = function () {
+    const box = $('#rfBox'); if (!box) return;
+    box.innerHTML = `<form onsubmit="sendRefundAcc(event)" style="display:grid;gap:8px;margin-top:8px"><select name="bin" required><option value="">- Chọn ngân hàng / ví -</option>${RF_BANKS.map(([b, n]) => `<option value="${b}">${esc(n)}</option>`).join('')}</select>
+      <input name="acc" required inputmode="numeric" maxlength="19" placeholder="Số tài khoản"><input name="name" required maxlength="80" placeholder="Tên chủ tài khoản (không dấu)" style="text-transform:uppercase">
+      <button class="btn g" style="margin:0">Gửi tài khoản nhận hoàn</button><div class="err" id="rfErr"></div></form>`;
+  };
+  window.sendRefundAcc = async function (e) {
+    e.preventDefault(); const f = e.target, t = window._trk, b = f.querySelector('button'), er = $('#rfErr'); er.style.display = 'none'; b.disabled = true;
+    try { await KKB.call('order.refund_account', { code: t.code, phone: t.phone, token: KKB.token(), bin: f.bin.value, bank_label: f.bin.options[f.bin.selectedIndex].text, acc: f.acc.value.replace(/\s/g, ''), name: f.name.value.trim() }); showTrack(t.code, t.phone); }
+    catch (x) { er.textContent = x.message; er.style.display = 'block'; b.disabled = false; }
+  };
+  window.myDataExport = async function () {
+    try { const r = await KKB.call('member.export', { token: KKB.token() }); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' })); a.download = 'kk-mall-du-lieu-cua-toi.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }
+    catch (e) { const er = $('#pdErr'); er.textContent = e.message; er.style.display = 'block'; }
+  };
+  window.myDelete = async function () {
+    const c = prompt('Xóa tài khoản: họ tên, SĐT, địa chỉ mặc định và mọi phiên đăng nhập sẽ bị xóa (chứng từ đơn hàng lưu theo Luật Kế toán).\nGõ XOA để xác nhận:'); if (c === null) return;
+    try { await KKB.call('member.delete', { token: KKB.token(), confirm: c.trim() }); KKB.setSess(null); alert('Đã xóa tài khoản. Email xác nhận đã được gửi.'); location.reload(); }
+    catch (e) { const er = $('#pdErr'); er.textContent = e.message; er.style.display = 'block'; }
+  };
   window.showTrack = async function (code, phone) {
     code = String(code || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 20); phone = String(phone || '').replace(/\D/g, '').slice(0, 11);
     try {
       const d = await KKB.call('order.get', { code, phone, token: KKB.token() }); const o = d.order, paid = o.payment_status === 'paid';
-      window._trk = { code, phone, o };
+      window._trk = { code, phone, o }; setTimeout(() => { if (o.refund_due && !o.refund_account) refundForm(); }, 0);
       const steps = [['Đặt hàng', true], ['Thanh toán', paid], ['Đặt tại nhà cung cấp', ['ordered', 'shipping', 'delivered', 'completed'].includes(o.status)], ['Đang giao', ['shipping', 'delivered', 'completed'].includes(o.status)], ['Đã giao', ['delivered', 'completed'].includes(o.status)]];
       $('#tBox').innerHTML = `<div style="padding:28px"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;color:var(--ink)">Đơn ${o.code}</h2><button class="x" onclick="closeAll()">✕</button></div>
         <div class="${paid ? 'okm' : 'err'}" style="display:block;margin:10px 0">${paid ? '✅ Đã thanh toán' : '⏳ Chưa thanh toán'} · <b>${esc(o.status_text)}</b></div>
@@ -207,7 +232,8 @@ if (KKB.on) {
           <td style="white-space:nowrap">${paid ? `${l.warranty_ok ? `<button class="vbtn" onclick="openRma('${l.sku}','warranty')">🛠 Bảo hành</button> ` : ''}<button class="vbtn" onclick="openRma('${l.sku}','return')">↩️ Đổi trả</button>` : ''}</td></tr>`; }).join('')}
           <tr><td>Tiền hàng (thanh toán hộ nhà cung cấp)</td><td style="text-align:right">${vnd(o.goods)}</td><td></td></tr><tr><td>Phí dịch vụ KK-MALL (gồm VAT)${o.discount ? ` - đã giảm ${vnd(o.discount)}` : ''}</td><td style="text-align:right">${vnd(o.fee_net)}</td><td></td></tr>
           <tr style="font-weight:800"><td>Tổng thanh toán</td><td style="text-align:right;color:var(--coral)">${vnd(o.total)}</td><td></td></tr></table>
-        ${o.refund_due ? `<div class="note">↩️ Nhà cung cấp bán rẻ hơn dự kiến: KK-MALL sẽ hoàn lại bạn <b>${vnd(o.refund_due)}</b>.</div>` : ''}
+        ${o.refund_due ? `<div class="note" style="border-color:#FCD34D;background:#FFFBEB">↩️ KK-MALL cần hoàn lại bạn <b>${vnd(o.refund_due)}</b>${o.refunded ? ` (đã hoàn ${vnd(o.refunded)})` : ''}.
+          ${o.refund_account ? `<br>Tài khoản nhận hoàn: <b>${esc(o.refund_account.bank_label)} ${esc(o.refund_account.acc)}</b> - ${esc(o.refund_account.name)}. KK-MALL sẽ chuyển trong 1-2 ngày làm việc. <a href="#" onclick="refundForm();return false">Đổi tài khoản</a>` : `<br><b>Vui lòng nhập tài khoản nhận hoàn tiền:</b>`}<div id="rfBox"></div></div>` : (o.refunded ? `<div class="note">✅ KK-MALL đã hoàn <b>${vnd(o.refunded)}</b> cho đơn này.</div>` : '')}
         ${o.invoices.length ? `<div class="note">🧾 Hóa đơn phí dịch vụ: ${o.invoices.map(i => `${esc(i.inv_id)} - ${i.status === 'issued' ? 'đã gửi email' : 'đang lập'}`).join(', ')} · Hóa đơn tiền hàng do nhà cung cấp gửi trực tiếp.</div>` : ''}
         ${o.rmas.length ? `<div class="note">🛠 Yêu cầu sau bán: ${o.rmas.map(r => `<b>${esc(r.rma_id)}</b> (${r.type === 'warranty' ? 'bảo hành' : 'đổi trả'}): ${RMAST[r.status] || r.status}${r.return_tracking ? ' · mã thu hồi ' + esc(r.return_tracking) : ''}${r.pickup ? ' · lấy hàng ' + esc(r.pickup) : ''}`).join('<br>')}</div>` : ''}
         <div style="font-size:12.5px;color:var(--muted)">Giao đến: ${esc(o.customer.name)} · ${esc(o.customer.phone)} · ${esc(o.customer.address)}</div><div id="rmaBox"></div></div>`;

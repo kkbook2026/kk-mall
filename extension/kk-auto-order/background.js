@@ -137,7 +137,7 @@ async function handle(m, sender) {
     }
     case 'success': {
       if (!fromBot) return {};
-      try { await api('bot.update', { po_id: j.po_id, state: 'done', supplier_order_id: m.order_id, total: j.total, ship: j.ship }); }
+      try { await api('bot.update', { po_id: j.po_id, state: 'done', run: j.run, supplier_order_id: m.order_id, total: j.total, ship: j.ship }); }
       catch (e) { await log('⚠ Đặt thành công nhưng báo máy chủ lỗi: ' + e.message + ' - email Tiki sẽ tự gắn mã đơn', 'e'); }
       notify('Đặt thành công', j.po_id + ' - mã đơn Tiki ' + m.order_id);
       await finish('done', 'mã đơn Tiki ' + m.order_id + ', ' + (j.total || 0).toLocaleString('vi-VN') + 'đ'); return {};
