@@ -11,7 +11,7 @@
  */
 
 /* =========================== CẤU HÌNH =========================== */
-var VERSION = '1.5.0';
+var VERSION = '1.6.0';
 var CONSENT_VERSION = 'UQ-2026-10';
 var SHEETS = {
   Orders: ['code', 'created_at', 'status', 'payment_status', 'email', 'phone', 'name', 'goods', 'fee', 'total', 'paid_at', 'data', 'updated_at'],
@@ -23,7 +23,8 @@ var SHEETS = {
   Invoices: ['inv_id', 'order_code', 'created_at', 'status', 'buyer', 'tax_code', 'content', 'pre_tax', 'vat_rate', 'vat', 'total', 'data'],
   Warranty: ['brand', 'hotline', 'url', 'confidence', 'note'],
   Log: ['at', 'action', 'actor', 'detail'],
-  Reviews: ['id', 'sku', 'order_code', 'rating', 'content', 'name', 'status', 'created_at', 'data']
+  Reviews: ['id', 'sku', 'order_code', 'rating', 'content', 'name', 'status', 'created_at', 'data'],
+  SearchMiss: ['q', 'kind', 'n', 'results', 'first_at', 'last_at']
 };
 var DEFAULTS = {
   SITE: 'https://www.kk-mall.com',
@@ -1064,6 +1065,7 @@ function hourly() {
     } catch (e) { log_('hourly_error', r.code, String(e && e.message || e)); } finally { lock.releaseLock(); }
   });
   outbox.forEach(function (m) { mail_(m[0], m[1], m[2]); });
+  try { flushSearchMiss_(); } catch (e) { log_('searchmiss_error', 'system', String(e && e.message || e)); }
   // don phien het han
   var s = sh_('Sessions'), v = s.getDataRange().getValues();
   for (var i = v.length - 1; i >= 1; i--) if (new Date(v[i][4]) < new Date()) s.deleteRow(i + 1);
@@ -1079,6 +1081,36 @@ function dailyBackup() {
 }
 
 /* =========================== ĐỊNH TUYẾN HTTP =========================== */
+/* =========================== TỪ KHÓA TÌM KHÔNG RA (ẩn danh) ===========================
+ * Trình duyệt khách gửi từ khóa cho 0 / rất ít kết quả hoặc khách bấm "Tìm giúp tôi": chỉ lưu CỤM TỪ (không email, SĐT, link,
+ * không định danh người gửi) để KK-MALL bổ sung nguồn hàng / từ đồng nghĩa. Ghi đệm vào bộ nhớ đệm, gộp vào Sheet mỗi giờ.
+ */
+function searchMiss_(b) {
+  var q = str_(b.q, 120).toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 80);
+  if (q.length < 2 || /@|https?:|www\.|\d{8,}|(\d[\s.-]?){9,}/.test(q)) return { ok: true };   // co dang du lieu ca nhan -> bo
+  if (rateFixed_('smiss', 400, 3600)) return { ok: true };                                    // tran: bo qua im lang (khong anh huong khach)
+  var kind = b.kind === 'request' ? 'request' : 'zero', n = Math.max(0, Math.min(99999, Math.round(Number(b.n) || 0)));
+  var c = CacheService.getScriptCache(), lk = LockService.getScriptLock(); if (!lk.tryLock(3000)) return { ok: true };
+  try {
+    var buf = []; try { buf = JSON.parse(c.get('smq') || '[]'); } catch (e) { buf = []; }
+    if (buf.length < 400) buf.push([q, kind, n, nowIso_()]);
+    c.put('smq', JSON.stringify(buf), 21600);
+  } finally { lk.releaseLock(); }
+  return { ok: true };
+}
+function flushSearchMiss_() {
+  var c = CacheService.getScriptCache(), lk = LockService.getScriptLock(); if (!lk.tryLock(20000)) return 0;
+  try {
+    var buf = []; try { buf = JSON.parse(c.get('smq') || '[]'); } catch (e) { buf = []; }
+    if (!buf.length) return 0;
+    var agg = {}; buf.forEach(function (x) { var k = x[0] + '|' + x[1], a = agg[k] || (agg[k] = { q: x[0], kind: x[1], n: 0, results: x[2], first: x[3], last: x[3] }); a.n++; a.results = x[2]; if (x[3] > a.last) a.last = x[3]; if (x[3] < a.first) a.first = x[3]; });
+    var cur = {}; rows_('SearchMiss').forEach(function (r) { cur[String(r.q) + '|' + r.kind] = r; });
+    Object.keys(agg).forEach(function (k) { var a = agg[k], r = cur[k];
+      if (r) update_('SearchMiss', r._row, { n: (Number(r.n) || 0) + a.n, results: a.results, last_at: a.last });
+      else append_('SearchMiss', { q: a.q, kind: a.kind, n: a.n, results: a.results, first_at: a.first, last_at: a.last }); });
+    c.remove('smq'); return buf.length;
+  } finally { lk.releaseLock(); }
+}
 function doGet(e) {
   var a = (e && e.parameter && e.parameter.a) || 'config';
   try {
@@ -1112,6 +1144,8 @@ function doPost(e) {
       'review.submit': function () { return reviewSubmit_(b); },
       'review.list': function () { return reviewList_(b.sku); },
       'reviews.stats': function () { return reviewStats_(); },
+      'search.miss': function () { return searchMiss_(b); },
+      'admin.searchmiss': function () { session_(b.token, true); flushSearchMiss_(); return { rows: rows_('SearchMiss').map(function (r) { return { q: String(r.q), kind: r.kind, n: Number(r.n) || 0, results: Number(r.results) || 0, first_at: r.first_at, last_at: r.last_at }; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 500) }; },
       'admin.reviews': function () { return adminList_(b, 'Reviews', function (r) { return { id: r.id, sku: r.sku, order_code: r.order_code, rating: r.rating, content: r.content, name: r.name, status: r.status, created_at: r.created_at, product: parseData_(r).product || '' }; }); },
       'admin.review.update': function () { return adminReviewUpdate_(b); },
       'admin.audit': function () { session_(b.token, true); return audit_(); },
