@@ -1,6 +1,6 @@
 # BÁO CÁO NGHIỆM THU THEO VAI TRÒ - KK-MALL (31/10/2026)
 
-**Kết luận:** 335/335 kiểm tra đạt. Phát hiện và đã sửa 1 lỗi thật (đánh giá ảo trên dòng hàng đã hủy). Website chạy thật; máy chủ v1.6.0 đã lưu, chờ chủ sở hữu bấm triển khai Version 10.
+**Kết luận:** 336/336 kiểm tra đạt. Phát hiện và đã sửa 2 lỗi thật (đánh giá ảo trên dòng hàng đã hủy; ô ship hiện "NaN" trong form đặt lệnh mua). Website chạy thật; máy chủ v1.6.0 đã lưu, chờ chủ sở hữu bấm triển khai Version 10.
 
 ## 1. Môi trường và tài khoản thử nghiệm
 
@@ -19,7 +19,7 @@
 
 - **Sản phẩm thật trong danh mục:** USB Wifi TP-Link TL-WN823N (276.000đ), Nồi chiên không dầu Philips NA130 (2.092.000đ), Sách Collins IELTS (165.000đ), Router TP-Link Archer C64 (782.000đ).
 
-## 2. Kết quả kịch bản nghiệm thu (72/72)
+## 2. Kết quả kịch bản nghiệm thu (73/73)
 
 | # | Kịch bản | Kết quả |
 |---|---|---|
@@ -27,7 +27,7 @@
 | 2 | Thành viên A: đăng ký OTP, lưu hồ sơ, checkout tự điền, 2 dòng hàng, voucher chỉ giảm phí dịch vụ (-34.000đ), "Đơn hàng của tôi" không lộ đơn người khác | 6/6 |
 | 3 | Thành viên B: đơn cần hóa đơn GTGT lưu đúng tên/MST công ty | 2/2 |
 | 4 | Khách D: chuyển dư 50.000đ → ghi phải hoàn; ngân hàng gửi lặp không cộng trùng; khách khai TK nhận hoàn (che số); mã độc trong tên không chạy | 4/4 |
-| 5 | Quản trị: đăng nhập khóa dữ liệu + OTP; đủ đơn; xác nhận thanh toán tay; kế hoạch lệnh mua đơn VAT bỏ qua Shopee (rẻ hơn nhưng không xuất VAT) | 6/6 |
+| 5 | Quản trị: đăng nhập khóa dữ liệu + OTP; đủ đơn; xác nhận thanh toán tay; kế hoạch lệnh mua đơn VAT bỏ qua Shopee (rẻ hơn nhưng không xuất VAT); form đặt lệnh mua không còn ô NaN | 7/7 |
 | 6 | Bot đặt hàng: tạo khóa (email cảnh báo), hàng đợi kèm địa chỉ khách, chọn Tiki, đơn VAT để đặt tay, chặn giá nguồn vượt biên, chống mua trùng, báo xong → "Đã đặt" + email khách, thực trả rẻ hơn → tự ghi hoàn 3.000đ | 10/10 |
 | 7 | Vận hành: đặt tay, nguồn hết hàng → hủy lệnh → tự hoàn 100% dòng + email; chặn chuyển trạng thái sai; vận chuyển → đã giao; khách tự tra cứu; sai SĐT không xem được | 5/5 |
 | 8 | Sau giao: đánh giá thật (ẩn danh, nhãn "Đã nhận hàng"); chặn đánh giá dòng đã hủy; đổi trả kèm ảnh → thu hồi → hoàn tiền; bảo hành thiết bị điện tử (sách: báo không thuộc diện bảo hành); hàng đợi hoàn tiền VietQR → "Đã chuyển hoàn" | 9/9 |
@@ -45,7 +45,7 @@
 | Trình duyệt toàn trang (cửa hàng + quản trị) | 38/38 |
 | Ô tìm kiếm (gợi ý, dấu, phím, bộ lọc, 0 kết quả, điện thoại) | 27/27 |
 | Tiện ích Chrome (tách địa chỉ, kế hoạch nguồn) | 15/15 |
-| **Tổng (kể cả nghiệm thu 72)** | **335/335** |
+| **Tổng (kể cả nghiệm thu 73)** | **336/336** |
 
 ## 4. Kiểm tra trên hệ thống thật (chỉ đọc, không tạo dữ liệu)
 
@@ -55,6 +55,8 @@
 - Tra cứu mã đơn giả → từ chối đúng; trang quản trị noindex; trang pháp lý, sitemap, gói tiện ích: HTTP 200. Giỏ hàng thử được khôi phục nguyên trạng.
 
 ## 5. Lỗi phát hiện và đã sửa
+
+- **Ô "Trong đó ship/phụ phí" hiện NaN** trong form đặt lệnh mua khi nguồn chưa có dữ liệu ship → người vận hành có thể lưu sai số liệu ship thực tế. Đã sửa (mặc định 0), đã chạy thật trên trang quản trị.
 
 - **Đánh giá ảo trên dòng hàng chưa từng nhận:** đơn 2 dòng, 1 dòng nguồn hết hàng bị hủy + hoàn tiền, dòng kia đã giao → máy chủ vẫn cho đánh giá dòng đã hủy (vì chỉ xét trạng thái cả đơn). Đã sửa: có lệnh mua thì chỉ đánh giá khi CHÍNH dòng đó đã giao; thêm 2 kiểm tra hồi quy. Mã sửa đã lưu trong Apps Script, có hiệu lực khi triển khai Version 10.
 
