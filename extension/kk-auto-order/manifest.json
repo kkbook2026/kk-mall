@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "KK-MALL Auto Order",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Tự đặt hàng tại nguồn (Tiki) cho lệnh mua KK-MALL - chủ sở hữu chỉ nhập OTP. (c) 2026 Nguyễn Duy Điển (KK-2026).",
   "permissions": ["storage", "tabs", "alarms", "notifications"],
   "host_permissions": ["https://tiki.vn/*", "https://www.kk-mall.com/*", "https://script.google.com/*", "https://script.googleusercontent.com/*"],

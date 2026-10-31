@@ -69,12 +69,23 @@ function create(env = process.env, stats = null) {
 async function fetchStats(env = process.env) {
   let url = String(env.KK_BACKEND_URL || '').trim(), key = String(env.BACKEND_STATS_KEY || '').trim();
   if (!url) { try { const m = require('fs').readFileSync(require('path').join(__dirname, '..', 'site', 'config.js'), 'utf8').match(/KK_BACKEND\s*=\s*'([^']+)'/); if (m) url = m[1]; } catch { } }
-  if (!key && env.ADMIN_PORTAL_KEY) key = require('crypto').createHash('sha256').update('kk-stats|' + String(env.ADMIN_PORTAL_KEY).trim()).digest('hex'); // cung cong thuc voi trang quan tri
+  if (!key && env.ADMIN_PORTAL_KEY) key = require('crypto').pbkdf2Sync(String(env.ADMIN_PORTAL_KEY).trim(), 'kk-stats-v2', 300000, 32, 'sha256').toString('hex'); // cung cong thuc voi trang quan tri (PBKDF2 - khong lo khoa quan tri)
   if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url) || !key) return null;
   try {
     const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 20000);
-    const r = await fetch(url + '?a=shipstats&key=' + encodeURIComponent(key), { signal: ac.signal, redirect: 'follow' }); clearTimeout(t);
+    const r = await fetch(url, { method: 'POST', body: JSON.stringify({ a: 'shipstats', key }), signal: ac.signal, redirect: 'follow' }); clearTimeout(t); // khoa trong than POST, khong nam tren URL
     const j = await r.json(); return j && j.sources ? j.sources : null;
   } catch { return null; }
 }
-module.exports = { create, fetchStats, DEFAULT_RULES, BULKY_GRP, isBulky };
+/* Thong ke danh gia THAT (nguoi da nhan hang) tu may chu - cong khai, khong co du lieu ca nhan. null neu khong lay duoc */
+async function fetchReviewStats(env = process.env) {
+  let url = String(env.KK_BACKEND_URL || '').trim();
+  if (!url) { try { const m = require('fs').readFileSync(require('path').join(__dirname, '..', 'site', 'config.js'), 'utf8').match(/KK_BACKEND\s*=\s*'([^']+)'/); if (m) url = m[1]; } catch { } }
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) return null;
+  try {
+    const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 20000);
+    const r = await fetch(url, { method: 'POST', body: JSON.stringify({ a: 'reviews.stats' }), signal: ac.signal, redirect: 'follow' }); clearTimeout(t);
+    const j = await r.json(); return j && j.stats && typeof j.stats === 'object' ? j.stats : null;
+  } catch { return null; }
+}
+module.exports = { create, fetchStats, fetchReviewStats, DEFAULT_RULES, BULKY_GRP, isBulky };

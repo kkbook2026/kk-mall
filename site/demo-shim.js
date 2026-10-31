@@ -135,7 +135,7 @@
   const SMART = {
     deal: { test: r => r.in_stock && r.disc >= 20 && !(r.fl & BLOCK), sort: (a, b) => (b.disc - a.disc) || (b.sold - a.sold) },
     low: { test: r => r.in_stock && (r.fl & 4) && !(r.fl & 3), sort: (a, b) => (b.sold - a.sold) },
-    clear: { test: r => r.in_stock && r.disc >= 10 && !(r.fl & BLOCK) && !GENERIC.test(String(r.brand || '').trim()) && r.rating >= 4.5, sort: (a, b) => (b.disc * Math.log(b.sold + 2)) - (a.disc * Math.log(a.sold + 2)) },
+    clear: { test: r => r.in_stock && r.disc >= 10 && !(r.fl & BLOCK) && !GENERIC.test(String(r.brand || '').trim()), sort: (a, b) => (b.disc * Math.log(b.sold + 2)) - (a.disc * Math.log(a.sold + 2)) },
     combo: { test: r => r.in_stock && (r.fl & 8) && !(r.fl & 3), sort: (a, b) => (b.disc - a.disc) || (b.sold - a.sold) },
   };
   let SCACHE = null; // ket qua tim kiem gan nhat (phan trang khong tinh lai)
@@ -207,9 +207,8 @@
         const d = await realFetch('api/products/' + m[1] + '.json');
         if (!d.ok) return err('Không tìm thấy sản phẩm', 404);
         const p = fixImg(await d.json());
-        const mine = store('kk_reviews', {})[p.sku] || [];
-        p.reviews = [...mine, ...(p.reviews || [])];
-        const n = p.reviews.length; p.reviewStat = { n, avg: n ? p.reviews.reduce((a, r) => a + r.rating, 0) / n : null };
+        // danh gia that lay truc tiep tu may chu khi mo SP (review.list); thong ke n/avg do bo thu thap gan tu may chu
+        p.reviews = []; if (!p.reviewStat || !p.reviewStat.n) { p.reviewStat = { n: 0, avg: null }; p.rating = 0; }
         return jr(p);
       }
       if ((m = path.match(/^\/api\/ledger\/([A-Z0-9]+)$/))) {
@@ -238,17 +237,6 @@
         const rec = store('kk_orders', {})[m[1]];
         if (!rec || normPhone(new URLSearchParams(qs || '').get('phone')) !== rec.order.customer_phone) return err('Không tìm thấy đơn hàng hoặc số điện thoại không khớp (đơn đặt thử được lưu trên chính thiết bị đã đặt)', 404);
         return jr({ ...rec, payment: null, refund: null });
-      }
-      if (path === '/api/reviews' && method === 'POST') {
-        const rec = store('kk_orders', {})[String(body.order_code || '').toUpperCase()];
-        if (!rec || normPhone(body.phone) !== rec.order.customer_phone) return err('Cần mã đơn hàng + SĐT khớp để đánh giá (mua hàng xác thực)', 403);
-        if (!rec.order.items.some(i => i.sku === body.sku)) return err('Sản phẩm không có trong đơn này');
-        const all = store('kk_reviews', {}); const arr = all[body.sku] || [];
-        const nm = rec.order.customer_name.split(' ');
-        arr.unshift({ rating: Math.max(1, Math.min(5, +body.rating || 5)), content: String(body.content || '').slice(0, 500),
-          display_name: nm[nm.length - 1] + ' ' + (nm[0] || '').charAt(0) + '.', verified: 1, created_at: nowIso() });
-        all[body.sku] = arr.slice(0, 10); save('kk_reviews', all);
-        return jr({ ok: true, note: 'Cảm ơn bạn! Đánh giá đã được ghi nhận và hiển thị.' }, 201);
       }
       if (path.startsWith('/api/zkp')) return jr({ eligible: true, nullifier: 'edge-' + Math.random().toString(36).slice(2), note: 'Xác minh trên thiết bị' });
       return err('Tính năng này chạy trên máy chủ KK-MALL', 404);

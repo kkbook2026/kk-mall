@@ -91,3 +91,25 @@
 - **Sự cố:** quản trị bị báo "thao tác quá nhanh" vì hôm đó đã gửi đủ 10 mã (giới hạn 10 mã/ngày/email), và mỗi lần bấm "Gửi mã" làm mã trước mất hiệu lực nên dễ bấm lặp.
 - **Đã sửa:** bấm "Gửi mã" lần nữa trong 60 giây không gửi mã mới (mã vừa gửi vẫn dùng được); mã của email trước còn hạn vẫn đăng nhập được; giới hạn theo cửa sổ cố định (quản trị 6 mã/15 phút, 40 mã/ngày; khách 3 mã/15 phút, 10 mã/ngày), báo rõ số phút phải chờ, không còn khóa kéo dài; nút "Gửi mã" đếm ngược 60 giây.
 - **Đồng bộ email Tiki tạm tắt:** để triển khai ngay mà không chờ cấp quyền, manifest đang dùng 5 quyền cũ (`backend/appsscript.json`). Khi bật lại: thay bằng `backend/appsscript.gmail.json` (thêm dịch vụ Gmail + `gmail.readonly`), chủ sở hữu cấp quyền, chạy `installMailSync`, triển khai phiên bản mới. Bot đặt hàng tự báo mã đơn nên không phụ thuộc phần này.
+
+## RÀ SOÁT ĐỘC LẬP + GIA CỐ TIỀN/BẢO MẬT + TÍNH NĂNG THIẾT YẾU (31/10/2026, backend v1.5.0)
+**Rà soát độc lập** (agent riêng, chứng minh bằng script) phát hiện 15 lỗi; đã sửa toàn bộ:
+- **Tiền:** mã đơn 8 ký tự hex + kiểm tra trùng (trước 5 ký tự, ~82%/năm trùng ở 100 đơn/ngày → tiền vào nhầm đơn); webhook nhận cả mã cũ/mới; ghi Nợ 1121 đúng số thực nhận (chuyển dư không làm lệch sổ); chuyển trùng / tiền vào đơn đã hủy → **không** kích hoạt lại đơn, vào danh sách cần hoàn + email quản trị; ngân hàng gửi lại cùng giao dịch → bỏ qua (theo mã GD, không có mã thì theo nội dung+số tiền); tiền vào không chứa mã đơn → email đối soát.
+- **Lệnh mua:** bảng chuyển trạng thái hợp lệ (to_order→ordered→shipped→delivered; hủy chỉ khi chưa đặt) → hết ghi chi NCC 2 lần khi bấm đúp; hủy lệnh mua → tự ghi hoàn 100% dòng hàng (tiền hàng + phí sau giảm) + email khách.
+- **Hoàn tiền:** trần theo số đã nhận; tách 2 quỹ (tiền hàng/chuyển dư → 3388, phí → 5213/33311) nên hoàn 2 lần vẫn đảo đúng doanh thu; NCC hoàn hàng trả lại nhập **tổng lũy kế** (không cộng đôi), yêu cầu đã kết thúc không đổi trạng thái được.
+- **Đồng thời:** tự hủy đơn quá hạn chạy trong khóa + đọc lại đơn (không ghi đè thanh toán vừa vào); OTP xác thực trong khóa (không vượt 5 lần thử bằng gửi song song); bot "done" chỉ nhận khi đã được duyệt "paying" cùng phiên, dùng đúng số tiền đã duyệt.
+- **Bảo mật:** `update_` bảo vệ lại mọi ô (Sheets bỏ dấu ' khi đọc → trước đây công thức độc hại sống lại khi cập nhật đơn); CSV xuất Excel chặn công thức; khóa thống kê ship dẫn xuất PBKDF2-300k (trước SHA-256 nhanh → dò được khóa quản trị), gửi trong thân POST; email nguồn phải qua DKIM/DMARC mới được tin; giới hạn tra cứu toàn hệ thống nâng 5.000/giờ (mã 8 hex không dò được), OTP quản trị không bị chặn bởi spam OTP khách; báo giá "fresh" tối đa 240/phút (chống cạn hạn mức UrlFetch); TTL CacheService ≤ 6 giờ.
+- **Bộ thu thập:** đẩy dữ liệu bằng `--force-with-lease`, nếu main vừa có commit mã nguồn thì đặt dữ liệu lên trên (trước đây `push -f` có thể xóa commit mã nguồn đẩy cùng lúc).
+- **Lỗi thật trên web:** link "Theo dõi đơn hàng" trong email đôi khi mở ra form tra cứu trống (chạy trước khi kk-backend.js nạp) → chờ nạp xong.
+
+**Trung thực dữ liệu / pháp lý:** gỡ "⭐ 4.6" gán sẵn cho mọi SP và "Còn 50 suất" giả; chỉ hiện sao khi có đánh giá thật, dữ liệu có cấu trúc (aggregateRating) dùng điểm thật; bỏ đánh giá lưu trên trình duyệt (chỉ người viết thấy); thay MST "0000000000", hotline "1900 0000", email không tồn tại bằng "đang cập nhật" - **chủ sở hữu cần nhập thông tin doanh nghiệp thật tại Admin → Hệ thống** (website tự hiển thị).
+
+**Tính năng mới:**
+- **Đánh giá từ người đã nhận hàng** (sheet Reviews): chỉ đơn đã giao, 1 đánh giá/SP/đơn, tên ẩn danh, nội dung có link/SĐT/email/từ thô tục → chờ duyệt; tab "⭐ Đánh giá" để duyệt/ẩn; bộ thu thập lấy thống kê công khai (`reviews.stats`) gắn điểm thật vào SP/SEO.
+- **Quy trình hoàn tiền:** khách khai TK nhận hoàn trên trang theo dõi đơn (che số TK khi hiển thị) → Admin → Đơn hàng → "💸 Cần hoàn tiền" có VietQR đúng TK, đúng số tiền, nội dung "HOAN <mã đơn>" → bấm "Đã chuyển hoàn" (nhập mã GD) → ghi sổ + email khách.
+- **Nhắc thanh toán** 1 lần sau 2 giờ (kèm VietQR); email tự hủy ghi rõ đã chuyển khoản sẽ được hoàn.
+- **Tự kiểm toán hằng ngày** (sau sao lưu) + nút "🧾 Kiểm toán ngay": sổ cái từng đơn, đơn đã thu thiếu lệnh mua, lệnh mua/bot/hoàn tiền treo, hạn mức email → email quản trị khi có vấn đề.
+- **Giám sát 30 phút** (`.github/workflows/monitor.yml` + `collector/monitor.js`): trang chủ + CSP, độ mới dữ liệu giá, máy chủ (phiên bản, TK VietQR sẵn sàng, báo giá thật, API đánh giá), trang quản trị, gói dữ liệu, gói tiện ích, sitemap, trang pháp lý, chứng chỉ HTTPS → lỗi tự mở Issue GitHub (email chủ repo), hết lỗi tự đóng.
+- **Quyền dữ liệu cá nhân (Luật BVDLCN 2025):** thành viên tự tải toàn bộ dữ liệu (JSON) và tự xóa tài khoản (xóa hồ sơ + thu hồi phiên; chứng từ đơn giữ theo Luật Kế toán).
+
+**Kiểm thử:** 174 kiểm tra máy chủ + 38 kiểm tra trình duyệt (thêm: địa chỉ 3 cấp, đánh giá thật qua giao diện, hoàn tiền khách→quản trị→VietQR, tự kiểm toán, khóa PBKDF2 trình duyệt = bộ thu thập) + 15 kiểm tra tiện ích; chạy lại 8 script chứng minh lỗi của rà soát → đều đã hết.

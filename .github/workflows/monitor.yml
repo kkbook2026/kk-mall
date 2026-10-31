@@ -1,0 +1,42 @@
+name: Monitor KK-MALL (30 phut)
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          sparse-checkout: collector/monitor.js
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Kiem tra he thong that tu ben ngoai
+        id: mon
+        continue-on-error: true
+        run: node collector/monitor.js
+      - name: Mo / cap nhat / dong Issue canh bao
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ steps.mon.outcome }}
+        run: |
+          TITLE="🚨 Giám sát KK-MALL: hệ thống có lỗi"
+          NUM=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "\"$TITLE\" in:title" --json number -q '.[0].number' || true)
+          if [ "$OUTCOME" = "failure" ]; then
+            if [ -n "$NUM" ]; then gh issue comment "$NUM" -R "$GITHUB_REPOSITORY" --body-file monitor-report.md
+            else gh issue create -R "$GITHUB_REPOSITORY" --title "$TITLE" --body-file monitor-report.md; fi
+            exit 1
+          elif [ -n "$NUM" ]; then
+            gh issue comment "$NUM" -R "$GITHUB_REPOSITORY" --body-file monitor-report.md && gh issue close "$NUM" -R "$GITHUB_REPOSITORY" --reason completed
+          fi

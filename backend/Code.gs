@@ -11,7 +11,7 @@
  */
 
 /* =========================== CẤU HÌNH =========================== */
-var VERSION = '1.4.1';
+var VERSION = '1.5.0';
 var CONSENT_VERSION = 'UQ-2026-10';
 var SHEETS = {
   Orders: ['code', 'created_at', 'status', 'payment_status', 'email', 'phone', 'name', 'goods', 'fee', 'total', 'paid_at', 'data', 'updated_at'],
@@ -22,7 +22,8 @@ var SHEETS = {
   Ledger: ['at', 'order_code', 'ref', 'debit', 'credit', 'amount', 'note'],
   Invoices: ['inv_id', 'order_code', 'created_at', 'status', 'buyer', 'tax_code', 'content', 'pre_tax', 'vat_rate', 'vat', 'total', 'data'],
   Warranty: ['brand', 'hotline', 'url', 'confidence', 'note'],
-  Log: ['at', 'action', 'actor', 'detail']
+  Log: ['at', 'action', 'actor', 'detail'],
+  Reviews: ['id', 'sku', 'order_code', 'rating', 'content', 'name', 'status', 'created_at', 'data']
 };
 var DEFAULTS = {
   SITE: 'https://www.kk-mall.com',
@@ -97,7 +98,7 @@ function append_(name, obj) {
 }
 function update_(name, row, obj) {
   var h = SHEETS[name], s = sh_(name);
-  var cur = s.getRange(row, 1, 1, h.length).getValues()[0];
+  var cur = s.getRange(row, 1, 1, h.length).getValues()[0].map(safeCell_); // Sheets tra ve gia tri DA BO dau ' -> bao ve lai ca o cu
   for (var j = 0; j < h.length; j++) if (obj[h[j]] !== undefined) cur[j] = safeCell_(obj[h[j]]);
   s.getRange(row, 1, 1, h.length).setValues([cur]);
 }
@@ -133,6 +134,7 @@ function product_(sku, fresh) {
 function sellable_(p) { return p.in_stock && p.kk_price > 0 && !(p.fl & FL.HOLD) && !(p.fl & FL.NO_SOURCE); }
 function quote_(items, codes, fresh) {
   if (!items || !items.length) throw err_('Giỏ hàng trống');
+  if (fresh && rateFixed_('qfresh', 240, 60)) fresh = false; // qua 240 bao gia moi/phut: dung gia trong bo nho dem (<=2 phut)
   if (items.length > 30) throw err_('Tối đa 30 dòng sản phẩm mỗi đơn');
   var vat = Number(cfg_('VAT_RATE')) / 100, lines = [], bad = [];
   items.forEach(function (it) {
@@ -189,6 +191,7 @@ function qrUrl_(o) { var b = bank_(); return 'https://img.vietqr.io/image/' + en
 
 /* =========================== THÀNH VIÊN & OTP =========================== */
 function rate_(key, max, sec) {
+  sec = Math.min(sec, 21600); // CacheService chi giu toi da 6 gio
   var c = CacheService.getScriptCache(), n = parseInt(c.get(key) || '0', 10);
   if (n >= max) throw err_('Bạn thao tác quá nhanh, vui lòng thử lại sau ít phút', 429);
   c.put(key, String(n + 1), sec);
@@ -196,7 +199,7 @@ function rate_(key, max, sec) {
 function otpCode_() { var h = Utilities.getUuid().replace(/-/g, ''); return String(100000 + (parseInt(h.slice(0, 12), 16) % 900000)); } // nguon ngau nhien an toan (SecureRandom)
 function mailBudget_(reserve) { try { return MailApp.getRemainingDailyQuota() > reserve; } catch (e) { return true; } }
 // chong do mo ma don + SDT: dem lan sai theo ma don va toan he thong
-function guardCheck_(code) { var c = CacheService.getScriptCache(); if (parseInt(c.get('gf_' + code) || '0', 10) >= 8 || parseInt(c.get('gf_all') || '0', 10) >= 500) throw err_('Tra cứu sai quá nhiều lần - vui lòng thử lại sau 1 giờ', 429); }
+function guardCheck_(code) { var c = CacheService.getScriptCache(); if (parseInt(c.get('gf_' + code) || '0', 10) >= 8 || parseInt(c.get('gf_all') || '0', 10) >= 5000) throw err_('Tra cứu sai quá nhiều lần - vui lòng thử lại sau 1 giờ', 429); }
 function guardFail_(code) { var c = CacheService.getScriptCache(); ['gf_' + code, 'gf_all'].forEach(function (k) { c.put(k, String(parseInt(c.get(k) || '0', 10) + 1), 3600); }); }
 function ownedOrder_(b, adminOk) {
   var code = str_(b.code, 20).toUpperCase(), NF = 'Không tìm thấy đơn hàng hoặc số điện thoại không khớp';
@@ -223,7 +226,7 @@ function otpRequest_(b) {
   var cd = CacheService.getScriptCache(), dk = 'otpday_' + email + '_' + day, dn = parseInt(cd.get(dk) || '0', 10);
   if (dn >= (adm ? 40 : 10)) throw err_('Email này đã nhận quá nhiều mã hôm nay - vui lòng thử lại vào ngày mai', 429);
   cd.put(dk, String(dn + 1), 21600); // CacheService toi da 6 gio; khoa theo ngay nam trong ten khoa
-  if (rateFixed_('otp_all', 40, 3600)) throw err_('Hệ thống đang nhận nhiều yêu cầu, vui lòng thử lại sau ít phút', 429);
+  if (!adm && rateFixed_('otp_all', 40, 3600)) throw err_('Hệ thống đang nhận nhiều yêu cầu, vui lòng thử lại sau ít phút', 429);
   if (!mailBudget_(adm ? 5 : 30)) throw err_('Hệ thống đang tạm giới hạn gửi email, vui lòng thử lại sau', 503); // giu han muc email cho don hang
   var code = otpCode_();
   // giu ca ma truoc (neu con han) de ma trong email cu van dung khi 2 email den lech nhau
@@ -235,6 +238,10 @@ function otpRequest_(b) {
   return { ok: true, sent: true, expires_in: 600 };
 }
 function otpVerify_(b) {
+  var lk = LockService.getScriptLock(); lk.waitLock(20000);
+  try { return otpVerifyLocked_(b); } finally { lk.releaseLock(); }
+}
+function otpVerifyLocked_(b) {
   var email = str_(b.email, 120).toLowerCase(), code = str_(b.code, 6);
   var c = CacheService.getScriptCache(), raw = c.get('otp_' + email);
   if (!raw) throw err_('Mã đã hết hạn hoặc chưa được gửi', 401);
@@ -244,15 +251,14 @@ function otpVerify_(b) {
   if (hc !== o.h && !prevOk) { o.t = (o.t || 0) + 1; c.put('otp_' + email, JSON.stringify(o), 600); throw err_('Mã xác thực không đúng' + (o.t >= 3 ? ' (còn ' + (5 - o.t) + ' lần thử)' : ''), 401); }
   c.remove('otp_' + email);
   var isAdm = adminEmails_().indexOf(email) >= 0, role = isAdm && b.scope === 'admin' ? 'admin' : 'member'; // quyen quan tri chi cap khi dang nhap tu /admin
-  var lock = LockService.getScriptLock(); lock.waitLock(20000);
-  try {
+  {
     var m = find_('Members', 'email', email);
     var mrole = isAdm ? 'admin' : 'member';
     if (!m) append_('Members', { email: email, name: str_(b.name, 100), phone: normPhone_(b.phone), address: str_(b.address, 300), role: mrole, created_at: nowIso_(), last_login: nowIso_(), data: '{}' });
     else update_('Members', m._row, { last_login: nowIso_(), role: mrole });
     var token = rnd_();
     append_('Sessions', { token_hash: hash_(token), email: email, role: role, created_at: nowIso_(), expires_at: new Date(Date.now() + (role === 'admin' ? 12 * 36e5 : 30 * 864e5)).toISOString() });
-  } finally { lock.releaseLock(); }
+  }
   log_('login', email, role);
   if (role === 'admin') adminsMail_('🔐 Đăng nhập quản trị KK-MALL: ' + email, '<p>Tài khoản <b>' + esc_(email) + '</b> vừa đăng nhập trang quản trị lúc ' + new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) + ' (phiên hiệu lực 12 giờ).</p><p>Nếu không phải bạn: đổi mật khẩu Google ngay và xóa các dòng phiên trong sheet Sessions.</p>');
   return { token: token, member: memberOut_(find_('Members', 'email', email)) };
@@ -265,6 +271,27 @@ function session_(token, needAdmin) {
   if (needAdmin && (s.role !== 'admin' || adminEmails_().indexOf(String(s.email).toLowerCase()) < 0)) throw err_('Không có quyền quản trị', 403);
   return s;
 }
+
+/* ---------- quyền của chủ thể dữ liệu (Luật Bảo vệ dữ liệu cá nhân 2025): tải dữ liệu, xóa tài khoản ---------- */
+function memberExport_(b) {
+  var s = session_(b.token); rate_('mexp_' + s.email, 5, 3600);
+  var m = find_('Members', 'email', s.email), orders = rows_('Orders').filter(function (r) { var d = parseData_(r); return r.email === s.email || d.member === s.email; }).map(function (r) { var o = parseData_(r); return { code: o.code, created_at: o.created_at, status: o.status, customer: o.customer, vat: o.vat, lines: (o.lines || []).map(function (l) { return { sku: l.sku, name: l.name, qty: l.qty, unit: l.unit }; }), total: o.total, history: o.history, refund_account: o.refund_account || null }; });
+  var revs = rows_('Reviews').filter(function (r) { return orders.some(function (o) { return o.code === r.order_code; }); }).map(function (r) { return { sku: r.sku, rating: r.rating, content: r.content, status: r.status, created_at: r.created_at }; });
+  log_('member_export', s.email, orders.length + ' don');
+  return { exported_at: nowIso_(), controller: 'KK-MALL', member: memberOut_(m), orders: orders, reviews: revs, note: 'Dữ liệu đơn hàng được lưu theo thời hạn Luật Kế toán; bạn có thể yêu cầu chỉnh sửa/xóa phần không bắt buộc lưu.' };
+}
+function memberDelete_(b) {
+  var s = session_(b.token); if (String(b.confirm || '').toUpperCase() !== 'XOA') throw err_('Gõ XOA để xác nhận xóa tài khoản');
+  if (adminEmails_().indexOf(String(s.email).toLowerCase()) >= 0) throw err_('Không xóa tài khoản quản trị từ cửa hàng');
+  var lk = LockService.getScriptLock(); lk.waitLock(20000);
+  try {
+    var m = find_('Members', 'email', s.email); if (m) update_('Members', m._row, { name: '', phone: '', address: '', role: 'deleted', data: JSON.stringify({ deleted_at: nowIso_() }) });
+    var sh = sh_('Sessions'), v = sh.getDataRange().getValues(); for (var i = v.length - 1; i >= 1; i--) if (String(v[i][1]).toLowerCase() === String(s.email).toLowerCase()) sh.deleteRow(i + 1);
+  } finally { lk.releaseLock(); }
+  mail_(s.email, 'KK-MALL đã xóa tài khoản của bạn', '<p>Tài khoản thành viên <b>' + esc_(s.email) + '</b> đã được xóa: họ tên, số điện thoại, địa chỉ mặc định và mọi phiên đăng nhập. Chứng từ của các đơn đã phát sinh được lưu trữ theo thời hạn Luật Kế toán và chỉ dùng cho nghĩa vụ kế toán, thuế, bảo hành.</p>');
+  log_('member_delete', s.email, 'xoa tai khoan theo yeu cau');
+  return { ok: true };
+}
 function memberUpdate_(b) {
   var s = session_(b.token), m = find_('Members', 'email', s.email);
   var ph = normPhone_(b.phone); if (b.phone && !/^0\d{9}$/.test(ph)) throw err_('Số điện thoại không hợp lệ');
@@ -274,7 +301,8 @@ function memberUpdate_(b) {
 function logout_(b) { var s = find_('Sessions', 'token_hash', hash_(str_(b.token, 100))); if (s) update_('Sessions', s._row, { expires_at: nowIso_() }); return { ok: true }; }
 
 /* =========================== ĐƠN HÀNG =========================== */
-function newCode_() { var d = Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'yyMMdd'); return 'KK' + d + Utilities.getUuid().replace(/-/g, '').slice(0, 5).toUpperCase(); }
+function newCode_() { var d = Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'yyMMdd'); return 'KK' + d + Utilities.getUuid().replace(/-/g, '').slice(0, 8).toUpperCase(); }
+var CODE_RE = /KK\d{6}(?:[0-9A-F]{8}|[0-9A-F]{5})/g; // ma moi 8 ky tu hex, ma cu 5 ky tu
 function orderCreate_(b) {
   if (b.website) throw err_('Yêu cầu không hợp lệ'); // honeypot chong bot
   var c = b.customer || {};
@@ -307,7 +335,9 @@ function orderCreate_(b) {
     price_lock: b.lock ? { at: b.lock.at ? new Date(Number(b.lock.at)).toISOString() : '', ms: b.lock.ms || null } : null,
     history: [{ at: nowIso_(), s: 'awaiting_payment', by: 'customer' }] };
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
-  try { append_('Orders', { code: o.code, created_at: o.created_at, status: o.status, payment_status: o.payment_status, email: email, phone: phone, name: name, goods: o.goods, fee: o.fee_net, total: o.total, paid_at: '', data: JSON.stringify(o), updated_at: nowIso_() }); }
+  try {
+    for (var tries = 0; find_('Orders', 'code', o.code); tries++) { if (tries > 5) throw err_('Hệ thống bận, vui lòng thử lại', 503); o.code = newCode_(); }
+    append_('Orders', { code: o.code, created_at: o.created_at, status: o.status, payment_status: o.payment_status, email: email, phone: phone, name: name, goods: o.goods, fee: o.fee_net, total: o.total, paid_at: '', data: JSON.stringify(o), updated_at: nowIso_() }); }
   finally { lock.releaseLock(); }
   mail_(email, 'KK-MALL đã nhận đơn ' + o.code + ' - vui lòng thanh toán', '<p>Chào <b>' + esc_(name) + '</b>,</p><p>KK-MALL đã nhận đơn <b>' + o.code + '</b>. Ngay khi nhận được thanh toán, hệ thống tự động đặt mua tại nhà cung cấp có giá tốt nhất và giao thẳng đến bạn.</p>' + orderTable_(o) + payBox_(o)
     + '<p style="font-size:13px;color:#475569">Hóa đơn GTGT tiền hàng do <b>nhà cung cấp</b> xuất trực tiếp cho bạn; KK-MALL xuất hóa đơn GTGT riêng cho <b>phí dịch vụ</b>. Đơn chưa thanh toán sau ' + cfg_('UNPAID_HOURS') + ' giờ sẽ tự hủy.</p><p><a href="' + cfg_('SITE') + '/?order=' + o.code + '&phone=' + phone + '">Theo dõi đơn hàng →</a></p>');
@@ -320,7 +350,8 @@ function publicOrder_(o, pos, invs, rmas) {
   return { code: o.code, created_at: o.created_at, status: o.status, status_text: ST[o.status] || o.status, payment_status: o.payment_status, paid_at: o.paid_at || '', paid_claim_at: o.paid_claim_at || '',
     customer: { name: o.customer.name, phone: maskPhone_(o.customer.phone), address: o.customer.address }, vat: o.vat ? { name: o.vat.name, tax_code: o.vat.tax_code } : null,
     lines: o.lines.map(function (l) { return { sku: l.sku, name: l.name, image: l.image, category_id: l.category_id, warranty_ok: WARRANTY_CATS.indexOf(l.category_id) >= 0, qty: l.qty, unit: l.unit, unit_cost: l.unit_cost, unit_fee: l.unit_fee, line_total: l.line_total, line_cost: l.line_cost, line_fee: l.line_fee }; }),
-    goods: o.goods, fee: o.fee, discount: o.discount, vouchers: o.vouchers, fee_net: o.fee_net, fee_pre_tax: o.fee_pre_tax, fee_vat: o.fee_vat, total: o.total, refund_due: o.refund_due || 0,
+    goods: o.goods, fee: o.fee, discount: o.discount, vouchers: o.vouchers, fee_net: o.fee_net, fee_pre_tax: o.fee_pre_tax, fee_vat: o.fee_vat, total: o.total, refund_due: o.refund_due || 0, refunded: o.refunded || 0,
+    refund_account: o.refund_account ? { bank_label: o.refund_account.bank_label || o.refund_account.bin, acc: '****' + String(o.refund_account.acc).slice(-4), name: o.refund_account.name } : null,
     history: o.history, shipments: (pos || []).map(function (p) { var d = parseData_(p); return { sku: p.sku, name: p.name, qty: p.qty, status: p.status, carrier: d.carrier || '', tracking: p.tracking || '', eta: d.eta || '', delivered_at: d.delivered_at || '' }; }),
     invoices: (invs || []).map(function (i) { return { inv_id: i.inv_id, status: i.status, content: i.content, total: i.total }; }),
     rmas: (rmas || []).map(function (r) { var d = parseData_(r); return { rma_id: r.rma_id, sku: r.sku, type: r.type, status: r.status, created_at: r.created_at, return_tracking: d.return_tracking || '', pickup: d.pickup || '' }; }) };
@@ -362,16 +393,31 @@ function ordersMine_(b) {
 
 /* ---------- thanh toán xác nhận (webhook ngân hàng hoặc quản trị) ---------- */
 function markPaid_(o, amount, ref, by) {
-  if (o.payment_status === 'paid') return o;
-  if (Number(amount) < o.total) throw err_('Số tiền nhận (' + vnd_(amount) + ') nhỏ hơn tổng đơn (' + vnd_(o.total) + ')');
-  o.payment_status = 'paid'; o.paid_at = nowIso_(); o.payment_ref = str_(ref, 100); o.paid_amount = Number(amount);
+  amount = Math.round(Number(amount)); ref = str_(ref, 100);
+  if (!(amount > 0)) throw err_('Số tiền không hợp lệ');
+  o.pay_refs = o.pay_refs || [];
+  if (ref && o.pay_refs.indexOf(ref) >= 0) return o; // ngan hang gui lai cung giao dich (webhook retry) -> bo qua
+  // tien vao don DA thanh toan hoac DA huy: KHONG kich hoat lai don - ghi nhan phai tra lai khach + bao quan tri
+  if (o.payment_status === 'paid' || ['cancelled', 'refunded'].indexOf(o.status) >= 0) {
+    o.pay_refs.push(ref); o.extra_payments = (o.extra_payments || []).concat([{ at: nowIso_(), amount: amount, ref: ref, by: by }]);
+    o.refund_due = (o.refund_due || 0) + amount; o.paid_total = (o.paid_total || o.paid_amount || 0) + amount;
+    ledger_(o.code, ref, '1121', '', amount, 'Tiền vào đơn ' + (o.payment_status === 'paid' ? 'đã thanh toán (chuyển trùng)' : 'đã hủy'));
+    ledger_(o.code, ref, '', '3388', amount, 'Phải trả lại khách (tiền chuyển trùng / vào đơn đã hủy)');
+    (o.history = o.history || []).push({ at: nowIso_(), s: o.status, by: by, note: 'Nhận thêm ' + vnd_(amount) + ' - phải hoàn khách' });
+    saveOrder_(o);
+    adminsMail_('⚠️ Tiền vào đơn ' + o.code + ' ' + (o.payment_status === 'paid' ? 'ĐÃ thanh toán' : 'ĐÃ HỦY') + ': ' + vnd_(amount), '<p>Đơn <b>' + o.code + '</b> (trạng thái ' + esc_(ST[o.status] || o.status) + ') vừa nhận thêm <b>' + vnd_(amount) + '</b> (mã GD ' + esc_(ref) + '). Hệ thống KHÔNG kích hoạt lại đơn; số tiền đã vào danh sách <b>Cần hoàn tiền</b>.</p>');
+    log_('order_extra_payment', by, o.code + ' ' + amount);
+    return o;
+  }
+  if (!(amount >= Number(o.total))) throw err_('Số tiền nhận (' + vnd_(amount) + ') nhỏ hơn tổng đơn (' + vnd_(o.total) + ')');
+  o.payment_status = 'paid'; o.paid_at = nowIso_(); o.payment_ref = ref; o.paid_amount = amount; o.paid_total = amount; if (ref) o.pay_refs.push(ref);
   setStatus_(o, 'paid', by, 'Nhận ' + vnd_(amount));
-  // SO KE TOAN: thu ho tien hang (3388) + doanh thu phi dich vu (5113) + VAT dau ra (33311)
-  ledger_(o.code, o.payment_ref, '1121', '', o.total, 'Khách thanh toán đơn (VietQR)');
+  // SO KE TOAN: thu ho tien hang (3388) + doanh thu phi dich vu (5113) + VAT dau ra (33311); chuyen du -> 3388 phai tra
+  ledger_(o.code, o.payment_ref, '1121', '', amount, 'Khách thanh toán đơn (VietQR)');
   ledger_(o.code, o.payment_ref, '', '3388', o.goods, 'Thu hộ tiền hàng cho nhà cung cấp');
   if (o.fee_pre_tax) ledger_(o.code, o.payment_ref, '', '5113', o.fee_pre_tax, 'Doanh thu phí dịch vụ mua hộ & xử lý đơn');
   if (o.fee_vat) ledger_(o.code, o.payment_ref, '', '33311', o.fee_vat, 'Thuế GTGT đầu ra phí dịch vụ ' + o.vat_rate + '%');
-  if (Number(amount) > o.total) { o.refund_due = (o.refund_due || 0) + Number(amount) - o.total; ledger_(o.code, o.payment_ref, '', '3388', Number(amount) - o.total, 'Khách chuyển dư - phải trả lại khách'); }
+  if (amount > o.total) { o.refund_due = (o.refund_due || 0) + amount - o.total; ledger_(o.code, o.payment_ref, '', '3388', amount - o.total, 'Khách chuyển dư - phải trả lại khách'); }
   // LENH MUA (PO) cho tung dong hang -> trang quan tri tu lap ke hoach nguon re nhat
   o.lines.forEach(function (l, i) {
     append_('PO', { po_id: o.code + '-' + (i + 1), order_code: o.code, sku: l.sku, name: l.name, qty: l.qty, status: 'to_order', collected_cost: l.line_cost, actual_source: '', actual_cost: '', supplier_order_id: '', tracking: '',
@@ -383,6 +429,29 @@ function markPaid_(o, amount, ref, by) {
   log_('order_paid', by, o.code + ' ' + amount);
   return o;
 }
+// so du tung tai khoan cua 1 don: net = No - Co
+function ledgerBal_(code) { var n = {}; rows_('Ledger').forEach(function (r) { if (r.order_code !== code) return; var a = Number(r.amount) || 0; if (r.debit) n[r.debit] = (n[r.debit] || 0) + a; if (r.credit) n[r.credit] = (n[r.credit] || 0) - a; }); return n; }
+// Hoan tien cho khach: tru truoc vao phan TIEN HANG da thu (3388 - ke ca chuyen du/chuyen trung; co the ung truoc khi NCC hoan),
+// phan con lai giam tru PHI DICH VU (5213) + VAT (33311). Moi phan co tran rieng -> khong hoan qua so da thu.
+function refund_(o, amt, ref, by) {
+  amt = Math.round(Number(amt)); var paid = Number(o.paid_total || o.paid_amount || 0), done = Number(o.refunded || 0);
+  if (!(paid > 0)) throw err_('Đơn chưa nhận tiền');
+  if (!(amt > 0) || amt > paid - done) throw err_('Số tiền hoàn vượt số đã nhận còn lại (' + vnd_(paid - done) + ')');
+  var feeNet = o.payment_status === 'paid' ? Number(o.fee_net || 0) : 0, goodsPool = paid - feeNet;
+  var a = Math.min(amt, Math.max(0, goodsPool - Number(o.refunded_goods || 0))), rest = amt - a;
+  if (rest > feeNet - Number(o.refunded_fee || 0)) throw err_('Số tiền hoàn vượt tiền hàng + phí dịch vụ còn lại của đơn');
+  ref = str_(ref, 60) || 'HOAN-' + Date.now();
+  if (a) ledger_(o.code, ref, '3388', '', a, 'Hoàn tiền hàng / tiền chuyển dư cho khách');
+  if (rest) { var pre = Math.round(rest / (1 + Number(o.vat_rate || 0) / 100)); ledger_(o.code, ref, '5213', '', pre, 'Hoàn phí dịch vụ (giảm trừ doanh thu)'); if (rest - pre) ledger_(o.code, ref, '33311', '', rest - pre, 'Điều chỉnh giảm thuế GTGT phí dịch vụ'); }
+  ledger_(o.code, ref, '', '1121', amt, 'Chuyển hoàn tiền cho khách');
+  o.refunded = done + amt; o.refunded_goods = Number(o.refunded_goods || 0) + a; o.refunded_fee = Number(o.refunded_fee || 0) + rest;
+  o.refund_due = Math.max(0, Number(o.refund_due || 0) - amt);
+  (o.refunds = o.refunds || []).push({ at: nowIso_(), amount: amt, ref: ref, by: by });
+  if (o.refunded >= paid) setStatus_(o, 'refunded', by, 'Hoàn ' + vnd_(amt) + ' - ' + ref); else (o.history = o.history || []).push({ at: nowIso_(), s: o.status, by: by, note: 'Hoàn ' + vnd_(amt) + ' - ' + ref });
+  saveOrder_(o);
+  mail_(o.customer.email, 'KK-MALL đã hoàn tiền đơn ' + o.code, '<p>KK-MALL đã chuyển hoàn <b>' + vnd_(amt) + '</b> cho đơn <b>' + o.code + '</b>' + (o.refund_account ? ' vào tài khoản <b>' + esc_(o.refund_account.bank_label || o.refund_account.bin) + ' ' + esc_(o.refund_account.acc) + '</b>' : '') + '. Mã giao dịch: ' + esc_(ref) + '.</p>');
+  return o;
+}
 function ledger_(code, ref, debit, credit, amount, note) { append_('Ledger', { at: nowIso_(), order_code: code, ref: ref || '', debit: debit, credit: credit, amount: amount, note: note }); }
 function adminsMail_(subject, html) { adminEmails_().forEach(function (e) { mail_(e, subject, html); }); }
 // Webhook SePay / Casso (cấu hình URL: <web app>?a=webhook&key=WEBHOOK_KEY). Nội dung CK phải chứa mã đơn.
@@ -392,15 +461,84 @@ function webhook_(b, key) {
   var done = [];
   txs.forEach(function (t) {
     var amount = Number(t.transferAmount || t.amount || 0); if (t.transferType && t.transferType !== 'in') return;
-    var m = String(t.content || t.description || '').toUpperCase().replace(/\s/g, '').match(/KK\d{6}[0-9A-F]{5}/);
-    if (!m) return;
+    var txt = String(t.content || t.description || '').toUpperCase().replace(/[\s.\-_]/g, ''), ref = str_(t.referenceCode || t.id || t.tid || '', 100);
+    var cands = []; txt.replace(CODE_RE, function (x) { cands.push(x); cands.push(x.slice(0, 13)); return x; }); // thu ca ma cu 5 ky tu
+    if (!(amount > 0)) return;
+    if (!ref) ref = 'NOREF-' + amount + '-' + sha_(txt).slice(0, 10); // khong co ma GD: cung noi dung + so tien = cung giao dich (chong ghi trung khi gui lai)
     var lock = LockService.getScriptLock(); lock.waitLock(20000);
-    try { var o = loadOrder_(m[0]); markPaid_(o, amount, t.referenceCode || t.id || t.tid || '', 'bank-webhook'); done.push(m[0]); }
-    catch (e) { log_('webhook_unmatched', '', m[0] + ' ' + e.message); } finally { lock.releaseLock(); }
+    try {
+      var o = null; for (var i = 0; i < cands.length && !o; i++) { try { o = loadOrder_(cands[i]); } catch (e) { } }
+      if (!o) { if (rate_soft_('wh_un_' + (ref || txt.slice(0, 40)), 1, 21600)) adminsMail_('⚠️ Tiền vào KHÔNG khớp đơn: ' + vnd_(amount), '<p>Giao dịch <b>' + vnd_(amount) + '</b>, nội dung "' + esc_(String(t.content || t.description || '').slice(0, 200)) + '" (mã GD ' + esc_(ref) + ') không chứa mã đơn hợp lệ. Kiểm tra sao kê và đối soát tay.</p>'); log_('webhook_unmatched', '', txt.slice(0, 80) + ' ' + amount); return; }
+      markPaid_(o, amount, ref, 'bank-webhook'); done.push(o.code);
+    } catch (e) { log_('webhook_unmatched', '', txt.slice(0, 60) + ' ' + e.message); if (rate_soft_('wh_er_' + ref, 1, 21600)) adminsMail_('⚠️ Tiền vào chưa ghi nhận được: ' + vnd_(amount), '<p>Nội dung "' + esc_(String(t.content || t.description || '').slice(0, 200)) + '": ' + esc_(e.message) + '. Đối soát tay trong Quản trị.</p>'); }
+    finally { lock.releaseLock(); }
   });
   return { success: true, matched: done };
 }
 
+
+/* =========================== ĐÁNH GIÁ TỪ NGƯỜI MUA THẬT =========================== */
+// Chi khach co don DA GIAO moi danh gia duoc (ma don + SDT hoac dang nhap); moi san pham/don 1 danh gia.
+// Tu duyet: noi dung co link / SDT / email / tu cam -> cho quan tri duyet; con lai hien ngay. Khong co danh gia -> khong hien sao.
+var REVIEW_BAD = /(https?:\/\/|www\.|\.com\b|\.vn\b|zalo|facebook|fb\.com|t\.me|0\d{9}|@[a-z0-9.-]+\.[a-z]{2,}|lừa đảo|đm|vcl|dcm|địt|lồn|cặc)/i;
+function reviewName_(n) { var w = String(n || '').trim().split(/\s+/).filter(String); if (!w.length) return 'Khách hàng'; return w.length === 1 ? w[0] : w[w.length - 1] + ' ' + w[0].charAt(0).toUpperCase() + '.'; }
+function reviewSubmit_(b) {
+  var o = ownedOrder_(b, false), sku = str_(b.sku, 20).toUpperCase(), rating = Math.round(Number(b.rating));
+  if (!(rating >= 1 && rating <= 5)) throw err_('Chọn số sao từ 1 đến 5');
+  var line = o.lines.filter(function (l) { return l.sku === sku; })[0]; if (!line) throw err_('Sản phẩm không có trong đơn này');
+  var po = rows_('PO').filter(function (p) { return p.order_code === o.code && p.sku === sku; })[0];
+  if (!(o.status === 'delivered' || o.status === 'completed' || (po && po.status === 'delivered'))) throw err_('Bạn có thể đánh giá sau khi đã nhận hàng');
+  rate_('rv_' + o.code, 6, 21600);
+  var content = str_(b.content, 600), lk = LockService.getScriptLock(); lk.waitLock(20000);
+  try {
+    if (rows_('Reviews').some(function (r) { return r.order_code === o.code && r.sku === sku && r.status !== 'removed'; })) throw err_('Bạn đã đánh giá sản phẩm này cho đơn ' + o.code, 409);
+    var st = REVIEW_BAD.test(content) ? 'pending' : 'published', id = 'RV' + Utilities.getUuid().replace(/-/g, '').slice(0, 10).toUpperCase();
+    append_('Reviews', { id: id, sku: sku, order_code: o.code, rating: rating, content: content, name: reviewName_(o.customer.name), status: st, created_at: nowIso_(), data: JSON.stringify({ product: line.name }) });
+  } finally { lk.releaseLock(); }
+  CacheService.getScriptCache().removeAll(['rvl_' + sku, 'rvstats']);
+  if (st === 'pending') adminsMail_('📝 Đánh giá chờ duyệt ' + id + ' - ' + line.name, '<p>' + rating + '★ - ' + esc_(content) + '</p><p>Vào Quản trị → Đơn hàng → Đánh giá để duyệt.</p>');
+  log_('review_submit', o.code, sku + ' ' + rating + ' ' + st);
+  return { ok: true, status: st, note: st === 'published' ? 'Cảm ơn bạn! Đánh giá đã hiển thị.' : 'Cảm ơn bạn! Đánh giá sẽ hiển thị sau khi được kiểm duyệt (nội dung có liên kết/số điện thoại).' };
+}
+function reviewList_(sku) {
+  sku = str_(sku, 20).toUpperCase(); if (!/^KK\d{6}$/.test(sku)) throw err_('Mã sản phẩm không hợp lệ');
+  var c = CacheService.getScriptCache(), hit = c.get('rvl_' + sku); if (hit) return JSON.parse(hit);
+  var rs = rows_('Reviews').filter(function (r) { return r.sku === sku && r.status === 'published'; });
+  var n = rs.length, avg = n ? Math.round(rs.reduce(function (a, r) { return a + Number(r.rating); }, 0) / n * 10) / 10 : null;
+  var out = { sku: sku, n: n, avg: avg, reviews: rs.reverse().slice(0, 30).map(function (r) { return { rating: Number(r.rating), content: String(r.content || ''), name: r.name, at: r.created_at, verified: true }; }) };
+  try { c.put('rvl_' + sku, JSON.stringify(out), 300); } catch (e) { }
+  return out;
+}
+function reviewStats_() { // tong hop cong khai (khong co du lieu ca nhan) cho bo thu thap gan vao trang SP / SEO
+  var c = CacheService.getScriptCache(), hit = c.get('rvstats'); if (hit) return JSON.parse(hit);
+  var m = {}; rows_('Reviews').forEach(function (r) { if (r.status !== 'published') return; var x = m[r.sku] = m[r.sku] || [0, 0]; x[0]++; x[1] += Number(r.rating); });
+  var out = { at: nowIso_(), stats: {} }; Object.keys(m).forEach(function (k) { out.stats[k] = [m[k][0], Math.round(m[k][1] / m[k][0] * 10) / 10]; });
+  try { c.put('rvstats', JSON.stringify(out), 600); } catch (e) { }
+  return out;
+}
+function adminReviewUpdate_(b) {
+  var s = session_(b.token, true), r = find_('Reviews', 'id', str_(b.id, 20)); if (!r) throw err_('Không tìm thấy đánh giá', 404);
+  var st = { publish: 'published', hide: 'hidden', remove: 'removed' }[b.action]; if (!st) throw err_('Thao tác không hợp lệ');
+  update_('Reviews', r._row, { status: st }); CacheService.getScriptCache().removeAll(['rvl_' + r.sku, 'rvstats']);
+  log_('admin_review_' + b.action, s.email, r.id); return { ok: true };
+}
+
+/* =========================== TÀI KHOẢN NHẬN HOÀN TIỀN =========================== */
+// Khach (ma don + SDT hoac dang nhap) khai bao tai khoan nhan hoan -> quan tri chuyen bang VietQR dung so tien, dung noi dung
+function refundAccount_(b) {
+  var o = ownedOrder_(b, false), bin = str_(b.bin, 10).replace(/\D/g, ''), acc = str_(b.acc, 30).replace(/[^\dA-Za-z]/g, ''), name = str_(b.name, 80).toUpperCase();
+  if (!(Number(o.refund_due) > 0)) throw err_('Đơn này hiện không có khoản cần hoàn');
+  if (!/^\d{6}$/.test(bin)) throw err_('Chọn ngân hàng nhận hoàn tiền');
+  if (!/^[\dA-Z]{6,19}$/.test(acc)) throw err_('Số tài khoản không hợp lệ');
+  if (name.length < 3) throw err_('Nhập tên chủ tài khoản');
+  rate_('rfacc_' + o.code, 5, 3600);
+  var lk = LockService.getScriptLock(); lk.waitLock(20000);
+  try { o = loadOrder_(o.code); o.refund_account = { bin: bin, bank_label: str_(b.bank_label, 40), acc: acc, name: name, at: nowIso_() }; (o.history = o.history || []).push({ at: nowIso_(), s: o.status, by: 'customer', note: 'Khai báo tài khoản nhận hoàn tiền' }); saveOrder_(o); }
+  finally { lk.releaseLock(); }
+  adminsMail_('💸 Khách đã khai tài khoản nhận hoàn - đơn ' + o.code + ': ' + vnd_(o.refund_due), '<p>Vào Quản trị → Đơn hàng → <b>Cần hoàn tiền</b> để quét VietQR chuyển hoàn đúng số tiền.</p>');
+  log_('refund_account', o.code, bin + ' ' + acc.slice(-4));
+  return { ok: true };
+}
 /* =========================== ĐỔI TRẢ / BẢO HÀNH =========================== */
 function warrantyFor_(brand, cat) {
   if (cat && WARRANTY_CATS.indexOf(cat) < 0) return null;   // hang tieu dung: khong ap bang bao hanh hang dien tu (tranh trung ten thuong hieu)
@@ -413,7 +551,7 @@ function rmaCreate_(b) {
   if (o.payment_status !== 'paid') throw err_('Đơn chưa thanh toán');
   var line = o.lines.filter(function (l) { return l.sku === str_(b.sku, 20).toUpperCase(); })[0]; if (!line) throw err_('Sản phẩm không có trong đơn');
   var type = b.type === 'return' ? 'return' : 'warranty';
-  rate_('rma_' + o.code, 10, 86400);
+  rate_('rma_' + o.code, 10, 21600);
   var w = warrantyFor_(line.brand, line.category_id);
   if (type === 'warranty' && line.category_id && WARRANTY_CATS.indexOf(line.category_id) < 0) throw err_('Sản phẩm này không thuộc diện bảo hành kỹ thuật của hãng - nếu hàng lỗi, vui lòng gửi yêu cầu Đổi trả');
   if (type === 'warranty') {
@@ -479,14 +617,7 @@ function adminOrderUpdate_(b) {
       setStatus_(o, 'cancelled', s.email, str_(b.note, 200)); saveOrder_(o);
       mail_(o.customer.email, 'Đơn ' + o.code + ' đã hủy', '<p>Đơn <b>' + o.code + '</b> đã được hủy. ' + esc_(b.note || '') + '</p>');
     } else if (b.action === 'refund') {
-      var amt = Number(b.amount || o.total);
-      if (o.payment_status !== 'paid') throw err_('Đơn chưa thanh toán');
-      o.refunded = (o.refunded || 0) + amt; if (o.refunded >= o.total) setStatus_(o, 'refunded', s.email, 'Hoàn ' + vnd_(amt) + ' - ' + str_(b.ref, 60)); else (o.history = o.history || []).push({ at: nowIso_(), s: o.status, by: s.email, note: 'Hoàn một phần ' + vnd_(amt) + ' - ' + str_(b.ref, 60) }); if (o.refund_due) o.refund_due = Math.max(0, o.refund_due - amt); saveOrder_(o);
-      var goodsPart = Math.min(amt, o.goods), feePart = amt - goodsPart;
-      ledger_(o.code, b.ref, '3388', '', goodsPart, 'Hoàn tiền hàng cho khách');
-      if (feePart > 0) { var pre = Math.round(feePart / (1 + o.vat_rate / 100)); ledger_(o.code, b.ref, '5213', '', pre, 'Hoàn phí dịch vụ (giảm trừ doanh thu)'); ledger_(o.code, b.ref, '33311', '', feePart - pre, 'Điều chỉnh giảm thuế GTGT phí dịch vụ'); }
-      ledger_(o.code, b.ref, '', '1121', amt, 'Chuyển hoàn tiền cho khách');
-      mail_(o.customer.email, 'KK-MALL đã hoàn tiền đơn ' + o.code, '<p>KK-MALL đã hoàn <b>' + vnd_(amt) + '</b> cho đơn <b>' + o.code + '</b>. Mã giao dịch: ' + esc_(b.ref || '') + '.</p>');
+      refund_(o, b.amount || o.refund_due || 0, b.ref, s.email);
     } else if (b.action === 'note') { (o.history = o.history || []).push({ at: nowIso_(), s: o.status, by: s.email, note: str_(b.note, 300) }); saveOrder_(o); }
     else throw err_('Thao tác không hợp lệ');
     log_('admin_order_' + b.action, s.email, b.code);
@@ -502,6 +633,8 @@ function poUpdate_(b, by) {
   {
     var p = find_('PO', 'po_id', b.po_id); if (!p) throw err_('Không tìm thấy lệnh mua', 404);
     var d = parseData_(p), o = loadOrder_(p.order_code), st = b.status;
+    var NEXT = { to_order: ['ordered', 'cancelled'], ordered: ['shipped', 'delivered'], shipped: ['delivered'], delivered: [], cancelled: [] };
+    if ((NEXT[p.status] || []).indexOf(st) < 0) throw err_('Lệnh mua đang "' + p.status + '" - không chuyển sang "' + st + '" được' + (p.status === 'ordered' && st === 'cancelled' ? ' (đã đặt tại nguồn: xử lý qua Đổi trả / hoàn tiền)' : ''), 409);
     var upd = { status: st, updated_at: nowIso_() };
     if (st === 'ordered') {
       var cost = Number(b.actual_cost); if (!(cost > 0)) throw err_('Nhập số tiền thực trả nhà cung cấp');
@@ -516,7 +649,13 @@ function poUpdate_(b, by) {
       if (cost < Number(p.collected_cost)) { o.refund_due = (o.refund_due || 0) + Number(p.collected_cost) - cost; d.refund_due = Number(p.collected_cost) - cost; }
     } else if (st === 'shipped') { upd.tracking = str_(b.tracking, 60); d.carrier = str_(b.carrier, 40); d.shipped_at = nowIso_(); if (b.eta) d.eta = str_(b.eta, 60); }
     else if (st === 'delivered') { d.delivered_at = nowIso_(); }
-    else if (st === 'cancelled') { d.cancel_reason = str_(b.note, 200); }
+    else if (st === 'cancelled') {
+      d.cancel_reason = str_(b.note, 200);
+      // khong dat duoc (het hang / vuot bien dung sai): hoan 100% dong hang = tien hang + phi dich vu cua dong (sau giam gia)
+      var ln = o.lines.filter(function (l) { return l.sku === p.sku; })[0] || {}, feeNet = Math.max(0, Number(ln.line_fee || 0) - (o.fee ? Math.round(Number(o.discount || 0) * Number(ln.line_fee || 0) / Number(o.fee)) : 0));
+      d.refund_due = Number(p.collected_cost) + feeNet; o.refund_due = (o.refund_due || 0) + d.refund_due;
+      mail_(o.customer.email, 'Đơn ' + o.code + ': ' + p.name + ' không đặt được - hoàn ' + vnd_(d.refund_due), '<p>Rất tiếc, <b>' + esc_(p.name) + '</b> hiện không đặt được tại nhà cung cấp' + (d.cancel_reason ? ' (' + esc_(d.cancel_reason) + ')' : '') + '. KK-MALL hoàn <b>100%</b> giá trị dòng hàng: <b>' + vnd_(d.refund_due) + '</b>.</p><p>Vui lòng nhập tài khoản nhận hoàn tiền tại <a href="' + cfg_('SITE') + '/?order=' + o.code + '&phone=' + o.customer.phone + '">trang theo dõi đơn</a>.</p>');
+    }
     else throw err_('Trạng thái không hợp lệ');
     upd.data = JSON.stringify(d); update_('PO', p._row, upd);
     // dong bo trang thai don theo cac lenh mua
@@ -589,21 +728,28 @@ function nameCover_(poName, hay) {
 /* Gan don nguon (email xac nhan) vao cac lenh mua dang cho dat - tra ve [{ po, cost, ship, qty_ok }] */
 function matchConfirm_(r, pos, orderOf) {
   if (!r.phone) return [];
-  var cand = pos.filter(function (p) { var o = orderOf(p.order_code); return p.status === 'to_order' && o && o.payment_status === 'paid' && phone_(o.customer.phone) === r.phone; });
-  var out = [];
-  cand.forEach(function (p) {
-    var best = null, bs = 0;
-    r.lines.forEach(function (l) { var sc = nameCover_(p.name, l.name); if (sc > bs) { bs = sc; best = l; } });
-    if (best && bs >= 0.6) out.push({ po: p, line: best, score: bs });
-    else if (!r.lines.length && nameCover_(p.name, r.text || '') >= 0.8) out.push({ po: p, line: null, score: 0.8 });
+  var cand = pos.filter(function (p) { var o = orderOf(p.order_code); return p.status === 'to_order' && o && o.payment_status === 'paid' && ['cancelled', 'refunded', 'refunding'].indexOf(o.status) < 0 && phone_(o.customer.phone) === r.phone; });
+  if (!cand.length) return [];
+  var shipNet = Math.max(0, r.ship - r.shipDisc), out = [];
+  if (!r.lines.length) { // khong doc duoc bang SP: chi gan khi DUY NHAT 1 lenh mua khop ten
+    var one = cand.filter(function (p) { return nameCover_(p.name, r.text || '') >= 0.8; });
+    return one.length === 1 && r.total ? [{ po: one[0], cost: r.total, ship: shipNet, qty_ok: true }] : (one.length > 1 ? [{ ambiguous: true }] : []);
+  }
+  var pairs = [], left = r.lines.map(function (l) { return l.qty; }), used = {};
+  cand.forEach(function (p) { r.lines.forEach(function (l, i) { var sc = nameCover_(p.name, l.name); if (sc >= 0.6) pairs.push({ p: p, i: i, sc: sc }); }); });
+  pairs.sort(function (a, b) { return b.sc - a.sc; });
+  pairs.forEach(function (x) { // tham lam: moi lenh mua 1 dong, dong email bi tru dan so luong
+    if (used[x.p.po_id] || left[x.i] < Number(x.p.qty)) return;
+    used[x.p.po_id] = 1; left[x.i] -= Number(x.p.qty); out.push({ po: x.p, line: r.lines[x.i] });
   });
   if (!out.length) return [];
-  var linesSum = out.reduce(function (a, x) { return a + (x.line ? x.line.price * x.line.qty : 0); }, 0), sub = r.sub || linesSum, shipNet = Math.max(0, r.ship - r.shipDisc);
-  if (out.some(function (x) { return !x.line; })) { if (out.length > 1 || !r.total) return []; return [{ po: out[0].po, cost: r.total, ship: shipNet, qty_ok: true }]; }
+  var codes = {}; out.forEach(function (x) { codes[x.po.order_code] = 1; });
+  if (Object.keys(codes).length > 1) return [{ ambiguous: true }]; // 1 don nguon khop nhieu don KK-MALL -> gan tay
+  var sub = r.sub || r.lines.reduce(function (a, l) { return a + l.price * l.qty; }, 0);
   return out.map(function (x) {
-    var amt = x.line.price * x.line.qty, w = sub ? amt / sub : 1;
+    var unit = x.line.price, amt = unit * Number(x.po.qty), w = sub ? amt / sub : 1;
     var cost = r.total && sub ? amt + Math.round((r.total - sub) * w) : amt + Math.round(shipNet * w);
-    return { po: x.po, cost: Math.max(0, cost), ship: Math.round(shipNet * w), qty_ok: x.line.qty >= Number(x.po.qty) };
+    return { po: x.po, cost: Math.max(0, cost), ship: Math.round(shipNet * w), qty_ok: true };
   });
 }
 function b64Text_(d) {
@@ -621,7 +767,9 @@ function gmailFetch_(q, max, seen) {
     var m = Gmail.Users.Messages.get('me', x.id, { format: 'full' }), hs = {}, html = '', plain = '';
     ((m.payload && m.payload.headers) || []).forEach(function (h) { hs[String(h.name).toLowerCase()] = h.value; });
     (function walk(pt) { if (!pt) return; var mt = String(pt.mimeType || ''); if (pt.body && pt.body.data) { if (mt === 'text/html' && !html) html = b64Text_(pt.body.data); else if (mt === 'text/plain' && !plain) plain = b64Text_(pt.body.data); } (pt.parts || []).forEach(walk); })(m.payload);
-    out.push({ id: x.id, at: Number(m.internalDate) || 0, subject: hs.subject || '', text: html ? htmlText_(html) : plain });
+    var ar = String(hs['authentication-results'] || ''), dom = (q.match(/from:\S*@([\w.-]+)/) || [])[1] || '';
+    var auth = new RegExp('(dkim=pass[^;]*header\\.(i|d)=@?([\\w-]+\\.)*' + dom.split('.').slice(-2).join('\\.') + '|dmarc=pass[^;]*header\\.from=([\\w-]+\\.)*' + dom.split('.').slice(-2).join('\\.') + ')', 'i').test(ar);
+    out.push({ id: x.id, at: Number(m.internalDate) || 0, subject: hs.subject || '', text: html ? htmlText_(html) : plain, auth: auth });
   });
   return out.sort(function (a, b) { return a.at - b.at; });
 }
@@ -636,6 +784,7 @@ function mailSync_(opt) {
   var note = function (e) { e.at = nowIso_(); ev.push(e); };
   msgs.forEach(function (m) {
     if (seen[m.id]) return; seen[m.id] = 1; seenArr.push(m.id);
+    if (m.auth === false) { note({ src: m.src, id: '', type: 'spoof', note: 'bỏ qua email không qua DKIM/DMARC: ' + str_(m.subject, 60) }); return; } // email gia mao nguon
     var r = m.src === 'tiki' || !m.src ? parseTikiMail_(m.subject, m.text) : null; if (!r) return;
     r.text = m.text; var srcName = (MAIL_SOURCES[r.src] || {}).name || r.src;
     var pos = rows_('PO'), linked = pos.filter(function (p) { return String(p.supplier_order_id) === r.id && p.status !== 'cancelled'; });
@@ -643,6 +792,7 @@ function mailSync_(opt) {
       if (r.type === 'confirm') {
         if (linked.length) return note({ src: r.src, id: r.id, type: r.type, po: linked.map(function (p) { return p.po_id; }).join(','), note: 'đã gắn từ trước' });
         var mt = matchConfirm_(r, pos, orderOf);
+        if (mt.length && mt[0].ambiguous) { adminsMail_('⚠️ Đơn ' + srcName + ' #' + r.id + ' khớp NHIỀU lệnh mua - cần gắn tay', '<p>Email xác nhận đơn ' + srcName + ' <b>#' + esc_(r.id) + '</b> khớp sản phẩm của nhiều đơn KK-MALL cùng SĐT người nhận. Hệ thống không tự gắn để tránh ghi nhận sai - vào Quản trị → Lệnh mua để gắn tay.</p>'); return note({ src: r.src, id: r.id, type: r.type, note: 'khớp nhiều đơn - đã báo quản trị gắn tay' }); }
         if (!mt.length) {
           var kkPhone = r.phone && pos.some(function (p) { var o = orderOf(p.order_code); return p.status === 'to_order' && o && phone_(o.customer.phone) === r.phone; });
           if (kkPhone) { adminsMail_('⚠️ Đơn ' + srcName + ' #' + r.id + ' giao tới khách KK-MALL nhưng CHƯA khớp lệnh mua', '<p>Email xác nhận đơn ' + srcName + ' <b>#' + esc_(r.id) + '</b> có SĐT người nhận trùng khách đang chờ đặt, nhưng tên sản phẩm không khớp lệnh mua nào. Vào Quản trị → Lệnh mua để gắn tay mã đơn nguồn.</p>'); note({ src: r.src, id: r.id, type: r.type, note: 'SĐT khớp khách nhưng không khớp sản phẩm - đã báo quản trị' }); }
@@ -741,6 +891,8 @@ function botUpdate_(b) {
       bot.state = 'paying'; bot.at = now; bot.total = total; bot.ship = Math.max(0, Math.round(Number(b.ship) || 0)); logIt('bấm Đặt hàng, tổng ' + vnd_(total) + ' - chờ OTP');
     } else if (st === 'done') {
       var id = str_(b.supplier_order_id, 40).replace(/[^\w-]/g, ''); if (!id) throw err_('Thiếu mã đơn nguồn');
+      if (p.status === 'to_order' && (bot.state !== 'paying' || bot.run !== str_(b.run, 60))) throw err_('Lệnh mua chưa được máy chủ duyệt thanh toán ở phiên này', 409);
+      b.total = bot.total; if (b.ship === undefined) b.ship = bot.ship; // so tien da duoc may chu duyet o buoc paying
       if (p.status === 'to_order') poUpdate_({ po_id: p.po_id, status: 'ordered', actual_source: bot.src || src || 'tiki', actual_cost: Math.round(Number(b.total) || bot.total || 0), supplier_order_id: id, ship_paid: b.ship !== undefined ? b.ship : bot.ship, vat_requested: false, auto: 'bot-' + (bot.src || src || 'tiki') }, 'bot:' + (P_().getProperty('BOT_DEVICE') || 'chrome'));
       else if (String(p.supplier_order_id) !== id) throw err_('Lệnh mua đã gắn mã đơn nguồn khác: ' + p.supplier_order_id, 409);
       p = find_('PO', 'po_id', b.po_id); d = parseData_(p); bot = d.bot || bot; bot.state = 'done'; bot.at = now; logIt('đặt thành công, mã đơn ' + id);
@@ -785,12 +937,18 @@ function adminInvoiceIssue_(b) {
   return { ok: true };
 }
 function adminRmaUpdate_(b) {
-  var s = session_(b.token, true), r = find_('RMA', 'rma_id', b.rma_id); if (!r) throw err_('Không tìm thấy yêu cầu', 404);
+  var s = session_(b.token, true), lk = LockService.getScriptLock(); lk.waitLock(20000);
+  try { return rmaUpdate_(b, s); } finally { lk.releaseLock(); }
+}
+function rmaUpdate_(b, s) {
+  var r = find_('RMA', 'rma_id', b.rma_id); if (!r) throw err_('Không tìm thấy yêu cầu', 404);
   var d = parseData_(r), o = loadOrder_(r.order_code);
+  if (b.status && b.status !== r.status && ['refunded', 'rejected', 'closed'].indexOf(r.status) >= 0) throw err_('Yêu cầu đã kết thúc (' + r.status + ') - không đổi trạng thái được', 409);
   ['return_tracking', 'pickup', 'supplier_rma_id', 'note'].forEach(function (k) { if (b[k] !== undefined) d[k] = str_(b[k], 300); });
-  var sr = Math.round(Number(b.supplier_refund) || 0);
+  var tot = Math.round(Number(b.supplier_refund) || 0), prev = Number(d.supplier_refund) || 0, sr = tot - prev; // b.supplier_refund = TONG so NCC da hoan den nay
+  if (tot && tot < prev) throw err_('Tổng tiền NCC đã hoàn (' + vnd_(tot) + ') nhỏ hơn số đã ghi trước đó (' + vnd_(prev) + ')');
   if (sr > 0) { // NCC hoan tien hang tra lai ve KK-MALL: No 1121 / Co 3388 (doi ung khoan da hoan khach / chi ho truoc do)
-    d.supplier_refund = (Number(d.supplier_refund) || 0) + sr; d.supplier_refund_at = nowIso_();
+    d.supplier_refund = tot; d.supplier_refund_at = nowIso_();
     ledger_(o.code, d.supplier_rma_id || r.rma_id, '1121', '', sr, 'Nhà cung cấp hoàn tiền hàng trả lại (' + r.rma_id + ')');
     ledger_(o.code, d.supplier_rma_id || r.rma_id, '', '3388', sr, 'Ghi giảm khoản chi hộ - hàng trả lại nhà cung cấp');
   }
@@ -849,14 +1007,63 @@ function adminStats_(b) {
     members: rows_('Members').length };
 }
 
+
+/* =========================== TỰ KIỂM TOÁN HẰNG NGÀY =========================== */
+// Doi soat tu dong: so cai can theo tung don, don da thu tien phai co du lenh mua, lenh mua/hoan tien/bot bi treo.
+// Chay sau sao luu moi ngay; co van de -> email quan tri. Trang quan tri goi admin.audit de xem ngay.
+function audit_() {
+  var now = Date.now(), H = 3600e3, issues = [], orders = rows_('Orders'), pos = rows_('PO'), L = rows_('Ledger');
+  var bal = {}; L.forEach(function (r) { var a = Number(r.amount) || 0, b = bal[r.order_code] = bal[r.order_code] || { d: 0, c: 0 }; if (r.debit) b.d += a; if (r.credit) b.c += a; });
+  Object.keys(bal).forEach(function (k) { if (Math.round(bal[k].d) !== Math.round(bal[k].c)) issues.push({ lvl: 'high', code: k, msg: 'Sổ cái lệch: Nợ ' + vnd_(bal[k].d) + ' ≠ Có ' + vnd_(bal[k].c) }); });
+  var poBy = {}; pos.forEach(function (p) { (poBy[p.order_code] = poBy[p.order_code] || []).push(p); });
+  orders.forEach(function (r) {
+    var o = parseData_(r), ps = poBy[r.code] || [];
+    if (o.payment_status === 'paid' && ['cancelled', 'refunded'].indexOf(o.status) < 0) {
+      if (ps.length < (o.lines || []).length) issues.push({ lvl: 'high', code: r.code, msg: 'Đã thu tiền nhưng thiếu lệnh mua (' + ps.length + '/' + (o.lines || []).length + ')' });
+      if (!bal[r.code]) issues.push({ lvl: 'high', code: r.code, msg: 'Đã thu tiền nhưng chưa có bút toán' });
+      ps.forEach(function (p) {
+        var d = parseData_(p), age = (now - new Date(o.paid_at || r.created_at).getTime()) / H;
+        if (p.status === 'to_order' && age > 24) issues.push({ lvl: 'med', code: r.code, msg: 'Lệnh mua ' + p.po_id + ' chờ đặt ' + Math.round(age) + ' giờ' });
+        if (d.bot && ['paying', 'paying_unknown', 'pay_failed'].indexOf(d.bot.state) >= 0 && p.status === 'to_order' && (now - new Date(d.bot.at).getTime()) > H) issues.push({ lvl: 'high', code: r.code, msg: 'Bot: ' + p.po_id + ' đã bấm Đặt hàng nhưng chưa có kết quả (' + d.bot.state + ') - kiểm tra tại nguồn' });
+        if (p.status === 'ordered' && (now - new Date(d.ordered_at || p.updated_at).getTime()) > 10 * 24 * H) issues.push({ lvl: 'med', code: r.code, msg: 'Lệnh mua ' + p.po_id + ' đã đặt quá 10 ngày chưa giao vận chuyển' });
+      });
+    }
+    if (Number(o.refund_due) > 0) {
+      var since = (now - new Date((o.history || []).slice(-1)[0] ? o.history.slice(-1)[0].at : r.created_at).getTime()) / H;
+      if (since > 72) issues.push({ lvl: 'med', code: r.code, msg: 'Còn phải hoàn khách ' + vnd_(o.refund_due) + (o.refund_account ? ' (khách đã khai tài khoản)' : ' (khách chưa khai tài khoản)') });
+    }
+  });
+  var quota = -1; try { quota = MailApp.getRemainingDailyQuota(); } catch (e) { }
+  if (quota >= 0 && quota < 20) issues.push({ lvl: 'med', code: '', msg: 'Hạn mức email còn ' + quota + ' trong ngày' });
+  return { at: nowIso_(), orders: orders.length, ledger_rows: L.length, mail_quota: quota, issues: issues };
+}
+function dailyAudit() {
+  var r = audit_(); P_().setProperty('AUDIT_LAST', JSON.stringify({ at: r.at, n: r.issues.length, high: r.issues.filter(function (i) { return i.lvl === 'high'; }).length }));
+  if (r.issues.length) adminsMail_('🧾 Tự kiểm toán KK-MALL: ' + r.issues.length + ' việc cần xử lý', '<table style="font-size:13px;border-collapse:collapse">' + r.issues.slice(0, 60).map(function (i) { return '<tr><td style="padding:4px 8px">' + (i.lvl === 'high' ? '🔴' : '🟠') + '</td><td style="padding:4px 8px"><b>' + esc_(i.code) + '</b></td><td style="padding:4px 8px">' + esc_(i.msg) + '</td></tr>'; }).join('') + '</table>');
+  log_('audit', 'system', r.issues.length + ' issues');
+  return r;
+}
 /* =========================== ĐỊNH KỲ & SAO LƯU =========================== */
 function hourly() {
-  var lim = Number(cfg_('UNPAID_HOURS')) * 3600e3;
+  var lim = Number(cfg_('UNPAID_HOURS')) * 3600e3, remindAt = Math.min(2 * 3600e3, lim / 3), outbox = [];
   rows_('Orders').forEach(function (r) {
-    if (r.status !== 'awaiting_payment' || Date.now() - new Date(r.created_at).getTime() < lim) return;
-    var o = parseData_(r); o._row = r._row; setStatus_(o, 'cancelled', 'system', 'Quá hạn thanh toán'); saveOrder_(o);
-    mail_(o.customer.email, 'Đơn ' + o.code + ' đã tự hủy do chưa thanh toán', '<p>Đơn <b>' + o.code + '</b> đã tự hủy vì chưa nhận được thanh toán sau ' + cfg_('UNPAID_HOURS') + ' giờ. Bạn có thể đặt lại bất cứ lúc nào.</p>');
+    if (r.status !== 'awaiting_payment') return;
+    var age = Date.now() - new Date(r.created_at).getTime();
+    if (age < remindAt) return;
+    var lock = LockService.getScriptLock(); if (!lock.tryLock(20000)) return;
+    try {
+      var o = loadOrder_(r.code); // doc lai trong khoa: webhook co the vua ghi nhan thanh toan
+      if (o.status !== 'awaiting_payment' || o.payment_status === 'paid') return;
+      if (age >= lim) {
+        setStatus_(o, 'cancelled', 'system', 'Quá hạn thanh toán'); saveOrder_(o);
+        outbox.push([o.customer.email, 'Đơn ' + o.code + ' đã tự hủy do chưa thanh toán', '<p>Đơn <b>' + o.code + '</b> đã tự hủy vì chưa nhận được thanh toán sau ' + cfg_('UNPAID_HOURS') + ' giờ. Nếu bạn đã chuyển khoản, KK-MALL sẽ hoàn lại đầy đủ. Bạn có thể đặt lại bất cứ lúc nào.</p>']);
+      } else if (!o.reminded_at && !o.paid_claim_at && bank_().ready) {
+        o.reminded_at = nowIso_(); saveOrder_(o);
+        outbox.push([o.customer.email, 'Nhắc thanh toán đơn ' + o.code + ' - giữ giá đến ' + new Date(new Date(o.created_at).getTime() + lim).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }), '<p>Đơn <b>' + o.code + '</b> đang chờ thanh toán. Quét mã VietQR bên dưới để KK-MALL đặt mua ngay; đơn chưa thanh toán sẽ tự hủy sau ' + cfg_('UNPAID_HOURS') + ' giờ.</p>' + orderTable_(o) + payBox_(o) + '<p><a href="' + cfg_('SITE') + '/?order=' + o.code + '&phone=' + o.customer.phone + '">Xem đơn hàng →</a></p>']);
+      }
+    } catch (e) { log_('hourly_error', r.code, String(e && e.message || e)); } finally { lock.releaseLock(); }
   });
+  outbox.forEach(function (m) { mail_(m[0], m[1], m[2]); });
   // don phien het han
   var s = sh_('Sessions'), v = s.getDataRange().getValues();
   for (var i = v.length - 1; i >= 1; i--) if (new Date(v[i][4]) < new Date()) s.deleteRow(i + 1);
@@ -868,6 +1075,7 @@ function dailyBackup() {
   var files = [], it = folder.getFiles(); while (it.hasNext()) files.push(it.next());
   files.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); }).slice(60).forEach(function (f) { f.setTrashed(true); });
   log_('backup', 'system', 'ok');
+  try { dailyAudit(); } catch (e) { log_('audit_error', 'system', String(e && e.message || e)); }
 }
 
 /* =========================== ĐỊNH TUYẾN HTTP =========================== */
@@ -876,6 +1084,7 @@ function doGet(e) {
   try {
     if (a === 'config') return json_(publicConfig_());
     if (a === 'health') return json_({ ok: true, version: VERSION, at: nowIso_() });
+    if (a === 'reviews') return json_(reviewList_(e.parameter.sku));
     if (a === 'shipstats') return json_(shipStats_(e.parameter.key));
     return json_({ error: 'Không hỗ trợ' });
   } catch (x) {
@@ -899,15 +1108,25 @@ function doPost(e) {
       'order.create': function () { return orderCreate_(b); },
       'order.get': function () { return orderGet_(b); },
       'order.paid_claim': function () { return paidClaim_(b); },
+      'order.refund_account': function () { return refundAccount_(b); },
+      'review.submit': function () { return reviewSubmit_(b); },
+      'review.list': function () { return reviewList_(b.sku); },
+      'reviews.stats': function () { return reviewStats_(); },
+      'admin.reviews': function () { return adminList_(b, 'Reviews', function (r) { return { id: r.id, sku: r.sku, order_code: r.order_code, rating: r.rating, content: r.content, name: r.name, status: r.status, created_at: r.created_at, product: parseData_(r).product || '' }; }); },
+      'admin.review.update': function () { return adminReviewUpdate_(b); },
+      'admin.audit': function () { session_(b.token, true); return audit_(); },
       'orders.mine': function () { return ordersMine_(b); },
       'otp.request': function () { return otpRequest_(b); },
       'otp.verify': function () { return otpVerify_(b); },
       'me': function () { var s = session_(b.token); return { member: memberOut_(find_('Members', 'email', s.email)) }; },
       'member.update': function () { return memberUpdate_(b); },
+      'member.export': function () { return memberExport_(b); },
+      'member.delete': function () { return memberDelete_(b); },
       'logout': function () { return logout_(b); },
       'rma.create': function () { return rmaCreate_(b); },
       'warranty': function () { var p = product_(b.sku); return { warranty: warrantyFor_(p.brand, p.category_id), brand: p.brand }; },
       'webhook': function () { return webhook_(b, e.parameter && e.parameter.key); },
+      'shipstats': function () { return shipStats_(b.key); },
       'admin.orders': function () { return adminOrders_(b); },
       'admin.order.update': function () { return adminOrderUpdate_(b); },
       'admin.po.update': function () { return adminPoUpdate_(b); },

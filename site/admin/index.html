@@ -324,7 +324,7 @@ async function unlock(e){
     const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:Uint8Array.from(atob(enc.iv),c=>c.charCodeAt(0))},aes,ct);
     DATA=JSON.parse(new TextDecoder().decode(pt));
     sessionStorage.setItem('kk_admin_email',email);
-    try{const h=await crypto.subtle.digest('SHA-256',te.encode('kk-stats|'+key));sessionStorage.setItem('kk_stats_key',[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join(''))}catch{}  // khoa thong ke ship (dan xuat, khong luu khoa goc)
+    try{const bk=await crypto.subtle.importKey('raw',te.encode(key),'PBKDF2',false,['deriveBits']);const h=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:te.encode('kk-stats-v2'),iterations:300000},bk,256);sessionStorage.setItem('kk_stats_key',[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join(''))}catch{}  // khoa thong ke ship (dan xuat, khong luu khoa goc)
     boot();
   }catch(ex){
     err.textContent='Khóa quản trị không đúng hoặc gói dữ liệu bị thay đổi. Vui lòng thử lại.';
@@ -487,7 +487,7 @@ function renderCmp(){
   $('#cmpPg').innerHTML=`<button onclick="page--;renderCmp()" ${page<=1?'disabled':''}>‹ Trước</button><span style="font-size:12.5px">Trang <b>${page}</b>/${pages} · ${R.length} mặt hàng · ${keys.length} nguồn</span><button onclick="page++;renderCmp()" ${page>=pages?'disabled':''}>Sau ›</button>`;
 }
 function dl(content,fname,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=fname;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
-const csvq=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+const csvq=v=>{let t=String(v??'');if(typeof v==='string'&&/^[=+\-@\t\r]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"'}; // chong chen cong thuc khi mo bang Excel
 function exportCmp(){
   const R=filtered(),keys=Object.keys(SRC);
   const head=['SKU','Sản phẩm','Thương hiệu','Ngành','Nhóm','Giá niêm yết NCC rẻ nhất','Ship/phụ phí NCC dự phòng','Giá thực trả (chi phí hàng)','Khung phí','Phí DV KK-MALL (doanh thu)','Giá bán KK-MALL',...keys.map(k=>SRC[k][0]),'Nguồn rẻ nhất','Chênh lệch cao-thấp','Còn hàng/Tổng nguồn'];
@@ -889,6 +889,6 @@ async function renderSys(){
 }
 </script>
 <script src="../config.js?v=2610260422"></script>
-<script src="ops.js?v=2610261940"></script>
+<script src="ops.js?v=2610311800"></script>
 </body>
 </html>

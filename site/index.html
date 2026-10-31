@@ -334,7 +334,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"KK-MALL","url":"https://www.kk-mall.com","potentialAction":{"@type":"SearchAction","target":"https://www.kk-mall.com/?q={search_term_string}","query-input":"required name=search_term_string"}}</script>
 </head>
 <body>
-<div class="topbar"><div class="wrap"><div>⚡ Giá <b>cập nhật tự động mỗi <span id="syncMin">30</span> phút</b> từ mạng lưới nguồn cung đối tác · <a class="lglink" onclick="openLedger()" title="Xem & tự kiểm chứng sổ cái giá">🔗 Sổ cái giá niêm phong <b>#<span id="ledgerSeq">0</span></b></a> · Cập nhật <span id="lastSync">-</span></div><div>Hotline <b id="hotline">1900 0000</b> · <a onclick="openTrack()">Tra cứu đơn hàng</a></div></div></div>
+<div class="topbar"><div class="wrap"><div>⚡ Giá <b>cập nhật tự động mỗi <span id="syncMin">30</span> phút</b> từ mạng lưới nguồn cung đối tác · <a class="lglink" onclick="openLedger()" title="Xem & tự kiểm chứng sổ cái giá">🔗 Sổ cái giá niêm phong <b>#<span id="ledgerSeq">0</span></b></a> · Cập nhật <span id="lastSync">-</span></div><div>Hotline <b id="hotline">đang cập nhật</b> · <a onclick="openTrack()">Tra cứu đơn hàng</a></div></div></div>
 <header class="hd"><div class="wrap">
   <a class="logo" href="./"><img src="./logo.svg" alt="KK-MALL"></a>
   <form class="search" onsubmit="doSearch(event)">
@@ -419,7 +419,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
   <section class="sec" id="shop" style="display:none">
     <div class="sec-h"><h2 id="secTitle">Tất cả sản phẩm</h2><div class="chips" id="groups"></div></div>
     <div class="toolbar">
-      <select id="sort" onchange="reload()"><option value="">Nổi bật</option><option value="price_asc">Giá thấp → cao</option><option value="price_desc">Giá cao → thấp</option><option value="sold">Bán chạy</option><option value="rating">Đánh giá cao</option><option value="new">Mới nhất</option></select>
+      <select id="sort" onchange="reload()"><option value="">Nổi bật</option><option value="price_asc">Giá thấp → cao</option><option value="price_desc">Giá cao → thấp</option><option value="rating">Đánh giá cao (người đã mua)</option><option value="new">Mới nhất</option></select>
       <select id="brand" onchange="reload()"><option value="">Tất cả thương hiệu</option></select>
       <input id="min" type="number" placeholder="Giá từ" style="width:110px" onchange="reload()"><input id="max" type="number" placeholder="Giá đến" style="width:110px" onchange="reload()">
       <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="stock" onchange="reload()" checked> Chỉ còn hàng</label>
@@ -464,7 +464,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
 </div>
 
 <script src="config.js?v=2610260348"></script>
-<script src="demo-shim.js?v=2610260348"></script>
+<script src="demo-shim.js?v=2610311800"></script>
 <script src="kk-smart.js?v=2610260348"></script>
 <script>
 /* ===== ANH SAN PHAM: 3 lop du phong - anh goc -> anh SVG noi bo -> placeholder sinh tai cho (khong bao gio trong) ===== */
@@ -570,14 +570,14 @@ async function init(){
   $('#syncMin').textContent=META.syncMinutes; $('#lastSync').textContent=META.lastSync?new Date(META.lastSync).toLocaleTimeString('vi-VN'):'-';
   $('#ledgerSeq').textContent=(META.ledgerHead&&META.ledgerHead.seq||0).toLocaleString('vi-VN');
   $('#totalProducts').textContent=META.totalProducts.toLocaleString('vi-VN');try{$('#vfactN').textContent=(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN');$('#q').placeholder=`Tìm tức thời trong ${(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN')}+ mặt hàng (chạy ngay trên máy bạn, 0ms)...`}catch{} $('#hotline').textContent=META.company.phone;
-  $('#coName').textContent=META.company.name;$('#coAddr').textContent=META.company.address;$('#coTax').textContent=META.company.taxCode;$('#coEmail').textContent=META.company.email;
+  $('#coName').textContent=META.company.name;$('#coAddr').textContent=META.company.address;$('#coTax').textContent=META.company.taxCode;$('#coEmail').textContent=META.company.email||'đang cập nhật';
   if(META.company.moit)$('#moit').textContent='Số đăng ký Bộ Công Thương: '+META.company.moit;
   renderNav();
   $('#sidecats').innerHTML=META.categories.map(c=>`<a href="./c/${c.id}.html" onclick="event.preventDefault();setCat('${c.id}')"><span>${c.icon}</span>${esc(c.name)}<span class="n">${c.count.toLocaleString('vi-VN')}</span></a>`).join('');
   const sl=document.getElementById('seoLinks');if(sl)sl.innerHTML='<b>Danh mục:</b> '+META.categories.map(c=>`<a href="./c/${c.id}.html">${esc(c.name)}</a>`).join(' · ');
   $('#megacats').innerHTML=META.categories.map(c=>`<div class="mc" onclick="setCat('${c.id}')"><div class="i">${c.icon}</div><b>${esc(c.name)}</b><small>${c.count} mặt hàng · ${c.groups.length} nhóm</small></div>`).join('');
   loadSDUI(); initLocalSearch(); revealObserve();
-  const u=new URLSearchParams(location.search); if(u.get('order')){showTrack(u.get('order'),u.get('phone')||'');history.replaceState({},'','/')}
+  const u=new URLSearchParams(location.search); if(u.get('order')){const oc=u.get('order'),op=u.get('phone')||'',goT=()=>showTrack(oc,op);if(typeof KKB!=='undefined'||document.readyState==='complete')goT();else addEventListener('load',goT,{once:true});history.replaceState({},'','/')} // cho kk-backend.js nap xong (link theo doi don trong email)
   // deep link: ?sp=SKU (san pham) · ?c=nganh(&g=nhom) · ?f=bo-loc · ?q=tu-khoa · ?ledger=SKU|1
   else if(u.get('sp'))openProduct(u.get('sp').toUpperCase());
   else if(u.get('c'))setCat(u.get('c'),u.get('g')||'');
@@ -631,7 +631,7 @@ function card(p){const off=discOf(p),hold=isHold(p),buy=canBuy(p);
   <div class="src">${trustBadges(p)||'<span class="dot" style="background:var(--ok)"></span>Mua hộ từ nguồn giá tốt nhất · AI tối ưu'}</div>
   <div class="price">${hold?'<span style="color:var(--muted);font-size:15px">Đang xác minh giá</span>':p.kk_price?vnd(p.kk_price):'-'}${!hold&&off>0&&p.base_price>p.kk_price?` <s style="color:var(--muted);font-size:12px;font-weight:500">${vnd(Math.round(p.kk_price/(1-off/100)/1000)*1000)}</s>`:''}${hold?'':'<small>Giá cuối cùng - đã gồm giao hàng</small>'}</div>
   ${hold?'':proofLine(p)}
-  <div class="meta"><span>⭐ ${p.rating}</span><span>Đã bán ${p.sold}</span></div>
+  ${(p.rating>0||p.sold>0)?`<div class="meta">${p.rating>0?`<span>⭐ ${p.rating}</span>`:''}${p.sold>0?`<span>Đã bán ${p.sold}</span>`:''}</div>`:''}
   <button class="add" ${buy?'':'disabled'} onclick="addCart('${p.sku}')">${hold?'⏸ Đang xác minh giá':noSource(p)?'⏳ Đang kết nối nguồn':'+ Thêm vào giỏ'}</button></div></div>`}
 
 // ===== SPARKLINE lich su gia tu so cai =====
@@ -652,28 +652,28 @@ async function openProduct(sku){closeAll();const p=await api('/api/products/'+sk
   <div id="pmChart">${isHold(p)?'<div style="padding:18px;color:var(--muted);font-size:13px">Biểu đồ giá tạm ẩn trong lúc xác minh lại giá với nguồn. Lịch sử niêm phong vẫn kiểm chứng được bên dưới.</div>':priceChart(p,30,'pmc')}</div>${(()=>{const st=isHold(p)?null:histStats(p);return st?`<div class="hstat sm"><div><span>Thấp nhất</span><b>${vnd(st.min)}</b></div><div><span>Trung vị</span><b>${vnd(st.med)}</b></div><div><span>Cao nhất</span><b>${vnd(st.max)}</b></div></div>`:''})()}
   <button class="vbtn ver" onclick="openLedger('${p.sku}')">🔍 Kiểm chứng SHA-256 ngay (${(p.ledger||[]).length} bản ghi)</button></div></div>
   <div><div style="font-size:12px;color:var(--muted)">${esc(p.category_name)} › ${esc(p.grp)} · ${esc(p.brand)} · SKU ${p.sku}</div><h2>${esc(p.name)}</h2>
-  <div>⭐ ${p.rating} (${p.reviewStat.n||0} đánh giá xác thực) · Đã bán ${p.sold} · Còn ${p.stock_qty} suất</div>
+  <div>${(p.reviewStat&&p.reviewStat.n)?`⭐ ${Number(p.reviewStat.avg).toFixed(1)} (${p.reviewStat.n} đánh giá từ người đã nhận hàng)`:'Chưa có đánh giá'}${p.sold>0?` · Đã bán ${p.sold}`:''} · ${canBuy(p)?'Còn hàng tại nguồn':'Tạm hết hàng'}</div>
   ${p.variants.length>1?`<div style="margin:8px 0;display:flex;gap:8px;flex-wrap:wrap">${p.variants.map(v=>`<button class="vbtn ${v.sku===p.sku?'on':''}" onclick="openProduct('${v.sku}')">${esc(v.variant||'Bản chuẩn')} · ${vnd(v.kk_price)}</button>`).join('')}</div>`:''}
   <div style="margin:6px 0">${trustBadges(p)}</div>
   <div class="big">${isHold(p)?'<span style="color:var(--muted);font-size:22px">Đang xác minh giá</span>':p.kk_price?vnd(p.kk_price):'Tạm hết hàng'} ${!isHold(p)&&p.kk_price&&discOf(p)>0?`<s style="font-size:16px;color:var(--muted);font-weight:500">${vnd(Math.round(p.kk_price/(1-discOf(p)/100)/1000)*1000)}</s> <span class="tag" style="position:static;display:inline-block;vertical-align:middle" title="Mức giảm đã xác minh với giá tham chiếu tin cậy & lịch sử niêm phong">-${discOf(p)}%</span>`:''}</div>
   ${p.kk_price&&!isHold(p)?`<div style="font-size:13px;color:var(--ok);font-weight:600">✓ Giá cuối cùng - đã bao gồm giao hàng tận cửa, không phụ phí</div>`+proofLine(p,true):''}
   ${isHold(p)?`<div class="note" style="border-color:#FCD34D;background:#FFFBEB">⏸ <b>Đang xác minh giá:</b> AI phát hiện giá nguồn bất thường (${esc(((p.trust||{}).why||[]).join('; ')||'chênh lệch lớn so với lịch sử')}). Sản phẩm tạm ngừng đặt để bảo vệ bạn khỏi giá ảo / nhầm phụ kiện - sẽ mở lại sau khi xác minh.</div>`:''}
   ${(flOf(p)&KFL.REF_INFLATED)?`<div style="font-size:11.5px;color:var(--muted);margin-top:6px">ℹ️ Không hiển thị % giảm: ${esc(((p.trust||{}).why||[]).find(w=>/Giá gốc/.test(w))||'giá gốc niêm yết tại nguồn chưa đáng tin cậy')}.</div>`:''}
-  <div class="note">🚚 Giao <b>thẳng đến bạn</b> từ kho đối tác chính hãng. Hóa đơn điện tử ký số gửi email. Hoàn tiền 100% nếu hết hàng. Không COD.</div>
+  <div class="note">🚚 Giao <b>thẳng đến bạn</b> từ nhà cung cấp. Hóa đơn GTGT tiền hàng do nhà cung cấp xuất; hóa đơn phí dịch vụ KK-MALL gửi qua email. Hoàn tiền 100% nếu hết hàng. Không COD.</div>
   <h4 style="margin:12px 0 6px;color:var(--ink)">Thông số kỹ thuật đầy đủ <button class="vbtn" style="margin-left:8px" onclick="openCompare('${p.sku}')">⚖️ So sánh cùng loại</button></h4>
   <div class="specs">${Object.entries(p.specs).map(([k,v])=>`<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>
   <div style="font-size:13px;line-height:1.65;color:#334155;margin-top:10px">${esc(genDesc(p))}</div>
   <div class="note" style="margin-top:10px">📜 <b>Cam kết & thông tin hàng hóa:</b> ${isUsedP(p)?'<b style="color:#92400E">Hàng ĐÃ QUA SỬ DỤNG</b> - tình trạng ngoại quan đúng như tên/mô tả sản phẩm, đã kiểm tra hoạt động; giá không so sánh với giá máy mới':'Hàng mới 100%, chính hãng theo công bố của nhà sản xuất'} · Bảo hành: <b>${esc(p.specs['Bảo hành']||'theo chính sách hãng')}</b> · Đổi trả trong 7 ngày nếu lỗi do nhà sản xuất · Hóa đơn điện tử ký số gửi qua email · <a href="./phap-ly" target="_blank" style="color:var(--ink);font-weight:700">Điều khoản & chính sách đầy đủ ↗</a></div>
   <div style="display:flex;gap:12px;align-items:center;margin-top:14px"><div class="qty"><button onclick="qd(-1)">−</button><input id="pq" value="1"><button onclick="qd(1)">+</button></div><button class="btn i" style="margin:0;flex:1" ${canBuy(p)?'':'disabled'} onclick="addCart('${p.sku}',+$('#pq').value);closeAll()">🛒 Thêm vào giỏ</button><button class="btn g" style="margin:0;flex:1" ${canBuy(p)?'':'disabled'} onclick="addCart('${p.sku}',+$('#pq').value);openCheckout()">Mua ngay</button></div>
-  <h4 style="margin:18px 0 4px;color:var(--ink)">Đánh giá từ người mua xác thực ${p.reviewStat.n?`(${Number(p.reviewStat.avg).toFixed(1)}★)`:''}</h4>
-  <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">Chỉ khách có đơn hàng mới được đánh giá · Hệ thống tự lọc cụm "cày đơn ảo" trước khi hiển thị</div>
-  ${p.reviews.map(r=>`<div class="rev"><span class="stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span> <b>${esc(r.display_name)}</b> <span style="color:var(--ok);font-size:11px">✓ Đã mua tại KK-MALL</span><div>${esc(r.content||'')}</div></div>`).join('')||'<div style="font-size:13px;color:var(--muted)">Chưa có đánh giá.</div>'}
+  <h4 style="margin:18px 0 4px;color:var(--ink)">Đánh giá từ người đã nhận hàng <span id="rvHead"></span></h4>
+  <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">Chỉ khách có đơn KK-MALL đã giao mới đánh giá được (mỗi sản phẩm/đơn 1 lần) · nội dung chứa liên kết/số điện thoại được kiểm duyệt trước khi hiển thị</div>
+  <div id="rvList"><div style="font-size:13px;color:var(--muted)">Đang tải đánh giá…</div></div>
   <details style="margin-top:10px;font-size:13px"><summary style="cursor:pointer;font-weight:700;color:var(--ink)">✍️ Viết đánh giá (cần mã đơn + SĐT)</summary>
   <div style="display:grid;gap:8px;margin-top:8px"><input id="rvOrder" placeholder="Mã đơn hàng KK..." style="padding:9px;border:1.5px solid var(--line);border-radius:9px"><input id="rvPhone" placeholder="SĐT đặt hàng" style="padding:9px;border:1.5px solid var(--line);border-radius:9px"><select id="rvStar" style="padding:9px;border:1.5px solid var(--line);border-radius:9px"><option value="5">5★ Tuyệt vời</option><option value="4">4★ Tốt</option><option value="3">3★ Bình thường</option><option value="2">2★ Kém</option><option value="1">1★ Rất tệ</option></select><textarea id="rvText" rows="2" placeholder="Cảm nhận của bạn..." style="padding:9px;border:1.5px solid var(--line);border-radius:9px;font-family:inherit"></textarea><button class="btn i" style="margin:0" onclick="sendReview('${p.sku}')">Gửi đánh giá</button></div></details>
   </div></div>`;
-  trackViewed(p);renderViewed();window._pmP=p;setTimeout(()=>bindChart('pmc'),0);
+  trackViewed(p);renderViewed();window._pmP=p;loadReviews(p.sku);setTimeout(()=>bindChart('pmc'),0);
   try{let ld=document.getElementById('ldProduct');if(!ld){ld=document.createElement('script');ld.type='application/ld+json';ld.id='ldProduct';document.head.appendChild(ld)}
-  ld.textContent=JSON.stringify({'@context':'https://schema.org','@type':'Product',name:p.name,sku:p.sku,brand:{'@type':'Brand',name:p.brand},image:p.image,description:genDesc(p),aggregateRating:p.reviewStat.n?{'@type':'AggregateRating',ratingValue:p.rating,reviewCount:p.reviewStat.n}:undefined,offers:{'@type':'Offer',priceCurrency:'VND',price:p.kk_price,itemCondition:isUsedP(p)?'https://schema.org/UsedCondition':'https://schema.org/NewCondition',availability:canBuy(p)?'https://schema.org/InStock':'https://schema.org/OutOfStock',url:location.origin+'/?sp='+p.sku}});}catch{}
+  ld.textContent=JSON.stringify({'@context':'https://schema.org','@type':'Product',name:p.name,sku:p.sku,brand:{'@type':'Brand',name:p.brand},image:p.image,description:genDesc(p),aggregateRating:(p.reviewStat&&p.reviewStat.n)?{'@type':'AggregateRating',ratingValue:p.reviewStat.avg,reviewCount:p.reviewStat.n,bestRating:5,worstRating:1}:undefined,offers:{'@type':'Offer',priceCurrency:'VND',price:p.kk_price,itemCondition:isUsedP(p)?'https://schema.org/UsedCondition':'https://schema.org/NewCondition',availability:canBuy(p)?'https://schema.org/InStock':'https://schema.org/OutOfStock',url:location.origin+'/?sp='+p.sku}});}catch{}
   show('#pm')}
 /* ===== O DEAL CHOP NHOANG: dem nguoc toi lan AI quet gia ke tiep + deal xoay vong ===== */
 function deals(d){const sh=(d.sections||[]).find(x=>x.type==='shelf'&&/Giảm sâu/.test(x.title));return sh?sh.items.filter(i=>canBuy(i)&&discOf(i)>0&&!(flOf(i)&(KFL.USED|KFL.REF_INFLATED))):[]}
@@ -731,7 +731,7 @@ async function openCompare(sku){
   <div style="font-size:12px;color:var(--muted);margin-bottom:12px">${esc(base.grp)} · tự động chọn các sản phẩm tương đồng để bạn quyết định nhanh</div>
   <div style="overflow-x:auto"><table class="cmp" style="min-width:560px"><tr><th style="width:120px"></th>${full.map(p=>`<th><img src="${imgSrc(p)}" alt="" style="width:84px;height:84px;object-fit:contain;background:#fff;border-radius:10px" ${imgAttrs(p)}><div style="font-size:12px;margin-top:4px">${esc(p.name)}</div></th>`).join('')}</tr>
   <tr><td><b>Giá KK-MALL</b></td>${full.map(p=>`<td style="color:var(--coral);font-weight:900">${vnd(p.kk_price)}</td>`).join('')}</tr>
-  <tr><td><b>Đánh giá</b></td>${full.map(p=>`<td>⭐ ${p.rating} · bán ${p.sold}</td>`).join('')}</tr>
+  <tr><td><b>Đánh giá</b></td>${full.map(p=>`<td>${(p.reviewStat&&p.reviewStat.n)?`⭐ ${Number(p.reviewStat.avg).toFixed(1)} (${p.reviewStat.n})`:'Chưa có'}${p.sold>0?' · bán '+p.sold:''}</td>`).join('')}</tr>
   ${keys.map(k=>`<tr><td><b>${esc(k)}</b></td>${full.map(p=>`<td>${esc((p.specs||{})[k]||'-')}</td>`).join('')}</tr>`).join('')}
   <tr><td></td>${full.map(p=>`<td><button class="vbtn on" onclick="closeAll();addCart('${p.sku}',1)">🛒 Chọn mua</button></td>`).join('')}</tr></table></div></div>`;
   closeAll();show('#cpm')}
@@ -744,7 +744,12 @@ async function renderViewed(){try{let v=JSON.parse(localStorage.getItem('kk_view
   if(!v.length){sec.style.display='none';return}sec.style.display='block';
   $('#viewedRow').innerHTML=v.map(x=>(x.image&&/^https?:/.test(x.image))||x._h?x:(x._h=1,setTimeout(()=>{const im=document.querySelector(`#viewedRow img[data-sku="${x.sku}"]`);if(im)hydrateImg(im,x.sku)},0),x)).map(x=>`<div class="card" style="min-width:170px;max-width:170px;cursor:pointer" onclick="openProduct('${x.sku}')"><img class="im" style="height:120px" src="${imgSrc(x)}" ${imgAttrs(x)} alt=""><div class="bd" style="padding:8px 10px"><div class="n" style="font-size:12px;max-height:2.8em;overflow:hidden">${esc(x.name)}</div><div style="color:var(--coral);font-weight:800;font-size:13px">${x.hold?'<span style="color:var(--muted)">Đang xác minh giá</span>':x.in_stock===0?'<span style="color:var(--muted)">Hết hàng</span>':vnd(x.kk_price)}</div></div></div>`).join('')}catch{}}
 
-async function sendReview(sku){try{const r=await api('/api/reviews',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sku,order_code:$('#rvOrder').value.trim(),phone:$('#rvPhone').value.trim(),rating:$('#rvStar').value,content:$('#rvText').value,device:navigator.userAgent})});toast(r.note)}catch(e){toast(e.message)}}
+async function loadReviews(sku){const box=document.getElementById('rvList');if(!box)return;
+  try{if(typeof KKB==='undefined'||!KKB.on)throw 0;const r=await KKB.call('review.list',{sku});if(!document.getElementById('rvList')||(window._pmP&&window._pmP.sku!==sku))return;
+    $('#rvHead').textContent=r.n?`(${Number(r.avg).toFixed(1)}★ · ${r.n} đánh giá)`:'';
+    box.innerHTML=r.reviews.map(x=>`<div class="rev"><span class="stars">${'★'.repeat(x.rating)}${'☆'.repeat(5-x.rating)}</span> <b>${esc(x.name)}</b> <span style="color:var(--ok);font-size:11px">✓ Đã nhận hàng từ KK-MALL</span> <span style="color:var(--muted);font-size:11px">${esc(new Date(x.at).toLocaleDateString('vi-VN'))}</span><div>${esc(x.content||'')}</div></div>`).join('')||'<div style="font-size:13px;color:var(--muted)">Chưa có đánh giá. Hãy là người đầu tiên sau khi nhận hàng!</div>'}
+  catch(e){box.innerHTML='<div style="font-size:13px;color:var(--muted)">Chưa có đánh giá.</div>'}}
+async function sendReview(sku){try{if(typeof KKB==='undefined'||!KKB.on)throw new Error('Máy chủ chưa sẵn sàng');const r=await KKB.call('review.submit',{sku,code:$('#rvOrder').value.trim(),phone:$('#rvPhone').value.trim(),rating:+$('#rvStar').value,content:$('#rvText').value,token:KKB.token()});toast(r.note);loadReviews(sku)}catch(e){toast(e.message)}}
 function qd(d){const i=$('#pq');i.value=Math.max(1,Math.min(20,(+i.value||1)+d))}
 function packRow(sku){try{const rows=JSON.parse(localStorage.getItem('kk_pack')).rows;const r=rows.find(x=>x[0]===sku);if(r)return{name:r[1],kk_price:r[6],category_id:r[3],image:phImg(r[1],r[3])}}catch{}return null}
 function fixCartItem(sku){api('/api/products/'+sku).then(p=>{const c=cart.find(x=>x.sku===sku);if(c){c.name=p.name;c.kk_price=p.kk_price;c.image=p.image;c.category_id=p.category_id;if(canBuy(p))delete c.unavailable;else c.unavailable=1;save();renderCart()}}).catch(()=>{cart=cart.filter(x=>x.sku!==sku||x.kk_price>0);save();renderCart()})}
@@ -919,6 +924,6 @@ async function aiSend(e){e.preventDefault&&e.preventDefault();const q=$('#aiIn')
   aiChips(['Rẻ hơn nữa','Cao cấp hơn','Chính sách đổi trả']);
   window._aiLast=q}
 </script>
-<script src="kk-backend.js?v=2610261900"></script>
+<script src="kk-backend.js?v=2610311800"></script>
 </body>
 </html>

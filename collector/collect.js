@@ -57,6 +57,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       r.key = FEEDS.normKey(r.name); feed.offers.push(r); n++; }
     feed.stat.retail = n; feed.stat.retailUnclassified = un; console.log(`Gia ban le cong khai: ${n} offer (bo ${un} chua phan loai)`); }
   const SHIP = LANDEDM.create(process.env, await LANDEDM.fetchStats(process.env)); console.log('Gia thuc tra: ' + SHIP.desc);
+  const REVIEWS = await LANDEDM.fetchReviewStats(process.env); console.log('Danh gia that: ' + (REVIEWS ? Object.keys(REVIEWS).length + ' SP co danh gia' : 'khong lay duoc - giu thong ke cu'));
   const feedBySku = {};
   feed.stat.matched = 0; feed.stat.added = 0; feed.stat.capped = 0;
   if (feed.offers.length) {
@@ -89,7 +90,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
         const slug = FEEDS.normKey(name).replace(/ /g, '-').slice(0, 80) + '-' + sku.toLowerCase();
         const d = { id: nextId - 1, sku, spu_id: nextId - 1, variant: '', name, slug, category_id: cid, category_name: cname, grp: best.grp, brand,
           image: withImg.image, description: name + ' chính hãng, mới 100%. Giá được KK-MALL so sánh và cập nhật tự động 3 giờ/lần.',
-          specs: { 'Thương hiệu': brand, 'Bảo hành': 'Theo chính sách của hãng' }, base_price: base, rating: 4.6, sold: 0, stock_qty: 50,
+          specs: { 'Thương hiệu': brand, 'Bảo hành': 'Theo chính sách của hãng' }, base_price: base, rating: 0, sold: 0, stock_qty: null,
           kk_price: initKK, in_stock: 0, active: 1, updated_at: now, ledger: [], related: [], variants: [{ sku, variant: '', kk_price: initKK, in_stock: 0 }], reviews: [], reviewStat: { n: 0, avg: null } };
         fs.writeFileSync(path.join(API, 'products', sku + '.json'), JSON.stringify(d));
         full.push({ sku, name, slug, category_id: cid, category_name: cname, grp: best.grp, brand, variant: '', image: withImg.image, base_price: base, kk_price: initKK, in_stock: 0, stock_qty: 50, rating: 4.6, sold: 0, updated_at: now });
@@ -192,6 +193,11 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     const ev = TRUST.evaluate(d);
     if (!(feedBySku[p.sku] || fidx.origin[p.sku])) ev.fl |= TRUST.FL.NO_SOURCE;   // SP mo phong: khong co nguon mua ho that
     if (!fidx.origin[p.sku] && (p.sold || d.sold)) { p.sold = 0; d.sold = 0; }   // so 'da ban' cua du lieu mau cu khong xac thuc -> 0
+    /* danh gia: CHI tu nguoi da nhan hang (may chu); khong co danh gia -> khong hien sao. Bo ton kho gia dinh ("con 50 suat") */
+    { const rv = REVIEWS ? REVIEWS[p.sku] : null;
+      if (REVIEWS) d.reviewStat = rv ? { n: rv[0], avg: rv[1] } : { n: 0, avg: null };
+      const rs = d.reviewStat && d.reviewStat.n ? d.reviewStat : null;
+      d.rating = rs ? rs.avg : 0; p.rating = d.rating; d.reviews = []; if (d.stock_qty) d.stock_qty = null; }
     d.trust = { disc: ev.disc, fl: ev.fl, why: ev.why };
   if ((ev.fl & TRUST.FL.USED) && /mới 100%/i.test(d.description || '')) d.description = String(d.description).replace(/chính hãng, mới 100%(, đầy đủ phụ kiện)?/i, 'đã qua sử dụng, tình trạng đúng như tên gọi').replace(/mới 100%/ig, 'đã qua sử dụng');
     p.disc = ev.disc; p.fl = ev.fl;

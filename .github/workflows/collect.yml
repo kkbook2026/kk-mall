@@ -65,13 +65,17 @@ jobs:
           git add site/api site/admin/data.enc
           [ -f collector/feed-index.json ] && git add collector/feed-index.json || true
           if git diff --cached --quiet; then echo "Khong co thay doi"; exit 0; fi
-          LAST=$(git log -1 --pretty=%s)
+          LAST=$(git log -1 --pretty=%s); BASE=$(git rev-parse HEAD)
+          DATA="site/api site/admin/data.enc"; [ -f collector/feed-index.json ] && DATA="$DATA collector/feed-index.json"
+          republish() { # main tren GitHub da co commit moi (vd ma nguon) trong luc thu thap -> dat du lieu moi len tren, KHONG ghi de
+            tar czf /tmp/kk-data.tgz $DATA && git fetch -q origin main && git checkout -q -f -B main origin/main && tar xzf /tmp/kk-data.tgz && git add $DATA
+            git diff --cached --quiet || git commit -q -m "auto-data: cap nhat gia & ton kho"; git push origin main; }
           if [ "$LAST" = "auto-data: cap nhat gia & ton kho" ]; then
-            git commit --amend -m "auto-data: cap nhat gia & ton kho"
-            git push -f origin main
+            git commit -q --amend -m "auto-data: cap nhat gia & ton kho"
+            git push --force-with-lease=main:$BASE origin main || republish   # chi ghi de khi main van la commit da checkout
           else
-            git commit -m "auto-data: cap nhat gia & ton kho"
-            git push origin main
+            git commit -q -m "auto-data: cap nhat gia & ton kho"
+            git push origin main || republish
           fi
       - name: SEO - sinh trang tinh SP/nganh/nhom + sitemap (khong commit)
         run: node collector/build-seo.js
