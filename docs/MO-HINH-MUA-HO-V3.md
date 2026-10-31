@@ -113,3 +113,4 @@
 - **Quyền dữ liệu cá nhân (Luật BVDLCN 2025):** thành viên tự tải toàn bộ dữ liệu (JSON) và tự xóa tài khoản (xóa hồ sơ + thu hồi phiên; chứng từ đơn giữ theo Luật Kế toán).
 
 **Kiểm thử:** 174 kiểm tra máy chủ + 38 kiểm tra trình duyệt (thêm: địa chỉ 3 cấp, đánh giá thật qua giao diện, hoàn tiền khách→quản trị→VietQR, tự kiểm toán, khóa PBKDF2 trình duyệt = bộ thu thập) + 15 kiểm tra tiện ích; chạy lại 8 script chứng minh lỗi của rà soát → đều đã hết.
+- **Triển khai 31/10/2026:** máy chủ Version 9 (v1.5.0) chạy thật; website + bộ thu thập + giám sát đã lên `main`. Kiểm tra trên hệ thống thật: giám sát 30 phút đạt toàn bộ; 28.397 SP không còn sao/tồn kho giả (điểm 0 cho tới khi có đánh giá thật); trang SP tải đánh giá từ máy chủ; link theo dõi đơn trong email mở đúng đơn; bộ thu thập đặt commit dữ liệu lên trên commit mã nguồn (không ghi đè).
