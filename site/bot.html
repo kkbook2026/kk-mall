@@ -1,0 +1,15 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>KK-MALL-PriceBot</title>
+<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:760px;margin:40px auto;padding:0 16px;line-height:1.65;color:#1e293b;background:#F8FAFC}h1{color:#1E3A8A}code{background:#E2E8F0;padding:1px 6px;border-radius:4px}</style></head><body>
+<h1>KK-MALL-PriceBot</h1>
+<p>KK-MALL-PriceBot là trình thu thập giá của <a href="https://www.kk-mall.com/">KK-MALL</a> - nền tảng mua hộ giúp khách hàng mua đúng sản phẩm chính hãng với giá tốt nhất <b>tại chính cửa hàng của quý vị</b>. Mỗi đơn hàng KK-MALL nhận được đều được đặt mua và thanh toán trước tại cửa hàng có giá tốt nhất.</p>
+<h2>Bot hoạt động thế nào</h2>
+<ul>
+<li>Chỉ đọc trang sản phẩm công khai được liệt kê trong sitemap và được <code>robots.txt</code> cho phép; không đăng nhập, không gửi biểu mẫu, không truy cập giỏ hàng, tìm kiếm hay trang quản trị.</li>
+<li>Tuân thủ <code>Crawl-delay</code>; mặc định tối đa 1 trang mỗi 1,5 giây cho mỗi website (5 giây nếu robots.txt yêu cầu), tự dừng khi máy chủ báo bận (HTTP 429/5xx).</li>
+<li>Chỉ lưu tên, giá đang hiển thị, tình trạng còn hàng, ảnh đại diện và đường dẫn sản phẩm từ dữ liệu chuẩn schema.org.</li>
+<li>User-Agent: <code>Mozilla/5.0 (compatible; KK-MALL-PriceBot/1.0; +https://www.kk-mall.com/bot.html)</code></li>
+</ul>
+<h2>Chặn hoặc giới hạn bot</h2>
+<p>Thêm vào <code>robots.txt</code>: <code>User-agent: KK-MALL-PriceBot</code> và <code>Disallow: /</code> (hoặc <code>Crawl-delay: 10</code>). Bot đọc lại robots.txt ở mỗi lần chạy.</p>
+<p>Liên hệ: <a href="mailto:nguyenduydien75@gmail.com">nguyenduydien75@gmail.com</a></p>
+</body></html>
