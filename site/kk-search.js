@@ -9,7 +9,7 @@
  * - Gõ dính chữ ("noichien"), sửa lỗi gõ (Damerau-Levenshtein 1-2), sót phím Telex, hiểu giá ("dưới 5 triệu", "5-7tr", "tầm 500k")
  * - 0 kết quả → nới dần điều kiện, giữ loại hàng chính, báo rõ từ khóa đã bỏ qua
  * - Gợi ý khi gõ: hoàn thành cụm từ (có dấu), nhóm hàng, thương hiệu, sản phẩm; bộ lọc thuộc tính (GB, inch, HP, kg, lít...) + khoảng giá
- * (c) 2026 Nguyễn Duy Điển (KK-2026). All rights reserved.
+ * (c) 2026 Nguyễn Duy Điển. All rights reserved.
  */
 (function (root) {
   'use strict';

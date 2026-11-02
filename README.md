@@ -55,6 +55,6 @@ Làm đẹp · Mẹ & Bé · Bách hóa · Thể thao · Xe & Phụ kiện · S�
 <p align="center"><b>👉 Trải nghiệm ngay: <a href="https://www.kk-mall.com">www.kk-mall.com</a></b></p>
 
 ---
-© 2026 KK-MALL · Bản quyền thuộc **Nguyễn Duy Điển (KK-2026)** · All rights reserved.
+© 2026 KK-MALL · Bản quyền thuộc **Nguyễn Duy Điển** · All rights reserved.
 *Kho này chỉ chứa bản dựng giao diện giới thiệu; nền tảng vận hành, thuật toán định giá và hạ tầng
 xử lý đơn hàng là tài sản trí tuệ riêng, không công bố.*

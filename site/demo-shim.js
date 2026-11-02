@@ -3,7 +3,7 @@
  * KK-MALL EDGE RUNTIME - toan bo tinh nang van hanh ngay tren trinh duyet khach
  * (ban CDN tinh): dat hang, thanh toan thu nghiem, theo doi don + van don, hoa don,
  * toi uu voucher, danh gia san pham. Du lieu don luu tren thiet bi khach.
- * Ban quyen (c) Nguyen Duy Dien (KK-2026).
+ * Ban quyen (c) Nguyen Duy Dien.
  */
 (function () {
   const realFetch = window.fetch.bind(window);

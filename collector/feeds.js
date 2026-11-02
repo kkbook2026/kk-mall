@@ -11,7 +11,7 @@
  *        lazada|https://.../google-shopping.xml
  * Ma nguon thuoc 10 nguon noi bo (dienmayxanh, thegioididong, fptshop, cellphones, dienmaycholon,
  * tiki, shopee, tiktok, lazada, sendo). Ho tro CSV/TSV, JSON, Google Shopping XML/RSS.
- * (c) Nguyen Duy Dien (KK-2026). All rights reserved.
+ * (c) Nguyen Duy Dien. All rights reserved.
  */
 
 const SOURCES = ['dienmayxanh', 'thegioididong', 'fptshop', 'cellphones', 'dienmaycholon', 'tiki', 'shopee', 'tiktok', 'lazada', 'sendo', 'hoangha', 'phucanh', 'anphat'];

@@ -5,7 +5,7 @@
  *  3. Bo loc hanh vi mua sam (menu ngang) + mega menu danh muc
  *  4. AI Semantic Search: hieu ngu canh (qua sep, do dung lop 1...) -> gom gio goi y theo ngan sach
  *  5. Real-time Stock & Price Lock khi bam Thanh toan
- * Ban quyen (c) Nguyen Duy Dien (KK-2026). All rights reserved.
+ * Ban quyen (c) Nguyen Duy Dien. All rights reserved.
  */
 'use strict';
 const KFL = { HOLD: 1, USED: 2, LOW: 4, COMBO: 8, REF_INFLATED: 16 };

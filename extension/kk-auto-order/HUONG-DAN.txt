@@ -1,5 +1,5 @@
 KK-MALL AUTO ORDER - TIỆN ÍCH CHROME TỰ ĐẶT HÀNG TẠI NGUỒN (giai đoạn 1: Tiki)
-(c) 2026 Nguyễn Duy Điển (KK-2026). All rights reserved.
+(c) 2026 Nguyễn Duy Điển. All rights reserved.
 
 CÀI ĐẶT (1 lần)
 1. Giải nén file kk-auto-order.zip vào một thư mục cố định (ví dụ D:\KK-MALL\kk-auto-order). Không xóa thư mục này.

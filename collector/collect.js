@@ -5,7 +5,7 @@
  * Nhiem vu: thu thap/cap nhat gia & ton kho cho toan bo catalog cua site,
  * tinh lai gia ban va NOI DAI SO CAI GIA (hash-chain) roi xuat ra site/.
  * Cau hinh dinh gia noi bo lay tu bien moi truong ma hoa (GitHub Secret) - khong nam trong ma nguon.
- * (c) Nguyen Duy Dien (KK-2026). All rights reserved.
+ * (c) Nguyen Duy Dien. All rights reserved.
  */
 const fs = require('fs');
 const path = require('path');

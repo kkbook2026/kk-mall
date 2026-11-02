@@ -2,7 +2,7 @@
  * KK-MALL ADMIN OPS - vận hành đơn hàng thật qua máy chủ (Google Apps Script)
  *  Lệnh mua (PO) tự lập kế hoạch nguồn rẻ nhất · Đơn hàng tách tiền hàng/phí · Đổi trả & bảo hành
  *  Sổ kế toán thu hộ - chi hộ (1121/3388/5113/33311/632) · Hóa đơn phí dịch vụ · Cấu hình ngân hàng/công ty
- * (c) 2026 Nguyễn Duy Điển (KK-2026). All rights reserved.
+ * (c) 2026 Nguyễn Duy Điển. All rights reserved.
  */
 'use strict';
 const OPS = {

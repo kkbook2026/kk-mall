@@ -4,7 +4,7 @@
  *  website, dữ liệu giá còn mới, máy chủ đơn hàng (phiên bản + báo giá thật), trang quản trị, gói tiện ích, sitemap, chứng chỉ HTTPS.
  * Lỗi -> thoát mã 1 + ghi báo cáo monitor-report.md (workflow mở/ cập nhật Issue cảnh báo; hết lỗi tự đóng).
  * Chỉ ĐỌC - không tạo đơn, không gửi email.
- * (c) 2026 Nguyễn Duy Điển (KK-2026). All rights reserved.
+ * (c) 2026 Nguyễn Duy Điển. All rights reserved.
  */
 const fs = require('fs');
 const tls = require('tls');

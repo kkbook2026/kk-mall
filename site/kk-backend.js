@@ -2,7 +2,7 @@
  * KK-MALL BACKEND CLIENT - kết nối máy chủ đơn hàng (Google Apps Script) khi đã cấu hình KK_BACKEND (config.js).
  * Mô hình mua hộ: Tiền hàng (thu hộ - chi hộ nhà cung cấp, NCC xuất VAT) + Phí dịch vụ KK-MALL (KK-MALL xuất VAT).
  * Ghi đè luồng demo: đặt hàng, thanh toán VietQR, thành viên OTP, theo dõi đơn, bảo hành / đổi trả.
- * (c) 2026 Nguyễn Duy Điển (KK-2026). All rights reserved.
+ * (c) 2026 Nguyễn Duy Điển. All rights reserved.
  */
 'use strict';
 const KKB = {

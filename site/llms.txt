@@ -14,4 +14,4 @@
 ## Thanh toán
 VNPay, Ví MoMo, ZaloPay, chuyển khoản VietQR. Không hỗ trợ COD. Hoàn tiền 100% tự động nếu hết hàng sau khi thanh toán.
 
-© 2026 KK-MALL - Bản quyền thuộc Nguyễn Duy Điển (KK-2026).
+© 2026 KK-MALL - Bản quyền thuộc Nguyễn Duy Điển.

@@ -1,6 +1,6 @@
 /*
  * KK-MALL Auto Order - thư viện dùng chung (trang Tiki + nền + kiểm thử Node)
- * (c) 2026 Nguyễn Duy Điển (KK-2026). All rights reserved.
+ * (c) 2026 Nguyễn Duy Điển. All rights reserved.
  */
 (function (root) {
   'use strict';

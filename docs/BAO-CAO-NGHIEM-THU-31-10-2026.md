@@ -66,4 +66,4 @@
 2. **Thử 1 đơn thật trọn vòng** (khuyến nghị): đặt 1 SP rẻ trên www.kk-mall.com bằng email của anh → chuyển khoản → xác nhận email, lệnh mua, bot Tiki (nhập OTP ngân hàng) → nhận hàng → đánh giá. Đây là phần duy nhất cần tiền thật và mã OTP thật.
 3. Nhập thông tin doanh nghiệp thật tại Admin → Hệ thống (MST, hotline, email, số đăng ký Bộ Công Thương).
 
-(c) 2026 Nguyễn Duy Điển (KK-2026). All rights reserved.
+(c) 2026 Nguyễn Duy Điển. All rights reserved.
