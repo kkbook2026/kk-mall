@@ -3,7 +3,7 @@
  * NHAT KY CAP NHAT HANG HOA - dung chung cho bo thu thap 3 gio va cong cu phat hanh thu cong.
  * Lich su nam TRONG goi quan tri ma hoa (site/admin/data.enc): moi lan chay giai ma goi cu,
  * noi them 1 ban ghi, ma hoa lai. Nguoi ngoai khong doc duoc.
- * (c) Nguyen Duy Dien (KK-2026). All rights reserved.
+ * (c) Nguyen Duy Dien. All rights reserved.
  */
 const fs = require('fs');
 const crypto = require('crypto');
@@ -11,12 +11,14 @@ const crypto = require('crypto');
 const MAX_ENTRIES = 1500;   // ~6 thang o chu ky 3 gio
 const KEEP_TOP = 96;        // giu danh sach "thay doi lon nhat" cho 96 ban ghi gan nhat (~2 ngay)
 
+const KDF_ITER = 600000;     // PBKDF2-HMAC-SHA256 theo khuyen nghi OWASP; goi cu van doc duoc nho truong iter
+
 function encrypt(obj, key) {
   const salt = crypto.randomBytes(16), iv = crypto.randomBytes(12);
-  const k = crypto.pbkdf2Sync(key, salt, 300000, 32, 'sha256');
+  const k = crypto.pbkdf2Sync(key, salt, KDF_ITER, 32, 'sha256');
   const c = crypto.createCipheriv('aes-256-gcm', k, iv);
   const ct = Buffer.concat([c.update(Buffer.from(JSON.stringify(obj), 'utf8')), c.final(), c.getAuthTag()]);
-  return { v: 1, kdf: 'PBKDF2-SHA256', iter: 300000, salt: salt.toString('base64'), iv: iv.toString('base64'), ct: ct.toString('base64') };
+  return { v: 1, kdf: 'PBKDF2-SHA256', iter: KDF_ITER, salt: salt.toString('base64'), iv: iv.toString('base64'), ct: ct.toString('base64') };
 }
 
 function decryptFile(file, key) {

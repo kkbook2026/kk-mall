@@ -127,7 +127,7 @@ tr:hover td{background:#F8FAFC}
       <button class="btn grad" id="gBtn">🔐 Mở khóa dữ liệu</button>
       <div class="err" id="gErr"></div>
     </form>
-    <div class="gnote">Toàn bộ dữ liệu so sánh giá nguồn cung được mã hóa <b>AES-256-GCM</b> (khóa dẫn xuất PBKDF2 300.000 vòng) ngay trên máy chủ phát hành. Trình duyệt chỉ giải mã cục bộ sau khi nhập đúng khóa - không gửi khóa đi bất cứ đâu.</div>
+    <div class="gnote">Toàn bộ dữ liệu so sánh giá nguồn cung được mã hóa <b>AES-256-GCM</b> (khóa dẫn xuất PBKDF2 600.000 vòng) ngay trên máy chủ phát hành. Trình duyệt chỉ giải mã cục bộ sau khi nhập đúng khóa - không gửi khóa đi bất cứ đâu.</div>
   </div>
 </div>
 
@@ -299,7 +299,7 @@ tr:hover td{background:#F8FAFC}
 
 <script>
 'use strict';
-/* Cong quan tri KK-MALL - (c) Nguyen Duy Dien (KK-2026) */
+/* Cong quan tri KK-MALL - (c) Nguyen Duy Dien */
 const $=s=>document.querySelector(s);
 const vnd=n=>n==null?'-':Number(n).toLocaleString('vi-VN')+' đ';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
