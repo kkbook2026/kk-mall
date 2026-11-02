@@ -3,7 +3,7 @@
  * KK-MALL PUBLISH - xuat du lieu cong khai (dung chung cho collect.js va trust-pass.js)
  * catalog-full / cat/<nganh> / catalog-pack / sdui-home / meta / ledger-verify / ledger-roots / ledger-recent
  * Tuyet doi khong ghi nguon, gia nguon hay phan gia noi bo ra cac file nay.
- * (c) Nguyen Duy Dien (KK-2026). All rights reserved.
+ * (c) Nguyen Duy Dien. All rights reserved.
  */
 const fs = require('fs');
 const path = require('path');

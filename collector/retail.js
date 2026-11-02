@@ -6,7 +6,7 @@
  * - Tu nhan dien: User-Agent "KK-MALL-PriceBot" kem trang gioi thieu bot (https://www.kk-mall.com/bot.html).
  * - Tai lan luot theo sitemap, uu tien trang chua co du lieu + trang co gia cu nhat; luu bo nho dem ngoai git
  *   (GitHub Actions cache) de khong lam phinh repo. Bo thu thap gia 3 gio/lan doc bo nho dem nay.
- * Dung: node collector/retail.js [phut_ngan_sach]     (c) 2026 Nguyen Duy Dien (KK-2026)
+ * Dung: node collector/retail.js [phut_ngan_sach]     (c) 2026 Nguyen Duy Dien
  */
 const fs = require('fs'), path = require('path'), zlib = require('zlib');
 const UA = 'Mozilla/5.0 (compatible; KK-MALL-PriceBot/1.0; +https://www.kk-mall.com/bot.html)';

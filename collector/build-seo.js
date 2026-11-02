@@ -7,7 +7,7 @@
  *   /n/<nganh>--<nhom>[-k].html  trang nhom hang, phan trang 60 SP/trang
  *   /sitemap.xml (index) + /sitemap-pages.xml + /sitemap-p-<nganh>.xml
  * Bot (Googlebot, Bingbot, Coc Coc, AI search) doc duoc noi dung day du ma khong can chay JavaScript.
- * (c) Nguyen Duy Dien (KK-2026). All rights reserved.
+ * (c) Nguyen Duy Dien. All rights reserved.
  */
 const fs = require('fs');
 const path = require('path');
@@ -59,8 +59,8 @@ const head = ({ title, desc, url, img, ld, type = 'website' }) => `<!doctype htm
 <script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script></head><body>
 <header><div class="w"><a href="/" aria-label="KK-MALL trang chủ"><img src="/logo.svg" alt="KK-MALL - Đại siêu thị trực tuyến"></a><form action="/" method="get" role="search"><input name="q" placeholder="Tìm trong ${(meta.totalProducts || full.length).toLocaleString('vi-VN')}+ mặt hàng..." aria-label="Tìm kiếm"></form><a class="cta s" href="/">🛒 Vào KK-MALL</a></div></header><main>`;
 const foot = `</main><footer><div class="w"><p><b>KK-MALL - Đại siêu thị trực tuyến</b> · Giá hiển thị là giá cuối cùng: đã gồm thuế GTGT và giao hàng tận cửa, không phụ phí. Lịch sử giá được niêm phong SHA-256 + Merkle, tự kiểm chứng tại <a href="/?ledger=1">Sổ cái giá</a>.</p>
-<p>${cats.map(c => `<a href="/c/${c.id}.html">${esc(c.name)}</a>`).join(' · ')}</p><p><a href="/phap-ly#dieu-khoan">Điều khoản</a> · <a href="/phap-ly#bao-mat">Bảo vệ dữ liệu cá nhân</a> · <a href="/phap-ly#doi-tra">Đổi trả & bảo hành</a> · © 2026 KK-MALL - Bản quyền thuộc Nguyễn Duy Điển (KK-2026)</p></div></footer></body></html>`;
-const footP = `</main><footer><div class="w">KK-MALL · Giá cuối cùng đã gồm giao hàng, không phụ phí · <a href="/?ledger=1">Sổ cái giá</a> · <a href="/phap-ly">Chính sách</a> · © 2026 KK-MALL - Nguyễn Duy Điển (KK-2026)</div></footer></body></html>`;
+<p>${cats.map(c => `<a href="/c/${c.id}.html">${esc(c.name)}</a>`).join(' · ')}</p><p><a href="/phap-ly#dieu-khoan">Điều khoản</a> · <a href="/phap-ly#bao-mat">Bảo vệ dữ liệu cá nhân</a> · <a href="/phap-ly#doi-tra">Đổi trả & bảo hành</a> · © 2026 KK-MALL - Bản quyền thuộc Nguyễn Duy Điển</p></div></footer></body></html>`;
+const footP = `</main><footer><div class="w">KK-MALL · Giá cuối cùng đã gồm giao hàng, không phụ phí · <a href="/?ledger=1">Sổ cái giá</a> · <a href="/phap-ly">Chính sách</a> · © 2026 KK-MALL - Nguyễn Duy Điển</div></footer></body></html>`;
 const ORG = { '@type': 'Organization', name: 'KK-MALL', url: ORIGIN };
 const crumbs = list => ({ '@type': 'BreadcrumbList', itemListElement: list.map((x, i) => ({ '@type': 'ListItem', position: i + 1, name: x[0], item: ORIGIN + x[1] })) });
 const li = r => `<li><a href="/p/${pslug(r)}.html">${esc(r.name)}</a><b>${(r.fl || 0) & 1 ? 'Đang xác minh giá' : vnd(r.kk_price)}</b><small>${r.in_stock && !((r.fl || 0) & 33) ? '✓ Còn hàng · gồm giao hàng' : 'Tạm ngừng bán'}</small></li>`;

@@ -7,7 +7,7 @@
  *  - Bảo mật: OTP 6 số băm SHA-256 + pepper, hết hạn 10 phút, tối đa 5 lần thử, giới hạn tần suất;
  *    phiên đăng nhập token 256-bit chỉ lưu dạng băm; quyền quản trị chỉ theo ADMIN_EMAILS (Script Properties);
  *    chống chèn công thức vào Sheet; khóa ghi đồng thời (LockService); giá luôn tính lại phía máy chủ.
- * (c) 2026 Nguyễn Duy Điển (KK-2026). All rights reserved.
+ * (c) 2026 Nguyễn Duy Điển. All rights reserved.
  */
 
 /* =========================== CẤU HÌNH =========================== */

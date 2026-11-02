@@ -2,7 +2,7 @@
  * KK-MALL Auto Order - điều phối (service worker)
  * Lấy lệnh mua "Cần đặt" từ máy chủ KK-MALL → chọn nguồn tự động (Tiki) trong biên dung sai → mở trang nguồn → trang Tiki tự
  * điền địa chỉ khách, chọn thẻ đã lưu → máy chủ duyệt tổng tiền → bấm Đặt hàng → chủ sở hữu nhập OTP → báo mã đơn về máy chủ.
- * (c) 2026 Nguyễn Duy Điển (KK-2026). All rights reserved.
+ * (c) 2026 Nguyễn Duy Điển. All rights reserved.
  */
 'use strict';
 importScripts('lib.js');

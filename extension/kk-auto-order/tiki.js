@@ -3,7 +3,7 @@
  * Chỉ hoạt động trên tab do tiện ích mở cho 1 lệnh mua; mọi tab Tiki khác bỏ qua.
  * Nguyên tắc an toàn: không bao giờ chọn tiền mặt khi nhận hàng; chỉ bấm "Đặt hàng" khi máy chủ KK-MALL đồng ý
  * tổng tiền (≤ tiền hàng đã thu + biên dung sai); không đọc/lưu số thẻ; OTP do chủ sở hữu nhập.
- * (c) 2026 Nguyễn Duy Điển (KK-2026). All rights reserved.
+ * (c) 2026 Nguyễn Duy Điển. All rights reserved.
  */
 (function () {
   'use strict';

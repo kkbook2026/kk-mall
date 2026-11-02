@@ -1,5 +1,5 @@
 /* Phan loai lai danh muc theo luat hien hanh (chi ap cac thay doi do luat UU TIEN moi gay ra, kiem soat duoc)
- * Dung: node collector/reclassify.js [--dry]   (c) 2026 Nguyen Duy Dien (KK-2026) */
+ * Dung: node collector/reclassify.js [--dry]   (c) 2026 Nguyen Duy Dien */
 'use strict';
 const fs = require('fs'), path = require('path');
 const F = require('./feeds');

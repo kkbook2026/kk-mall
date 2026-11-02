@@ -11,7 +11,7 @@
  *  3. % giam hien thi chi khi DA XAC MINH: so voi gia tham chieu tin cay, toi da 50%
  *     (Nghi dinh 81/2018/ND-CP: muc giam khong vuot 50% gia truoc khuyen mai).
  *     Hang da qua su dung khong bao gio so voi gia may moi.
- * (c) Nguyen Duy Dien (KK-2026). All rights reserved.
+ * (c) Nguyen Duy Dien. All rights reserved.
  */
 const crypto = require('crypto');
 const sha = s => crypto.createHash('sha256').update(s).digest('hex');
