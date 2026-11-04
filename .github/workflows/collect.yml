@@ -25,6 +25,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 2   # BAT BUOC >= 2: 'git commit --amend' tren ban sao nong 1 commit tao commit mo coi -> xoa sach lich su main (da xay ra 22/10-02/11, lich su luu o cac nhanh lich-su-*)
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
@@ -70,7 +72,7 @@ jobs:
           republish() { # main tren GitHub da co commit moi (vd ma nguon) trong luc thu thap -> dat du lieu moi len tren, KHONG ghi de
             tar czf /tmp/kk-data.tgz $DATA && git fetch -q origin main && git checkout -q -f -B main origin/main && tar xzf /tmp/kk-data.tgz && git add $DATA
             git diff --cached --quiet || git commit -q -m "auto-data: cap nhat gia & ton kho"; git push origin main; }
-          if [ "$LAST" = "auto-data: cap nhat gia & ton kho" ]; then
+          if [ "$LAST" = "auto-data: cap nhat gia & ton kho" ] && git rev-parse -q --verify HEAD^ >/dev/null; then   # chi amend khi con biet commit cha (khong tao commit mo coi)
             git commit -q --amend -m "auto-data: cap nhat gia & ton kho"
             git push --force-with-lease=main:$BASE origin main || republish   # chi ghi de khi main van la commit da checkout
           else

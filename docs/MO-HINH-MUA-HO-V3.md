@@ -164,3 +164,9 @@
 - Tiện ích 1.1.0: ký mọi thông điệp, đọc chính sách từ `bot.queue`, lệnh ngoài hành lang hiện "Chờ kiểm tra" kèm lý do, trần mỗi giao dịch theo chính sách, chờ khi máy chủ tắt tự động.
 - **Kiểm thử tự động (GitHub Actions `test.yml`, chạy khi đẩy mã nguồn):** 47 kiểm tra máy chủ trên bộ giả lập Apps Script (`tests/backend/harness.js`, không cần triển khai), 13 kiểm tra tiện ích (`tests/extension/lib.test.js`), đánh giá tìm kiếm nDCG@10, kiểm tra cú pháp toàn bộ JS/JSON.
 - **Triển khai máy chủ (chủ sở hữu):** dán `backend/Code.gs` v1.7.0 → Deploy → New version (Version 11). Sau đó: tải tiện ích 1.1.0 (gói zip mới), rồi bật "Bắt buộc chữ ký bot".
+
+**Kiểm tra sau triển khai 04/11 (13:10 UTC):** www.kk-mall.com đã nhận bản tối ưu (service worker hoạt động, manifest/offline/icon 200, IndexedDB giữ 28.913 dòng, lần mở sau 0 yêu cầu tải gói, tìm "tủ lạnh samsung" 81 SP, 0 lỗi JS). **Máy chủ live vẫn là 1.5.0** (`?a=health`): v1.6.0 và v1.7.0 chưa được triển khai - chủ sở hữu cần dán Code.gs và tạo phiên bản mới (xem `docs/TONG-KET-04-11-2026.xlsx`, sheet "Hướng dẫn triển khai").
+
+**Khôi phục lịch sử mã nguồn (04/11):** bộ thu thập chạy `git commit --amend` trên bản sao nông 1 commit (actions/checkout mặc định) → commit dữ liệu thành commit mồ côi, `push --force-with-lease` xóa toàn bộ lịch sử `main` sau mỗi đợt đẩy mã nguồn (đã xảy ra 22/10, 23/10, 24/10, 26/10, 31/10, 02/11). Đã tìm lại 6 đoạn lịch sử từ nhật ký sự kiện GitHub và lưu ở các nhánh `lich-su-1-den-22-10` … `lich-su-6-den-02-11` (69 commit); `collect.yml` sửa `fetch-depth: 2` và chỉ amend khi còn biết commit cha. Nối lại thành một nhánh liên tục cần ghi đè `main` một lần - chờ chủ sở hữu quyết định.
+
+**Tổng kết:** `docs/TONG-KET-04-11-2026.xlsx` - 49 việc đã làm (22/10 → 04/11), 30 việc cần làm theo ưu tiên, 24 chỉ số trước/sau, hướng dẫn triển khai 8 bước, 51 commit mã nguồn.
