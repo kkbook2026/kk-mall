@@ -69,6 +69,7 @@ function makeEnv(opts = {}) {
     ScriptApp: { getService: () => ({ getUrl: () => 'https://script.test/exec' }), getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ everyHours: () => ({ create: () => {} }), everyMinutes: () => ({ create: () => {} }), atHour: () => ({ everyDays: () => ({ create: () => {} }) }) }) }), deleteTrigger: () => {} },
     DriveApp: { createFolder: () => ({ getId: () => 'f', createFolder: () => ({ getId: () => 'f2' }) }), getFolderById: () => ({ createFile: () => ({ getId: () => 'x' }), getFiles: () => ({ hasNext: () => false }) }), getFileById: () => ({ moveTo: () => {} }) },
     ContentService: { createTextOutput: s => ({ setMimeType: () => ({ text: s }), text: s }), MimeType: { JSON: 'json' } },
+    HtmlService: { createHtmlOutput: s => { const o = { html: s, setTitle: () => o, setXFrameOptionsMode: () => o }; return o; }, XFrameOptionsMode: { DENY: 'deny' } },
     Logger: { log: () => {} },
     Date: class extends Date { constructor(...a) { if (!a.length) super(clock.now()); else super(...a); } static now() { return clock.now(); } }
   };

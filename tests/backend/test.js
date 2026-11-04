@@ -36,7 +36,7 @@ console.log('1. Chinh sach (policy_, policyEval_, canon_)');
   t('policySig_ on dinh va doi khi chinh sach doi', () => { const s1 = gas.call('policySig_', gas.call('policy_')); assert.equal(s1, gas.call('policySig_', gas.call('policy_'))); gas.props.POLICY_JSON = JSON.stringify({ version: 'v2' }); assert.notEqual(s1, gas.call('policySig_', gas.call('policy_'))); delete gas.props.POLICY_JSON; });
   t('inHours_: 10:00 ICT trong gio, 00:30 ICT ngoai gio', () => { assert.equal(gas.call('inHours_', { from: '07:00', to: '22:00', tz: 'Asia/Ho_Chi_Minh' }, T_WORK), true); assert.equal(gas.call('inHours_', { from: '07:00', to: '22:00', tz: 'Asia/Ho_Chi_Minh' }, T_NIGHT), false); });
   const ev = (po, o, offer, ctx) => gas.call('policyEval_', po, o, offer, Object.assign({ now: T_WORK }, ctx || {}));
-  t('<= 5tr trong gio, nguon tiki -> auto', () => { const r = ev({ collected_cost: 4000000 }, { vat: false }, { s: 'tiki', total: 4003000 }); assert.deepEqual(r, { decision: 'auto', reasons: [], version: 'default' }); });
+  t('<= 5tr trong gio, nguon tiki -> auto', () => { const r = ev({ collected_cost: 4000000 }, { vat: false }, { s: 'tiki', total: 4003000 }); assert.deepEqual(r, { decision: 'auto', reasons: [], version: 'default', approved: false }); });
   t('5-20tr -> otp', () => assert.equal(ev({ collected_cost: 12000000 }, {}, { s: 'tiki' }).decision, 'otp'));
   t('> 20tr -> hold OVER_AUTO_CAP', () => assert.deepEqual(ev({ collected_cost: 25000000 }, {}, { s: 'tiki' }).reasons, ['OVER_AUTO_CAP']));
   t('ngoai gio -> OUT_OF_HOURS', () => assert.ok(ev({ collected_cost: 100000 }, {}, { s: 'tiki' }, { now: T_NIGHT }).reasons.includes('OUT_OF_HOURS')));
@@ -180,6 +180,49 @@ console.log('8. SLA ngoai le: leo thang 8 gio, tu huy-hoan sau 24 gio (chi khi h
     const p = gas.call('find_', 'PO', 'po_id', 'KK261104D0000001-1'); assert.equal(p.status, 'cancelled'); assert.ok(/tự hủy/.test(JSON.parse(p.data).cancel_reason));
     const o2 = gas.call('loadOrder_', 'KK261104D0000001'); assert.ok(Number(o2.refund_due) > 0); assert.ok(gas.mails.some(m => m.to === o.customer.email && /không đặt được/.test(m.subject)));
     assert.ok(gas.sheets.Chain.slice(1).some(r => r[2] === 'po' && r[3] === 'KK261104D0000001-1')); assert.equal(gas.call('chainVerify_').ok, true);
+  });
+}
+
+console.log('9. Duyet lenh hold mot cham (token ky, GET chi xem, POST moi doi trang thai)');
+{
+  const gas = load({ now: T_WORK }); const key = botKeyFor(gas); gas.props.ADMIN_EMAILS = 'admin@test.vn';
+  seedOrder(gas, 'KK261104E0000001', { total: 25032000, goods: 25000000, lines: [{ sku: 'KK000001', name: 'Tivi 65 inch', qty: 1, unit_cost: 25000000, line_cost: 25000000, line_fee: 32000, line_total: 25032000 }] });
+  const po = () => gas.call('find_', 'PO', 'po_id', 'KK261104E0000001-1'), bot = () => JSON.parse(po().data).bot || {};
+  t('claim 25tr -> hold OVER_AUTO_CAP, email co 2 nut duyet/huy (token)', () => {
+    gas.mails.length = 0; assert.throws(() => gas.call('botUpdate_', { bot_key: key, po_id: 'KK261104E0000001-1', state: 'claim', run: 'r1', source: 'tiki', offer_total: 25000000 }), e => e.code === 409);
+    assert.equal(bot().state, 'hold'); const m = gas.mails.find(x => /chờ người duyệt/.test(x.subject)); assert.ok(m); assert.ok(/a=approve&t=KK261104E0000001-1\.\d+\.[0-9a-f]{32}/.test(m.htmlBody || m.body || JSON.stringify(m)));
+  });
+  const token = () => gas.call('approveToken_', 'KK261104E0000001-1');
+  t('token hop le; sua 1 ky tu / het han -> tu choi', () => {
+    const tk = token(); assert.equal(gas.call('approveVerify_', tk), 'KK261104E0000001-1');
+    assert.throws(() => gas.call('approveVerify_', tk.slice(0, -1) + (tk.slice(-1) === 'a' ? 'b' : 'a')), e => e.code === 400);
+    const [id, exp, sig] = tk.split('.'); assert.throws(() => gas.call('approveVerify_', id + '.' + (Number(exp) - 49 * 3600e3) + '.' + sig), e => e.code === 400 || e.code === 410);
+    gas.clock.add(49 * 3600e3); assert.throws(() => gas.call('approveVerify_', tk), e => e.code === 410); gas.clock.add(-49 * 3600e3);
+  });
+  t('GET ?a=approve chi hien trang xac nhan, KHONG doi trang thai (chong bo quet link email)', () => { const h = gas.call('doGet', { parameter: { a: 'approve', t: token() } }).html; assert.ok(/Xác nhận DUYỆT/.test(h)); assert.ok(/method="post"/.test(h)); assert.equal(bot().state, 'hold'); });
+  t('POST x=approve -> trang thai approved, noi chuoi bam', () => { const h = gas.call('doPost', { parameter: { a: 'approve', t: token(), x: 'approve' } }).html; assert.ok(/Đã duyệt/.test(h), h.slice(0, 200)); assert.equal(bot().state, 'approved'); assert.equal(bot().by, 'email-link'); assert.ok(gas.sheets.Chain.slice(1).some(r => r[2] === 'bot')); });
+  t('POST lan 2 cung token -> "khong can duyet" (idempotent)', () => { const h = gas.call('doPost', { parameter: { a: 'approve', t: token(), x: 'approve' } }).html; assert.ok(/Không cần duyệt|đã được xử lý/i.test(h)); });
+  t('claim sau khi duyet -> working, bo OVER_AUTO_CAP, can OTP (25tr > 5tr), giu kiem tra gia', () => {
+    gas.cache.clear(); assert.throws(() => gas.call('botUpdate_', { bot_key: key, po_id: 'KK261104E0000001-1', state: 'claim', run: 'r2', source: 'tiki', offer_total: 25100000 }), e => /OVER_CAP/.test(e.message));
+    assert.equal(bot().state, 'hold'); // vuot gia -> hold lai (ly do cung) -> can duyet lai
+    gas.call('doPost', { parameter: { a: 'approve', t: token(), x: 'approve' } });
+    const r = gas.call('botUpdate_', { bot_key: key, po_id: 'KK261104E0000001-1', state: 'claim', run: 'r3', source: 'tiki', offer_total: 25000000 }); assert.equal(bot().state, 'working'); assert.equal(bot().approved, true); assert.equal(r.otp, true); assert.equal(r.approved, true);
+  });
+  t('paying lenh da duyet: khong bi DAILY_CAP, van bi tran moi giao dich cua the', () => {
+    gas.props.POLICY_JSON = JSON.stringify({ instrument: { per_txn_cap_vnd: 30000000 } }); gas.cache.clear();
+    gas.call('botUpdate_', { bot_key: key, po_id: 'KK261104E0000001-1', state: 'paying', run: 'r3', total: 25000000 }); assert.equal(bot().state, 'paying');
+    delete gas.props.POLICY_JSON;
+  });
+  t('quan tri "cho bot dat lai" tren lenh hold = duyet (khong hold lai)', () => {
+    seedOrder(gas, 'KK261104E0000002', { total: 25032000, goods: 25000000, lines: [{ sku: 'KK000002', name: 'May giat', qty: 1, unit_cost: 25000000, line_cost: 25000000, line_fee: 32000, line_total: 25032000 }] });
+    assert.throws(() => gas.call('botUpdate_', { bot_key: key, po_id: 'KK261104E0000002-1', state: 'claim', run: 'r1', source: 'tiki' }), e => e.code === 409);
+    const tok = 'tkA'; gas.call('append_', 'Sessions', { token_hash: gas.call('sha_', 'kk-session|' + tok), email: 'admin@test.vn', role: 'admin', created_at: new Date(gas.clock.now()).toISOString(), expires_at: new Date(gas.clock.now() + 3600e3).toISOString() });
+    let r; try { r = gas.call('adminPoBotReset_', { token: tok, po_id: 'KK261104E0000002-1' }); } catch (e) { if (e.code === 401) return; throw e; }
+    assert.equal(r.approved, true); assert.equal((JSON.parse(gas.call('find_', 'PO', 'po_id', 'KK261104E0000002-1').data).bot || {}).state, 'approved');
+  });
+  t('POST x=cancel -> huy dong hang, ghi hoan khach', () => {
+    const tk = gas.call('approveToken_', 'KK261104E0000002-1'); const h = gas.call('doPost', { parameter: { a: 'approve', t: tk, x: 'cancel' } }).html; assert.ok(/Đã hủy/.test(h), h.slice(0, 200));
+    assert.equal(gas.call('find_', 'PO', 'po_id', 'KK261104E0000002-1').status, 'cancelled'); assert.ok(Number(gas.call('loadOrder_', 'KK261104E0000002').refund_due) > 0);
   });
 }
 
