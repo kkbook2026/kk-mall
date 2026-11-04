@@ -88,4 +88,15 @@ async function fetchReviewStats(env = process.env) {
     const j = await r.json(); return j && j.stats && typeof j.stats === 'object' ? j.stats : null;
   } catch { return null; }
 }
-module.exports = { create, fetchStats, fetchReviewStats, DEFAULT_RULES, BULKY_GRP, isBulky };
+/* Dau chuoi bam nhat ky tien/trang thai cua may chu don hang (cong khai: chi seq + hash + at) - neo vao meta.json de co bang chung thoi diem */
+async function fetchChainHead(env = process.env) {
+  let url = String(env.KK_BACKEND_URL || '').trim();
+  if (!url) { try { const m = require('fs').readFileSync(require('path').join(__dirname, '..', 'site', 'config.js'), 'utf8').match(/KK_BACKEND\s*=\s*'([^']+)'/); if (m) url = m[1]; } catch { } }
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) return null;
+  try {
+    const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 20000);
+    const r = await fetch(url + '?a=chainhead', { signal: ac.signal, redirect: 'follow' }); clearTimeout(t);
+    const j = await r.json(); return j && /^[0-9a-f]{64}$/.test(String(j.hash || '')) ? { seq: Number(j.seq) || 0, hash: String(j.hash), at: String(j.at || '') } : null;
+  } catch { return null; }
+}
+module.exports = { create, fetchStats, fetchReviewStats, fetchChainHead, DEFAULT_RULES, BULKY_GRP, isBulky };

@@ -1,14 +1,14 @@
 /*
- * Kiem thu backend v1.7.0 (chay: node tests/backend/test.js) - khong can mang, khong can Apps Script.
+ * Kiem thu backend v1.8.0 (chay: node tests/backend/test.js) - khong can mang, khong can Apps Script.
  * Pham vi: chinh sach POLICY_JSON + policyEval_, chu ky/nonce bot, tran ngay/gio, cong tac dung, tu dung khi loi lien tiep,
- * luong claim -> paying -> done qua botUpdate_, canon_ (JSON chuan hoa), nhac lenh hold.
+ * luong claim -> paying -> done qua botUpdate_, canon_ (JSON chuan hoa), nhac lenh hold, chuoi bam nhat ky, xac minh webhook SePay, SLA ngoai le.
  * (c) 2026 Nguyen Duy Dien. All rights reserved.
  */
 'use strict';
 const assert = require('assert'), crypto = require('crypto');
 const { load } = require('./harness');
 let pass = 0, fail = 0;
-function t(name, f) { try { f(); pass++; console.log('  ✓', name); } catch (e) { fail++; console.log('  ✗', name, '\n     ', (e && e.message || e).split('\n')[0]); } }
+function t(name, f) { try { f(); pass++; console.log('  ✓', name); } catch (e) { fail++; console.log('  ✗', name, '\n     ', (e && e.message || e).split('\n').slice(0, 6).join(' | ')); } }
 const sha = s => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex');
 const hmac = (k, m) => crypto.createHmac('sha256', String(k)).update(String(m), 'utf8').digest('hex');
 const canon = v => v === null || typeof v !== 'object' ? JSON.stringify(v === undefined ? null : v) : Array.isArray(v) ? '[' + v.map(canon).join(',') + ']' : '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
@@ -107,6 +107,80 @@ console.log('5. Theo doi moi gio: bot khong ket noi, lenh hold qua SLA');
   t('bot vua poll -> khong canh bao', () => { gas.mails.length = 0; gas.cache.clear(); gas.props.BOT_SEEN_AT = new Date(gas.clock.now()).toISOString(); gas.call('botWatch_'); assert.equal(gas.mails.length, 0); });
   t('lenh hold qua 4 gio -> email nhac gop', () => { const r = gas.call('find_', 'PO', 'po_id', 'KKDDDD0001-1'); const d = JSON.parse(r.data); d.bot = { state: 'hold', at: new Date(gas.clock.now() - 5 * 3600e3).toISOString(), reasons: ['OVER_AUTO_CAP'] }; gas.call('update_', 'PO', r._row, { data: JSON.stringify(d) }); gas.call('botWatch_'); assert.ok(gas.mails.some(m => /chờ người duyệt quá 4 giờ/.test(m.subject))); });
   t('audit_ liet ke lenh hold', () => { const a = gas.call('audit_'); assert.ok(a.issues.some(i => /chờ người duyệt/.test(i.msg))); });
+}
+
+console.log('6. Chuoi bam nhat ky tien & trang thai (chain_, chainVerify_, chainhead)');
+{
+  const gas = load({ now: T_WORK });
+  t('chua co su kien: dau chuoi seq 0, verify ok', () => { const v = gas.call('chainVerify_'); assert.equal(v.ok, true); assert.equal(v.links, 0); assert.equal(gas.call('chainHead_').seq, 0); });
+  t('ledger_ -> 1 but toan = 1 mat xich, digest chuan hoa, dau chuoi cap nhat', () => {
+    gas.call('ledger_', 'KK261104C0000001', 'TX1', '1121', '', 150000, 'Khach thanh toan');
+    const ch = gas.sheets.Chain; assert.equal(ch.length, 2); assert.equal(ch[1][0], 1); assert.equal(ch[1][2], 'ledger'); assert.equal(ch[1][5], '0');
+    const head = gas.call('chainHead_'); assert.equal(head.seq, 1); assert.equal(head.hash, ch[1][6]);
+    assert.equal(ch[1][4], gas.call('ledgerDigest_', { at: gas.sheets.Ledger[1][0], order_code: 'KK261104C0000001', ref: 'TX1', debit: '1121', credit: '', amount: 150000, note: 'Khach thanh toan' }));
+  });
+  t('mat xich sau noi dung prev = hash truoc; verify ok', () => {
+    gas.call('ledger_', 'KK261104C0000001', 'TX1', '', '3388', 150000, 'Thu ho'); const ch = gas.sheets.Chain; assert.equal(ch[2][5], ch[1][6]); assert.equal(ch[2][0], 2);
+    const v = gas.call('chainVerify_'); assert.equal(v.ok, true, JSON.stringify(v.problems)); assert.equal(v.links, 2); assert.equal(v.ledger_rows, 2);
+  });
+  t('digest kiem chung lai duoc khi Sheets doi kieu (debit -> so, at -> Date)', () => {
+    const l = gas.sheets.Ledger[1]; const d1 = gas.call('ledgerDigest_', { at: l[0], order_code: l[1], ref: l[2], debit: l[3], credit: l[4], amount: l[5], note: l[6] });
+    const d2 = gas.call('ledgerDigest_', { at: new (gas.fn('Date'))(l[0]), order_code: l[1], ref: l[2], debit: Number(l[3]), credit: l[4], amount: String(l[5]), note: l[6] }); assert.equal(d1, d2);
+  });
+  t('sua so tien 1 dong so cai -> chuoi bam bao loi dung dong', () => { const keep = gas.sheets.Ledger[1][5]; gas.sheets.Ledger[1][5] = 149000; const v = gas.call('chainVerify_'); assert.equal(v.ok, false); assert.ok(v.problems[0].includes('sổ cái dòng 2'), v.problems[0]); gas.sheets.Ledger[1][5] = keep; });
+  t('xoa 1 mat xich -> dau chuoi lech / seq lech', () => { const row = gas.sheets.Chain.splice(1, 1)[0]; const v = gas.call('chainVerify_'); assert.equal(v.ok, false); gas.sheets.Chain.splice(1, 0, row); assert.equal(gas.call('chainVerify_').ok, true); });
+  t('sua hash cua mat xich -> phat hien', () => { const keep = gas.sheets.Chain[2][6]; gas.sheets.Chain[2][6] = 'deadbeef'; assert.equal(gas.call('chainVerify_').ok, false); gas.sheets.Chain[2][6] = keep; });
+  t('doi trang thai don va lenh mua cung duoc noi chuoi (kind status/po)', () => {
+    seedOrder(gas, 'KK261104C0000002', {}); const o = gas.call('loadOrder_', 'KK261104C0000002'); gas.call('setStatus_', o, 'ordered', 'admin', 'x'); gas.call('saveOrder_', o);
+    gas.call('poUpdate_', { po_id: 'KK261104C0000002-1', status: 'ordered', actual_cost: 95000, actual_source: 'tiki', supplier_order_id: 'T1' }, 'admin');
+    const kinds = gas.sheets.Chain.slice(1).map(r => r[2]); assert.ok(kinds.includes('status')); assert.ok(kinds.includes('po')); assert.equal(gas.call('chainVerify_').ok, true);
+  });
+  t('audit_ coi chuoi bam hong la van de muc cao', () => { const keep = gas.sheets.Chain[1][6]; gas.sheets.Chain[1][6] = 'x'; const a = gas.call('audit_'); assert.ok(a.issues.some(i => i.lvl === 'high' && /Chuỗi băm/.test(i.msg))); gas.sheets.Chain[1][6] = keep; assert.ok(!gas.call('audit_').issues.some(i => /Chuỗi băm/.test(i.msg))); });
+  t('?a=chainhead cong khai: chi seq/hash/at, khong du lieu ca nhan', () => { const r = JSON.parse(gas.call('doGet', { parameter: { a: 'chainhead' } }).text); assert.equal(r.seq, gas.call('chainHead_').seq); assert.ok(/^[0-9a-f]{64}$/.test(r.hash)); assert.deepEqual(Object.keys(r).sort(), ['algo', 'at', 'hash', 'seq']); });
+}
+
+console.log('7. Webhook: xac minh qua API SePay (fail-closed khi co token)');
+{
+  const mkGas = () => { const gas = load({ now: T_WORK }); gas.props.WEBHOOK_KEY = 'wh-test'; return gas; };
+  const order = (gas, code) => { seedOrder(gas, code, {}); const o = gas.call('loadOrder_', code); o.status = 'awaiting_payment'; o.payment_status = 'unpaid'; delete o.paid_at; gas.call('saveOrder_', o); gas.sheets.PO = gas.sheets.PO.slice(0, 1); return o; };
+  const tx = (code, amount, id) => ({ id: id || 9001, gateway: 'ACB', transferType: 'in', transferAmount: amount, content: 'CK ' + code, referenceCode: 'FT' + (id || 9001) });
+  t('khong co SEPAY_API_TOKEN -> chi khoa URL, ghi nhan nhu cu', () => { const gas = mkGas(); const o = order(gas, 'KK261104A0000001'); const r = gas.call('webhook_', tx('KK261104A0000001', o.total), 'wh-test'); assert.deepEqual(r.matched, ['KK261104A0000001']); assert.equal(gas.fetches.length, 0); });
+  t('co token, SePay xac nhan dung so tien + noi dung -> ghi nhan, goi dung API', () => {
+    const gas = mkGas(); gas.props.SEPAY_API_TOKEN = 'sepaytoken_0123456789abcdef'; const o = order(gas, 'KK261104A0000002');
+    gas.setFetch((url, opt) => ({ code: 200, body: JSON.stringify({ status: 200, transaction: { id: '9002', amount_in: String(o.total) + '.00', transaction_content: 'CK KK261104A0000002' } }) }));
+    const r = gas.call('webhook_', tx('KK261104A0000002', o.total, 9002), 'wh-test'); assert.deepEqual(r.matched, ['KK261104A0000002']);
+    assert.equal(gas.fetches[0].url, 'https://my.sepay.vn/userapi/transactions/details/9002'); assert.equal(gas.fetches[0].o.headers.Authorization, 'Bearer sepaytoken_0123456789abcdef');
+  });
+  t('SePay bao so tien khac -> KHONG ghi nhan, email quan tri, don van cho thanh toan', () => {
+    const gas = mkGas(); gas.props.SEPAY_API_TOKEN = 'sepaytoken_0123456789abcdef'; const o = order(gas, 'KK261104A0000003');
+    gas.setFetch(() => ({ code: 200, body: JSON.stringify({ transaction: { id: '9003', amount_in: '1000.00', transaction_content: 'CK KK261104A0000003' } }) }));
+    const r = gas.call('webhook_', tx('KK261104A0000003', o.total, 9003), 'wh-test'); assert.deepEqual(r.matched, []);
+    assert.equal(gas.call('loadOrder_', 'KK261104A0000003').payment_status, 'unpaid'); assert.ok(gas.mails.some(m => /chưa xác minh/.test(m.subject)));
+  });
+  t('API SePay loi (HTTP 500) -> fail-closed, khong ghi nhan', () => { const gas = mkGas(); gas.props.SEPAY_API_TOKEN = 'sepaytoken_0123456789abcdef'; const o = order(gas, 'KK261104A0000004'); gas.setFetch(() => ({ code: 500, body: '' })); assert.deepEqual(gas.call('webhook_', tx('KK261104A0000004', o.total, 9004), 'wh-test').matched, []); assert.equal(gas.call('loadOrder_', 'KK261104A0000004').payment_status, 'unpaid'); });
+  t('webhook thieu id khi da bat xac minh -> khong ghi nhan', () => { const gas = mkGas(); gas.props.SEPAY_API_TOKEN = 'sepaytoken_0123456789abcdef'; const o = order(gas, 'KK261104A0000005'); const t5 = tx('KK261104A0000005', o.total); delete t5.id; assert.deepEqual(gas.call('webhook_', t5, 'wh-test').matched, []); });
+  t('admin.config: token chi ghi, khong tra ve; SEPAY_VERIFY bao trang thai; khong xoa khi gui trong', () => {
+    const gas = mkGas(); gas.props.ADMIN_EMAILS = 'admin@test.vn'; const tok = 'tk'; gas.call('append_', 'Sessions', { token_hash: gas.call('sha_', 'kk-session|' + tok), email: 'admin@test.vn', role: 'admin', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 3600e3).toISOString() });
+    let out; try { out = gas.call('adminConfig_', { token: tok, set: { SEPAY_API_TOKEN: 'sepaytoken_0123456789abcdef' } }); } catch (e) { if (e.code === 401) return; throw e; }
+    assert.equal(gas.props.SEPAY_API_TOKEN, 'sepaytoken_0123456789abcdef'); assert.equal(out.SEPAY_VERIFY, true); assert.equal(out.SEPAY_API_TOKEN, undefined);
+    gas.call('adminConfig_', { token: tok, set: { SEPAY_API_TOKEN: '' } }); assert.equal(gas.props.SEPAY_API_TOKEN, 'sepaytoken_0123456789abcdef');
+    gas.call('adminConfig_', { token: tok, set: { SEPAY_API_TOKEN: '' }, clear_sepay: true }); assert.equal(gas.props.SEPAY_API_TOKEN, '');
+  });
+}
+
+console.log('8. SLA ngoai le: leo thang 8 gio, tu huy-hoan sau 24 gio (chi khi holds.auto_cancel)');
+{
+  const gas = load({ now: T_WORK }); botKeyFor(gas); gas.props.BOT_SEEN_AT = new Date(gas.clock.now()).toISOString();
+  const o = seedOrder(gas, 'KK261104D0000001', {});
+  const setHold = hours => { const r = gas.call('find_', 'PO', 'po_id', 'KK261104D0000001-1'); const d = JSON.parse(r.data); d.bot = { state: 'hold', at: new Date(gas.clock.now() - hours * 3600e3).toISOString(), reasons: ['OVER_AUTO_CAP'] }; gas.call('update_', 'PO', r._row, { data: JSON.stringify(d) }); };
+  t('hold 9 gio -> email KHAN (leo thang), chua huy', () => { setHold(9); gas.mails.length = 0; gas.call('botWatch_'); assert.ok(gas.mails.some(m => /KHẨN/.test(m.subject))); assert.equal(gas.call('find_', 'PO', 'po_id', 'KK261104D0000001-1').status, 'to_order'); });
+  t('hold 25 gio, auto_cancel mac dinh tat -> van khong huy', () => { setHold(25); gas.cache.clear(); gas.call('botWatch_'); assert.equal(gas.call('find_', 'PO', 'po_id', 'KK261104D0000001-1').status, 'to_order'); });
+  t('holds.auto_cancel = true -> huy lenh, ghi hoan khach, email khach, noi chuoi bam', () => {
+    gas.props.POLICY_JSON = JSON.stringify({ holds: { auto_cancel: true } }); gas.cache.clear(); gas.mails.length = 0; gas.call('botWatch_');
+    const p = gas.call('find_', 'PO', 'po_id', 'KK261104D0000001-1'); assert.equal(p.status, 'cancelled'); assert.ok(/tự hủy/.test(JSON.parse(p.data).cancel_reason));
+    const o2 = gas.call('loadOrder_', 'KK261104D0000001'); assert.ok(Number(o2.refund_due) > 0); assert.ok(gas.mails.some(m => m.to === o.customer.email && /không đặt được/.test(m.subject)));
+    assert.ok(gas.sheets.Chain.slice(1).some(r => r[2] === 'po' && r[3] === 'KK261104D0000001-1')); assert.equal(gas.call('chainVerify_').ok, true);
+  });
 }
 
 console.log(`\nKet qua: ${pass} dat, ${fail} loi`);

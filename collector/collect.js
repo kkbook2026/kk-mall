@@ -57,6 +57,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       r.key = FEEDS.normKey(r.name); feed.offers.push(r); n++; }
     feed.stat.retail = n; feed.stat.retailUnclassified = un; console.log(`Gia ban le cong khai: ${n} offer (bo ${un} chua phan loai)`); }
   const SHIP = LANDEDM.create(process.env, await LANDEDM.fetchStats(process.env)); console.log('Gia thuc tra: ' + SHIP.desc);
+  const CHAIN = await LANDEDM.fetchChainHead(process.env); console.log('Chuoi bam may chu: ' + (CHAIN ? '#' + CHAIN.seq + ' ' + CHAIN.hash.slice(0, 12) : 'khong lay duoc'));
   const REVIEWS = await LANDEDM.fetchReviewStats(process.env); console.log('Danh gia that: ' + (REVIEWS ? Object.keys(REVIEWS).length + ' SP co danh gia' : 'khong lay duoc - giu thong ke cu'));
   const feedBySku = {};
   feed.stat.matched = 0; feed.stat.added = 0; feed.stat.capped = 0;
@@ -282,7 +283,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
 
   // ---- XUAT BAN CONG KHAI (catalog, nganh, pack, SDUI, meta + Merkle root, nhat ky root) ----
   meta.syncMinutes = CYCLE_MIN;
-  const PUBR = publish({ API, pub, meta, now, seq, mk, recent: recent.sort((a, b) => b.seq - a.seq) });
+  const PUBR = publish({ API, pub, meta, now, seq, mk, recent: recent.sort((a, b) => b.seq - a.seq), chain: CHAIN });
   // danh sach trang SP vua doi gia/ton kho -> IndexNow (chay sau deploy)
   const pubSet = new Set(PUBR.pub.map(r => r.slug));
   fs.writeFileSync(path.join(__dirname, '.changed.json'), JSON.stringify(changedSlugs.filter(s => s && pubSet.has(s))));

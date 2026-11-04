@@ -12,7 +12,7 @@ const T = require('./trust');
 const DEAL_BLOCK = T.FL.HOLD | T.FL.USED | T.FL.REF_INFLATED | T.FL.NO_SOURCE;
 const isDeal = r => r.in_stock && (r.disc || 0) >= 5 && !((r.fl || 0) & DEAL_BLOCK);
 
-function publish({ API, pub: pubIn, meta, now, seq, mk, recent, log = console.log }) {
+function publish({ API, pub: pubIn, meta, now, seq, mk, recent, chain, log = console.log }) {
   let pub = pubIn;
   const wj = (f, d) => fs.writeFileSync(path.join(API, f), JSON.stringify(d));
   const rj = f => JSON.parse(fs.readFileSync(path.join(API, f), 'utf8'));
@@ -81,6 +81,7 @@ function publish({ API, pub: pubIn, meta, now, seq, mk, recent, log = console.lo
   /* ---- so cai: head cam ket Merkle root ---- */
   const headHash = T.sha('HEAD|' + seq + '|' + mk.root + '|' + now);
   meta.lastSync = now; meta.ledgerHead = { seq, hash: headHash, root: mk.root, n: mk.n, at: now };
+  if (chain) meta.orderChain = { seq: chain.seq, hash: chain.hash, at: chain.at, anchored_at: now, note: 'Đầu chuỗi băm nhật ký tiền & trạng thái của máy chủ đơn hàng (?a=chainhead) - neo công khai mỗi lần xuất bản' }; // bang chung thoi diem khong can tin KK-MALL
   delete meta.installment;                                   // tam bo tra gop
   wj('meta.json', meta);
   wj('ledger-verify.json', { ok: true, checked: seq, head_seq: seq, head_hash: headHash, merkle_root: mk.root, leaves: mk.n, at: now,

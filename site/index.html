@@ -346,7 +346,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
 .algo{margin-top:10px;font-size:12.5px;color:#334155}.algo summary{cursor:pointer;font-weight:800;color:var(--ink)}.algo li{margin:5px 0;line-height:1.5}.algo a{color:var(--ink);text-decoration:underline}
 .lock{margin:0 0 14px;padding:11px 14px;border-radius:12px;background:#ECFDF5;border:1px solid #6EE7B7;font-size:13px;color:#065F46}.lock.warn{background:#FFFBEB;border-color:#FCD34D;color:#78350F}
 .lk-h{font-weight:600}.lk-t{font-size:12px;margin-top:3px}.lock ul{margin:6px 0 0;padding-left:18px;font-size:12.5px}
-.seolinks{font-size:12px;line-height:1.9;margin:14px 0 4px;opacity:.85}.seolinks a{color:inherit;text-decoration:none}.seolinks a:hover{text-decoration:underline}
+.seolinks{font-size:12px;line-height:1.9;margin:14px 0 4px;opacity:.85}.seolinks a{color:inherit;text-decoration:none;display:inline;margin:0 2px;padding:3px 0}.seolinks a:hover{text-decoration:underline}
 @media(max-width:960px){.mega-g{grid-template-columns:1fr 1fr}.sem-row{grid-template-columns:1fr 1fr}.lghead{grid-template-columns:1fr 1fr}.lgrec{grid-template-columns:1fr}.mega{max-height:70vh}}
 @media(max-width:600px){.mega-g{grid-template-columns:1fr}.hstat{grid-template-columns:1fr 1fr}.lgw{padding:18px}.lghead b{font-size:15px}}
 @media(max-width:700px){form.co,form.co>div{min-width:0}form.co{padding:18px 14px!important}form.co [style*="grid-template-columns:1fr 1fr"],.rmaf [style*="grid-template-columns:1fr 1fr 1fr"],.payg{grid-template-columns:1fr!important}.step{flex-wrap:wrap;row-gap:4px;font-size:12px}.mbox{border-radius:16px}.sum .row span{min-width:0}}
@@ -496,9 +496,10 @@ const CAT_ICON={'dien-thoai-may-tinh-bang':'📱','laptop-may-tinh':'💻','thie
 function phImg(name,cat){const t=String(name||'KK-MALL').replace(/[<>&"]/g,' ');const w=t.split(/\s+/).filter(Boolean);const l1=w.slice(0,4).join(' ').slice(0,26),l2=w.slice(4,8).join(' ').slice(0,26);const ic=CAT_ICON[cat]||'🛍️';
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#EEF2FF"/><stop offset="1" stop-color="#DBEAFE"/></linearGradient></defs><rect width="400" height="400" rx="28" fill="url(#g)"/><circle cx="200" cy="150" r="78" fill="#fff" opacity=".9"/><text x="200" y="178" font-size="84" text-anchor="middle">${ic}</text><text x="200" y="272" font-family="Be Vietnam Pro,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" fill="#1E3A8A" text-anchor="middle">${l1}</text><text x="200" y="300" font-family="Be Vietnam Pro,Segoe UI,Arial,sans-serif" font-size="17" fill="#3B82F6" text-anchor="middle">${l2}</text><text x="200" y="352" font-family="Be Vietnam Pro,Segoe UI,Arial,sans-serif" font-size="13" font-weight="800" fill="#64748B" text-anchor="middle" letter-spacing="2">KK-MALL</text></svg>`;
   return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg)}
+const SVG_MAX=1540; /* chi 1.540 SKU dau co anh SVG tai api/img - SKU lon hon dung thang anh minh hoa noi tuyen, khong goi mang 404 */
 function imgSrc(p){return p&&p.image&&/^https?:/.test(p.image)?esc(p.image):'./api/img/'+(p&&p.sku)+'.svg'}
 function imgFail(el){const sku=el.dataset.sku||'',nm=el.dataset.nm||'',cat=el.dataset.cat||'';
-  if(!el.dataset.step&&el.src&&!/\/api\/img\//.test(el.src)&&sku){el.dataset.step='1';el.src='./api/img/'+sku+'.svg';return}
+  if(!el.dataset.step&&el.src&&!/\/api\/img\//.test(el.src)&&sku&&+sku.slice(2)<=SVG_MAX){el.dataset.step='1';el.src='./api/img/'+sku+'.svg';return}
   el.onerror=null;el.dataset.step='2';el.src=phImg(nm,cat);el.classList.add('ph');const b=el.parentElement&&el.parentElement.querySelector('.imb');if(b){b.textContent='Ảnh minh họa';b.style.background='#F1F5F9';b.style.color='#475569';b.style.borderColor='#E2E8F0'}}
 function imgAttrs(p){return `data-sku="${p.sku||''}" data-nm="${esc(p.name||'')}" data-cat="${p.category_id||''}" onerror="imgFail(this)" referrerpolicy="no-referrer"`}
 function hydrateImg(el,sku){if(!sku)return;api('/api/products/'+sku).then(p=>{if(p&&/^https?:/.test(p.image||'')){el.dataset.step='';el.onerror=()=>imgFail(el);el.dataset.nm=p.name||el.dataset.nm;el.dataset.cat=p.category_id||'';el.src=p.image}}).catch(()=>{})}
@@ -1044,6 +1045,6 @@ async function aiSend(e){e.preventDefault&&e.preventDefault();const q=$('#aiIn')
   window._aiLast=q}
 </script>
 <script src="kk-backend.js?v=2611041200" defer></script>
-<script>if('serviceWorker' in navigator&&location.protocol==='https:'){addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{})})}</script>
+<script>if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{})})}</script>
 </body>
 </html>
