@@ -83,17 +83,55 @@
     const ta = norm(a).split(' ').filter(w => w.length >= 1), hb = ' ' + norm(b) + ' ';
     if (!ta.length) return 0; return ta.filter(w => hb.includes(' ' + w + ' ')).length / ta.length;
   }
-  /* kế hoạch đặt: nguồn tự động (Tiki) rẻ nhất trong biên dung sai so với giá đã thu */
-  function planAuto(item, offers, tol, sources) {
+  /* JSON chuẩn hóa (khóa sắp xếp) - cùng thuật toán với canon_ trên máy chủ, dùng để ký thông điệp */
+  function canon(v) {
+    if (v === null || typeof v !== 'object') return JSON.stringify(v === undefined ? null : v);
+    if (Array.isArray(v)) return '[' + v.map(canon).join(',') + ']';
+    return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
+  }
+  /* Giờ làm việc theo chính sách (tz Việt Nam) */
+  function inHours(h, now) {
+    h = h || {}; const tz = h.tz || 'Asia/Ho_Chi_Minh';
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour12: false, hour: '2-digit', minute: '2-digit' }).formatToParts(new Date(now || Date.now()));
+    const m = {}; parts.forEach(x => { m[x.type] = x.value; }); const cur = (m.hour === '24' ? '00' : m.hour) + ':' + m.minute, a = h.from || '00:00', b = h.to || '23:59';
+    return a <= b ? (cur >= a && cur < b) : (cur >= a || cur < b);
+  }
+  /* Đánh giá chính sách phía tiện ích (bản sao của policyEval_ trên máy chủ - máy chủ vẫn quyết định cuối khi claim/paying)
+   * item: lệnh mua (collected_cost, vat), offer: { s, l (giá thực trả/đơn vị) }, pol: chính sách từ bot.queue, ctx: { daySpent, now, firstOrder } */
+  function policyEval(item, offer, pol, ctx) {
+    ctx = ctx || {}; pol = pol || {}; const A = pol.autonomy || {}, r = [], val = Math.round(Number(item.collected_cost) || 0);
+    if (A.enabled === false) r.push('AUTONOMY_OFF');
+    if (A.hours && !inHours(A.hours, ctx.now)) r.push('OUT_OF_HOURS');
+    if (A.otp_max_vnd !== undefined && val > Number(A.otp_max_vnd)) r.push('OVER_AUTO_CAP');
+    if (ctx.daySpent !== undefined && A.daily_cap_vnd !== undefined && Number(ctx.daySpent) + val > Number(A.daily_cap_vnd)) r.push('DAILY_CAP');
+    const S = pol.sources || {};
+    if (offer && offer.s) {
+      if (S.allow && S.allow.indexOf(offer.s) < 0) r.push('SOURCE_NOT_ALLOWED');
+      if (item.vat && S.vat_sources && S.vat_sources.indexOf(offer.s) < 0) r.push('VAT_NEEDS_B2B');
+    }
+    const tol = pol.price && pol.price.tolerance_vnd !== undefined ? Number(pol.price.tolerance_vnd) : (ctx.tol !== undefined ? Number(ctx.tol) : 5000);
+    if (offer && offer.l !== undefined) { const total = Math.round(Number(offer.l) * (Number(item.qty) || 1)); if (total > val + tol) r.push('OVER_CAP'); }
+    if (ctx.firstOrder && pol.customer && val > Number(pol.customer.first_order_hold_over_vnd)) r.push('NEW_CUSTOMER_HIGH_VALUE');
+    const decision = r.length ? 'hold' : (A.auto_max_vnd !== undefined && val > Number(A.auto_max_vnd) ? 'otp' : 'auto');
+    return { decision, reasons: r };
+  }
+  /* kế hoạch đặt: nguồn tự động (Tiki) rẻ nhất trong biên dung sai so với giá đã thu; pol (tùy chọn) = chính sách từ máy chủ */
+  function planAuto(item, offers, tol, sources, pol) {
+    if (pol && pol.price && pol.price.tolerance_vnd !== undefined) tol = Number(pol.price.tolerance_vnd);
+    let src = (sources || ['tiki']).slice(); if (pol && pol.sources && Array.isArray(pol.sources.allow)) src = src.filter(x => pol.sources.allow.includes(x));
     const unit = Number(item.unit_cost) || Math.round(item.collected_cost / item.qty);
     const fit = (offers || []).filter(x => x && x.k && !x.x).map(x => Object.assign({}, x, { l: x.l != null ? x.l : x.p })).filter(x => x.l - unit <= tol).sort((a, b) => a.l - b.l);
-    const ok = fit.filter(x => (sources || ['tiki']).includes(x.s) && /^https:\/\/tiki\.vn\/[^?#]*-p\d+\.html/.test(x.u || ''));
+    const ok = fit.filter(x => src.includes(x.s) && /^https:\/\/tiki\.vn\/[^?#]*-p\d+\.html/.test(x.u || ''));
     let why = '';
-    if (item.vat) why = 'Đơn cần hóa đơn GTGT - giai đoạn 1 đặt tay';
+    const vatOk = pol && pol.sources && Array.isArray(pol.sources.vat_sources) ? x => pol.sources.vat_sources.includes(x.s) : () => false;
+    if (item.vat && !(ok.length && vatOk(ok[0]))) why = 'Đơn cần hóa đơn GTGT - nguồn chưa được phép xuất VAT qua bot, đặt tay';
     else if (!fit.length) why = 'Không còn nguồn hợp lệ trong biên dung sai - xử lý tay (hoàn tiền/chờ nguồn)';
-    else if (!ok.length) why = 'Nguồn phù hợp (' + fit[0].s + ') chưa có bot - đặt tay';
-    return { unit, best: fit[0] || null, pick: why ? null : ok[0], why };
+    else if (!ok.length) why = 'Nguồn phù hợp (' + fit[0].s + ') chưa có bot hoặc không trong danh sách cho phép - đặt tay';
+    const pick = why ? null : ok[0];
+    let ev = null;
+    if (pick && pol) { ev = policyEval(item, pick, pol, { daySpent: pol._daySpent, tol }); if (ev.decision === 'hold') why = 'Ngoài hành lang chính sách: ' + ev.reasons.join(', '); }
+    return { unit, best: fit[0] || null, pick: why ? null : pick, why, decision: ev ? ev.decision : (pick ? 'auto' : 'hold'), reasons: ev ? ev.reasons : [] };
   }
-  const api = { norm, digits, money, expandAddr, patterns, pickUnit, parseAddress, streetOf, cover, planAuto };
+  const api = { norm, digits, money, expandAddr, patterns, pickUnit, parseAddress, streetOf, cover, planAuto, policyEval, inHours, canon };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.KKLIB = api;
 })(typeof self !== 'undefined' ? self : this);

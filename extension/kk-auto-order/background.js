@@ -32,10 +32,20 @@ async function backendUrl() {
   const m = t.match(/KK_BACKEND\s*=\s*'(https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec)'/); if (!m) throw new Error('Không đọc được địa chỉ máy chủ từ kk-mall.com/config.js');
   return m[1];
 }
+const sha256hex = async s => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))).map(b => b.toString(16).padStart(2, '0')).join('');
+/* Ký thông điệp: HMAC-SHA256(khóa MAC = sha256('kk-mac|' + khóa bot), ts + nonce + sha256(JSON chuẩn hóa)) - chống gửi lại/sửa thân (máy chủ v1.7) */
+async function signBody(body, botKey) {
+  const ts = Date.now(), nonce = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(16).padStart(2, '0')).join('');
+  const b = Object.assign({}, body, { ts, nonce });
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(await sha256hex('kk-mac|' + botKey)), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = Array.from(new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(ts + '\n' + nonce + '\n' + await sha256hex(L.canon(b)))))).map(x => x.toString(16).padStart(2, '0')).join('');
+  return Object.assign(b, { sig });
+}
 async function api(a, body) {
   const s = await settings(), st = await getState();
   if (!s.botKey) { const e = new Error('Chưa nhập khóa bot'); e.code = 401; throw e; }
-  const r = await fetch(await backendUrl(), { method: 'POST', body: JSON.stringify(Object.assign({ a, bot_key: s.botKey, device: st.device }, body || {})), redirect: 'follow' });
+  const payload = await signBody(Object.assign({ a, bot_key: s.botKey, device: st.device }, body || {}), s.botKey);
+  const r = await fetch(await backendUrl(), { method: 'POST', body: JSON.stringify(payload), redirect: 'follow' });
   let j; try { j = await r.json(); } catch (e) { throw new Error('Máy chủ KK-MALL đang bận'); }
   if (j && j.error) { const e = new Error(j.error); e.code = j.code; throw e; }
   return j;
@@ -68,26 +78,30 @@ async function cycle(trigger) {
     if (S.paused && trigger !== 'manual') return;
     await mutate(x => { x.lastPoll = Date.now(); if (trigger === 'manual') x.paused = ''; });
     const q = await api('bot.queue');
+    const pol = q.policy || null; if (pol) pol._daySpent = q.day_spent || 0;
+    await mutate(x => { x.policy = pol ? { version: pol.version, sig: q.policy_sig, auto_max: pol.autonomy && pol.autonomy.auto_max_vnd, otp_max: pol.autonomy && pol.autonomy.otp_max_vnd, enabled: q.enabled !== false, daySpent: q.day_spent || 0 } : null; });
+    if (q.enabled === false) { await log('⏸ Máy chủ đang TẮT tự động đặt hàng (AUTONOMY_OFF) - bật lại tại Quản trị → Hệ thống', 'w'); await mutate(x => { x.queue = []; x.queueAt = Date.now(); }); return; }
     let M; try { M = await offers(); } catch (e) { await log('⚠ ' + e.message, 'e'); if (e.pause) await pause(e.message); return; }
     const retry = (await getState()).retry || {};
     const view = q.items.map(it => {
-      const pl = L.planAuto(it, M[it.sku], q.tolerance, q.sources), b = it.bot;
-      let plan = pl.pick ? 'auto' : 'manual', why = pl.why;
+      const pl = L.planAuto(it, M[it.sku], q.tolerance, q.sources, pol), b = it.bot;
+      let plan = pl.pick ? 'auto' : (pl.reasons && pl.reasons.length ? 'hold' : 'manual'), why = pl.why;
+      if (b && b.state === 'hold' && plan !== 'auto') { plan = 'hold'; why = b.note || why; }
       if (b && ['paying', 'paying_unknown', 'pay_failed'].includes(b.state)) { plan = 'hold'; why = 'Đã bấm Đặt hàng trước đó - chờ quản trị kiểm tra'; }
       else if (b && b.state === 'failed' && !retry[it.po_id]) { plan = 'failed'; why = b.note || 'Lỗi lần trước - bấm Thử lại'; }
       else if (b && b.state === 'working' && Date.now() - new Date(b.at).getTime() < 15 * 60e3) { plan = 'busy'; why = 'Phiên bot khác đang xử lý'; }
       else if (b && b.state === 'skip' && !pl.pick) { plan = 'manual'; why = b.note || why; }
-      return { po_id: it.po_id, order_code: it.order_code, name: it.name, qty: it.qty, collected: it.collected_cost, ship_to: it.ship_to, plan, why, offer: pl.pick ? { s: pl.pick.s, p: pl.pick.p, l: pl.pick.l, sh: pl.pick.sh, u: pl.pick.u } : null, unit: pl.unit, tol: q.tolerance, bot: b };
+      return { po_id: it.po_id, order_code: it.order_code, name: it.name, qty: it.qty, collected: it.collected_cost, ship_to: it.ship_to, plan, why, offer: pl.pick ? { s: pl.pick.s, p: pl.pick.p, l: pl.pick.l, sh: pl.pick.sh, u: pl.pick.u } : null, unit: pl.unit, tol: q.tolerance, bot: b, otp: pl.decision === 'otp' };
     });
     await mutate(x => { x.queue = view; x.queueAt = Date.now(); });
     for (const v of view) if (v.plan === 'manual' && (!v.bot || v.bot.state !== 'skip')) { try { await api('bot.update', { po_id: v.po_id, state: 'skip', note: v.why }); } catch (e) { } }
     const next = view.find(v => v.plan === 'auto'); if (!next) return;
     const run = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    try { await api('bot.update', { po_id: next.po_id, state: 'claim', run, source: next.offer.s, retry: !!retry[next.po_id] }); }
+    try { await api('bot.update', { po_id: next.po_id, state: 'claim', run, source: next.offer.s, retry: !!retry[next.po_id], policy_sig: q.policy_sig, offer_total: Math.round(Number(next.offer.l) * Number(next.qty || 1)) }); }
     catch (e) { await log('⚠ Không nhận được ' + next.po_id + ': ' + e.message, 'e'); return; }
     await mutate(x => { delete x.retry[next.po_id]; });
     const tab = await openTab(next.offer.u);
-    await mutate(x => { x.job = { po_id: next.po_id, order_code: next.order_code, name: next.name, qty: next.qty, collected: next.collected, tol: next.tol, unit: next.unit, ship_to: next.ship_to, offer: next.offer, run, tabId: tab.id, windowId: tab.windowId, step: 'product', startedAt: Date.now(), lastAt: Date.now(), manual: false, addrTries: 0 }; });
+    await mutate(x => { x.job = { po_id: next.po_id, order_code: next.order_code, name: next.name, qty: next.qty, collected: next.collected, tol: next.tol, unit: next.unit, ship_to: next.ship_to, offer: next.offer, run, tabId: tab.id, windowId: tab.windowId, step: 'product', startedAt: Date.now(), lastAt: Date.now(), manual: false, addrTries: 0, otp: !!next.otp, policySig: q.policy_sig, perTxnCap: pol && pol.instrument ? Number(pol.instrument.per_txn_cap_vnd) || 0 : 0 }; });
     await log('▶ Bắt đầu ' + next.po_id + ' - ' + next.name + ' × ' + next.qty + ' tại Tiki (' + next.offer.p.toLocaleString('vi-VN') + 'đ) giao ' + next.ship_to.name);
   } catch (e) {
     await log('⚠ ' + e.message, 'e'); if (e.code === 401) await pause('Khóa bot không đúng/đã đổi - nhập khóa mới');
@@ -125,9 +139,9 @@ async function handle(m, sender) {
       await log('✋ ' + j.po_id + ' - ' + m.note, 'w'); return {};
     case 'ready': {
       if (!fromBot) return { go: false, err: 'Tab không phải của bot' };
-      const s = await settings(), cap = Math.min(j.collected + j.tol, s.maxOrder);
+      const s = await settings(), cap = Math.min(j.collected + j.tol, s.maxOrder, j.perTxnCap || Infinity);
       if (!(m.total > 0) || m.total > cap) { const err = 'Tổng tại Tiki ' + Number(m.total).toLocaleString('vi-VN') + 'đ vượt giới hạn ' + cap.toLocaleString('vi-VN') + 'đ'; return { go: false, err }; }
-      try { await api('bot.update', { po_id: j.po_id, state: 'paying', run: j.run, total: m.total, ship: m.ship }); }
+      try { await api('bot.update', { po_id: j.po_id, state: 'paying', run: j.run, total: m.total, ship: m.ship, policy_sig: j.policySig }); }
       catch (e) { return { go: false, err: e.message }; }
       await mutate(x => { if (x.job) { x.job.step = 'paying'; x.job.payingAt = Date.now(); x.job.total = m.total; x.job.ship = m.ship; x.job.lastAt = Date.now(); } });
       await log('💳 ' + j.po_id + ' - bấm Đặt hàng, tổng ' + m.total.toLocaleString('vi-VN') + 'đ (ship ' + m.ship.toLocaleString('vi-VN') + 'đ, thẻ …' + (m.card4 || '') + ') - CHỜ OTP', 'pay');

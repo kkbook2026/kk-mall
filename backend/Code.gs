@@ -11,7 +11,7 @@
  */
 
 /* =========================== CẤU HÌNH =========================== */
-var VERSION = '1.6.0';
+var VERSION = '1.7.0';
 var CONSENT_VERSION = 'UQ-2026-10';
 var SHEETS = {
   Orders: ['code', 'created_at', 'status', 'payment_status', 'email', 'phone', 'name', 'goods', 'fee', 'total', 'paid_at', 'data', 'updated_at'],
@@ -36,7 +36,10 @@ var DEFAULTS = {
   RETURN_DAYS: '7',
   VOUCHER_FEE_CAP_PCT: '50',        // voucher giam toi da % phi dich vu cua don (KK-MALL luon con lai)
   BANK_BIN: '', BANK_ACC: '', BANK_NAME: '', BANK_LABEL: '',
-  COMPANY_JSON: '{}'
+  COMPANY_JSON: '{}',
+  AUTONOMY_ENABLED: '1',             // cong tac dung toan bo bot dat hang ('0' = dung)
+  BOT_REQUIRE_SIG: '0',              // '1' = bat buoc moi thong diep bot co chu ky + nonce (bat sau khi tien ich da cap nhat)
+  POLICY_JSON: ''                    // chinh sach tu dong (JSON) ghi de POLICY_DEFAULT - sua tai Quan tri -> He thong
 };
 var VOUCHERS = [ // giam tren PHI DICH VU, tong giam toi da VOUCHER_FEE_CAP_PCT% phi dich vu cua don - dong bo voi site
   { code: 'KKWELCOME', title: 'Giảm phí dịch vụ cho đơn từ 200K', type: 'percent', value: 10, max: 50000, min: 200000, scope: 'all', group: 'order' },
@@ -855,9 +858,103 @@ function installMailSync() {
  * tu thu lai - chi quan tri moi dat lai duoc sau khi kiem tra tai nguon.
  */
 var BOT_SOURCES = ['tiki'];
+/* =========================== CHÍNH SÁCH TỰ ĐỘNG (POLICY) & KÝ THÔNG ĐIỆP BOT =========================== */
+// Moi "yeu cau hoach dinh san" nam trong POLICY_JSON (Script Properties, sua o Quan tri -> He thong). May chu la noi quyet dinh cuoi:
+// bot chi duoc claim/paying khi policyEval_ tra 'auto' hoac 'otp'; moi quyet dinh ghi kem policy.version.
+var POLICY_DEFAULT = {
+  version: 'default',
+  autonomy: { enabled: true, auto_max_vnd: 5000000, otp_max_vnd: 20000000, daily_cap_vnd: 30000000, max_per_hour: 10, hours: { from: '07:00', to: '22:00', tz: 'Asia/Ho_Chi_Minh' } },
+  price: { tolerance_vnd: 5000, max_loss_per_line: 'line_fee', quote_max_age_hours: 6, live_check_required: true },
+  sources: { allow: ['tiki'], tier: { tiki: 'C' }, max_eta_days: 5, vat_sources: [] },   // vat_sources: nguon bot duoc phep dat cho don can hoa don GTGT (mac dinh: khong - dat tay)
+  fallback: { max_replans: 2, allow_split: false },
+  customer: { address_levels: 3, first_order_hold_over_vnd: 10000000 },
+  holds: { remind_hours: 4, escalate_hours: 8, cancel_refund_hours: 24 },
+  instrument: { per_txn_cap_vnd: 5000000 }
+};
+function policy_() {
+  var p = JSON.parse(JSON.stringify(POLICY_DEFAULT)), raw = cfg_('POLICY_JSON'), custom = {};
+  if (raw) { try { custom = JSON.parse(raw) || {}; } catch (e) { custom = {}; log_('policy_invalid', 'system', String(e.message).slice(0, 200)); } }
+  Object.keys(custom).forEach(function (k) {
+    var v = custom[k];
+    if (v && typeof v === 'object' && !Array.isArray(v) && p[k] && typeof p[k] === 'object' && !Array.isArray(p[k])) Object.keys(v).forEach(function (j) { p[k][j] = v[j]; });
+    else p[k] = v;
+  });
+  if (!custom.price || custom.price.tolerance_vnd === undefined) p.price.tolerance_vnd = Number(cfg_('TOLERANCE')) || 5000; // tuong thich cau hinh cu
+  p.autonomy.enabled = cfg_('AUTONOMY_ENABLED') !== '0' && p.autonomy.enabled !== false;
+  p.version = String(custom.version || 'default');
+  return p;
+}
+function policySecret_() { var k = P_().getProperty('POLICY_SECRET'); if (!k) { k = rnd_(); P_().setProperty('POLICY_SECRET', k); } return k; }
+function hmac_(key, msg) { return Utilities.computeHmacSha256Signature(String(msg), String(key), Utilities.Charset.UTF_8).map(function (b) { var h = ((b + 256) % 256).toString(16); return h.length < 2 ? '0' + h : h; }).join(''); }
+// JSON chuan hoa (khoa sap xep) de hai ben ky/kiem cung mot chuoi
+function canon_(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v === undefined ? null : v);
+  if (Array.isArray(v)) return '[' + v.map(canon_).join(',') + ']';
+  return '{' + Object.keys(v).sort().map(function (k) { return JSON.stringify(k) + ':' + canon_(v[k]); }).join(',') + '}';
+}
+function policySig_(p) { return hmac_(policySecret_(), canon_(p)); }
+function inHours_(h, now) {
+  h = h || {}; var tz = h.tz || 'Asia/Ho_Chi_Minh', cur = Utilities.formatDate(new Date(now || Date.now()), tz, 'HH:mm'), a = h.from || '00:00', b = h.to || '23:59';
+  return a <= b ? (cur >= a && cur < b) : (cur >= a || cur < b);
+}
+// Danh gia mot lenh mua theo chinh sach. Tra { decision: 'auto'|'otp'|'hold', reasons: [...], version }
+// p: hang PO (collected_cost, qty), o: don (vat, customer), offer: { s: nguon, total: gia thuc tra ca dong }, ctx: { policy, now, daySpent, hourCount, quoteAgeHours, firstOrder, addrLevels }
+function policyEval_(p, o, offer, ctx) {
+  ctx = ctx || {}; var pol = ctx.policy || policy_(), A = pol.autonomy || {}, r = [], val = Math.round(Number(p.collected_cost) || 0), now = ctx.now || Date.now();
+  if (!A.enabled) r.push('AUTONOMY_OFF');
+  if (!inHours_(A.hours, now)) r.push('OUT_OF_HOURS');
+  if (val > Number(A.otp_max_vnd)) r.push('OVER_AUTO_CAP');
+  if (ctx.daySpent !== undefined && Number(ctx.daySpent) + val > Number(A.daily_cap_vnd)) r.push('DAILY_CAP');
+  if (ctx.hourCount !== undefined && Number(ctx.hourCount) >= Number(A.max_per_hour)) r.push('HOURLY_CAP');
+  if (offer && offer.s) {
+    if ((pol.sources.allow || []).indexOf(offer.s) < 0) r.push('SOURCE_NOT_ALLOWED');
+    if (o && o.vat && (pol.sources.vat_sources || []).indexOf(offer.s) < 0) r.push('VAT_NEEDS_B2B');
+  }
+  if (offer && offer.total !== undefined && Math.round(Number(offer.total)) > val + Number(pol.price.tolerance_vnd)) r.push('OVER_CAP');
+  if (ctx.quoteAgeHours !== undefined && Number(ctx.quoteAgeHours) > Number(pol.price.quote_max_age_hours)) r.push('QUOTE_STALE');
+  if (ctx.firstOrder && val > Number(pol.customer.first_order_hold_over_vnd)) r.push('NEW_CUSTOMER_HIGH_VALUE');
+  if (ctx.addrLevels !== undefined && Number(ctx.addrLevels) < Number(pol.customer.address_levels)) r.push('ADDRESS_INCOMPLETE');
+  return { decision: r.length ? 'hold' : (val > Number(A.auto_max_vnd) ? 'otp' : 'auto'), reasons: r, version: pol.version };
+}
+// Don dau tien cua khach (chua co don nao da thanh toan truoc do cung SDT hoac email)
+function firstOrder_(o) {
+  if (!o || !o.customer) return false;
+  var ph = normPhone_(o.customer.phone), em = String(o.customer.email || '').toLowerCase(), n = 0;
+  rows_('Orders').forEach(function (r) { if (r.code === o.code) return; var x = parseData_(r); if (x.payment_status === 'paid' && x.customer && ((ph && normPhone_(x.customer.phone) === ph) || (em && String(x.customer.email || '').toLowerCase() === em))) n++; });
+  return n === 0;
+}
+function vnDay_(t) { return Utilities.formatDate(new Date(t || Date.now()), 'Asia/Ho_Chi_Minh', 'yyyy-MM-dd'); }
+// Tien bot da chi (hoac dang chi) trong ngay: lenh 'ordered' do bot + lenh dang 'paying'
+function botDaySpent_(pos) {
+  var day = vnDay_(), sum = 0;
+  (pos || rows_('PO')).forEach(function (p) {
+    var d = parseData_(p), bt = d.bot || {};
+    if (p.status === 'ordered' && /^bot-/.test(String(d.auto || '')) && vnDay_(d.ordered_at || p.updated_at) === day) sum += Number(p.actual_cost) || 0;
+    else if (p.status === 'to_order' && bt.state === 'paying' && bt.at && vnDay_(bt.at) === day) sum += Number(bt.total) || 0;
+  });
+  return sum;
+}
+function botFailStreak_(reset) {
+  var n = reset ? 0 : (parseInt(P_().getProperty('BOT_FAIL_STREAK') || '0', 10) + 1);
+  P_().setProperty('BOT_FAIL_STREAK', String(n));
+  if (!reset && n >= 3 && cfg_('AUTONOMY_ENABLED') !== '0') {
+    P_().setProperty('AUTONOMY_ENABLED', '0'); log_('autonomy_off', 'system', 'bot loi ' + n + ' lan lien tiep');
+    adminsMail_('🛑 Bot đặt hàng TỰ DỪNG sau ' + n + ' lệnh lỗi liên tiếp', '<p>Hệ thống đã tắt tự động đặt hàng (AUTONOMY_ENABLED=0) để tránh lỗi lặp. Kiểm tra nguyên nhân trong Quản trị → Lệnh mua, rồi bật lại tại Quản trị → Hệ thống → Chính sách tự động.</p>');
+  }
+  return n;
+}
 function botAuth_(b) {
   var h = P_().getProperty('BOT_KEY_HASH'), k = str_(b.bot_key, 200);
   if (!h || !k || sha_('kk-bot|' + k) !== h) { rate_('botbad', 30, 3600); throw err_('Khóa bot không đúng hoặc đã bị đổi', 401); }
+  // Chu ky HMAC-SHA256 + nonce + moc thoi gian: chong gui lai va sua than thong diep. Khoa MAC dan xuat tu khoa bot (may chu khong luu khoa bot).
+  if (b.sig !== undefined || cfg_('BOT_REQUIRE_SIG') === '1') {
+    var ts = Number(b.ts) || 0, nonce = str_(b.nonce, 64), sig = String(b.sig || '').toLowerCase();
+    if (!sig || !nonce || Math.abs(Date.now() - ts) > 5 * 60e3) { rate_('botbad', 30, 3600); throw err_('Thông điệp bot thiếu chữ ký/nonce hoặc lệch giờ quá 5 phút', 401); }
+    var c = CacheService.getScriptCache(); if (c.get('bn_' + nonce)) { rate_('botbad', 30, 3600); throw err_('Thông điệp bot bị gửi lại (nonce trùng)', 401); }
+    var body = {}; Object.keys(b).forEach(function (x) { if (x !== 'sig') body[x] = b[x]; });
+    if (hmac_(sha_('kk-mac|' + k), ts + '\n' + nonce + '\n' + sha_(canon_(body))) !== sig) { rate_('botbad', 30, 3600); throw err_('Chữ ký bot không hợp lệ', 401); }
+    c.put('bn_' + nonce, '1', 600);
+  }
   rate_('bot', 600, 3600);
   P_().setProperty('BOT_SEEN_AT', nowIso_()); if (b.device) P_().setProperty('BOT_DEVICE', str_(b.device, 80));
 }
@@ -870,7 +967,8 @@ function botQueue_(b) {
     return { po_id: p.po_id, order_code: p.order_code, sku: p.sku, name: p.name, qty: Number(p.qty), collected_cost: Number(p.collected_cost), unit_cost: Number(d.unit_cost) || Math.round(Number(p.collected_cost) / Number(p.qty)),
       ship_est: Number(d.ship_est) || 0, vat: !!o.vat, paid_at: o.paid_at || '', ship_to: { name: c.name, phone: c.phone, address: c.address, note: c.note || '' }, bot: d.bot ? { state: d.bot.state, at: d.bot.at, note: d.bot.note || '' } : null };
   }).filter(Boolean).slice(0, 50);
-  return { at: nowIso_(), tolerance: Number(cfg_('TOLERANCE')), sources: BOT_SOURCES, items: items };
+  var pol = policy_();
+  return { at: nowIso_(), tolerance: Number(pol.price.tolerance_vnd), sources: BOT_SOURCES, items: items, enabled: !!pol.autonomy.enabled, policy: pol, policy_sig: policySig_(pol), require_sig: cfg_('BOT_REQUIRE_SIG') === '1', day_spent: botDaySpent_() };
 }
 function botUpdate_(b) {
   botAuth_(b);
@@ -880,16 +978,32 @@ function botUpdate_(b) {
     var d = parseData_(p), bot = d.bot || {}, st = String(b.state || ''), now = nowIso_(), age = bot.at ? (Date.now() - new Date(bot.at).getTime()) / 60000 : 1e9;
     var src = str_(b.source, 20).toLowerCase(); if (src && BOT_SOURCES.indexOf(src) < 0) throw err_('Nguồn chưa hỗ trợ bot: ' + src);
     var logIt = function (note) { (bot.log = bot.log || []).push({ at: now, state: bot.state, note: str_(note, 160) }); bot.log = bot.log.slice(-12); };
+    var pol = policy_(), o0 = null; try { o0 = loadOrder_(p.order_code); } catch (e) { o0 = null; }
+    if (st === 'claim' || st === 'paying') {
+      if (b.policy_sig !== undefined && String(b.policy_sig) !== policySig_(pol)) throw err_('Chính sách tự động đã thay đổi - tiện ích tải lại hàng đợi (POLICY_STALE)', 409);
+      if (!pol.autonomy.enabled) throw err_('Tự động đặt hàng đang TẮT (AUTONOMY_OFF) - bật lại tại Quản trị → Hệ thống', 409);
+    }
     if (st === 'claim') {
       if (p.status !== 'to_order') throw err_('Lệnh mua không còn ở trạng thái Cần đặt', 409);
+      var ev = policyEval_(p, o0, { s: src || 'tiki', total: b.offer_total !== undefined ? Number(b.offer_total) : undefined }, { policy: pol, daySpent: botDaySpent_(), firstOrder: firstOrder_(o0), addrLevels: b.addr_levels !== undefined ? Number(b.addr_levels) : undefined });
+      if (ev.decision === 'hold') {
+        bot.state = 'hold'; bot.at = now; bot.reasons = ev.reasons; bot.policy = ev.version; bot.note = 'Ngoại lệ chính sách: ' + ev.reasons.join(', '); logIt(bot.note);
+        d.bot = bot; update_('PO', p._row, { data: JSON.stringify(d), updated_at: now }); log_('bot_hold', 'policy', b.po_id + ' ' + ev.reasons.join(','));
+        if (rate_soft_('bothold_' + p.po_id, 1, 21600)) adminsMail_('⏸ Lệnh mua ' + p.po_id + ' chờ người duyệt (' + ev.reasons.join(', ') + ')', '<p>Lệnh mua <b>' + esc_(p.po_id) + '</b> (' + esc_(p.name) + ', ' + vnd_(p.collected_cost) + ') không nằm trong hành lang tự động: <b>' + esc_(ev.reasons.join(', ')) + '</b> (chính sách ' + esc_(ev.version) + ').</p><p>Vào Quản trị → Lệnh mua để đặt tay, hoặc chỉnh chính sách rồi bấm "Cho bot đặt lại".</p>');
+        throw err_('Ngoài hành lang chính sách: ' + ev.reasons.join(', '), 409);
+      }
+      bot.otp = ev.decision === 'otp'; bot.policy = ev.version;
       if (['paying', 'paying_unknown', 'pay_failed'].indexOf(bot.state) >= 0) throw err_('Lệnh mua đã từng bấm Đặt hàng tại nguồn - cần quản trị kiểm tra và cho phép đặt lại', 409);
       if (bot.state === 'working' && age < 15 && bot.run !== str_(b.run, 60)) throw err_('Một phiên bot khác đang xử lý lệnh mua này', 409);
       if (bot.state === 'failed' && !b.retry) throw err_('Lệnh mua đã lỗi ở lần trước - bấm "Thử lại" trong tiện ích hoặc quản trị cho phép', 409);
       bot.state = 'working'; bot.at = now; bot.run = str_(b.run, 60); bot.src = src || 'tiki'; bot.tries = (bot.tries || 0) + 1; logIt('bắt đầu đặt tại ' + bot.src);
     } else if (st === 'paying') {
       if (bot.state !== 'working' || bot.run !== str_(b.run, 60)) throw err_('Phiên bot không hợp lệ cho lệnh mua này', 409);
-      var total = Math.round(Number(b.total) || 0), cap = Number(p.collected_cost) + Number(cfg_('TOLERANCE'));
+      var total = Math.round(Number(b.total) || 0), cap = Number(p.collected_cost) + Number(pol.price.tolerance_vnd);
       if (!(total > 0) || total > cap) throw err_('Tổng thanh toán tại nguồn ' + vnd_(total) + ' vượt tiền hàng đã thu + biên dung sai (' + vnd_(cap) + ') - không đặt', 409);
+      if (total > Number(pol.instrument.per_txn_cap_vnd)) throw err_('Tổng ' + vnd_(total) + ' vượt trần mỗi giao dịch của phương tiện chi (' + vnd_(pol.instrument.per_txn_cap_vnd) + ')', 409);
+      var spent = botDaySpent_(); if (spent + total > Number(pol.autonomy.daily_cap_vnd)) throw err_('Vượt hạn mức chi tự động trong ngày (' + vnd_(spent) + ' + ' + vnd_(total) + ' > ' + vnd_(pol.autonomy.daily_cap_vnd) + ') - DAILY_CAP', 409);
+      if (rateFixed_('botpay', Number(pol.autonomy.max_per_hour) || 10, 3600)) throw err_('Vượt số lệnh tự động mỗi giờ (' + pol.autonomy.max_per_hour + ') - HOURLY_CAP', 409);
       bot.state = 'paying'; bot.at = now; bot.total = total; bot.ship = Math.max(0, Math.round(Number(b.ship) || 0)); logIt('bấm Đặt hàng, tổng ' + vnd_(total) + ' - chờ OTP');
     } else if (st === 'done') {
       var id = str_(b.supplier_order_id, 40).replace(/[^\w-]/g, ''); if (!id) throw err_('Thiếu mã đơn nguồn');
@@ -897,12 +1011,13 @@ function botUpdate_(b) {
       b.total = bot.total; if (b.ship === undefined) b.ship = bot.ship; // so tien da duoc may chu duyet o buoc paying
       if (p.status === 'to_order') poUpdate_({ po_id: p.po_id, status: 'ordered', actual_source: bot.src || src || 'tiki', actual_cost: Math.round(Number(b.total) || bot.total || 0), supplier_order_id: id, ship_paid: b.ship !== undefined ? b.ship : bot.ship, vat_requested: false, auto: 'bot-' + (bot.src || src || 'tiki') }, 'bot:' + (P_().getProperty('BOT_DEVICE') || 'chrome'));
       else if (String(p.supplier_order_id) !== id) throw err_('Lệnh mua đã gắn mã đơn nguồn khác: ' + p.supplier_order_id, 409);
-      p = find_('PO', 'po_id', b.po_id); d = parseData_(p); bot = d.bot || bot; bot.state = 'done'; bot.at = now; logIt('đặt thành công, mã đơn ' + id);
+      p = find_('PO', 'po_id', b.po_id); d = parseData_(p); bot = d.bot || bot; bot.state = 'done'; bot.at = now; logIt('đặt thành công, mã đơn ' + id); botFailStreak_(true);
     } else if (st === 'fail' || st === 'skip') {
       var reason = str_(b.note, 200) || 'không rõ';
       if (bot.state === 'paying') { bot.state = /thanh to[aá]n|payment|otp/i.test(reason) ? 'pay_failed' : 'paying_unknown'; }
       else bot.state = st === 'skip' ? 'skip' : 'failed';
       bot.at = now; bot.note = reason; logIt(reason);
+      if (bot.state !== 'skip') botFailStreak_(false);
       if (bot.state !== 'skip' && rate_soft_('botmail_' + p.po_id + '_' + bot.state, 1, 21600)) adminsMail_((bot.state === 'failed' ? '⚠️' : '🚨') + ' Bot đặt hàng: ' + p.po_id + ' - ' + reason.slice(0, 80), '<p>Lệnh mua <b>' + esc_(p.po_id) + '</b> (' + esc_(p.name) + ')</p><p>Trạng thái bot: <b>' + esc_(bot.state) + '</b><br>Lý do: ' + esc_(reason) + '</p>' + (bot.state === 'failed' ? '<p>Bấm "Thử lại" trong tiện ích hoặc đặt tay trong Quản trị → Lệnh mua.</p>' : '<p><b>Đã bấm Đặt hàng tại nguồn</b> - kiểm tra đơn trên ứng dụng nguồn (thanh toán lại nếu cần). Hệ thống đọc email xác nhận sẽ tự gắn mã đơn khi có.</p>'));
     } else throw err_('Trạng thái bot không hợp lệ');
     d = parseData_(find_('PO', 'po_id', b.po_id)); d.bot = bot;
@@ -922,7 +1037,7 @@ function adminPoBotReset_(b) {
   var s = session_(b.token, true), lock = LockService.getScriptLock(); lock.waitLock(20000);
   try { var p = find_('PO', 'po_id', b.po_id); if (!p) throw err_('Không tìm thấy lệnh mua', 404); var d = parseData_(p); var old = d.bot && d.bot.state; d.bot_prev = d.bot || null; delete d.bot; update_('PO', p._row, { data: JSON.stringify(d), updated_at: nowIso_() }); log_('admin_po_botreset', s.email, b.po_id + ' (' + old + ')'); return { ok: true }; } finally { lock.releaseLock(); }
 }
-function botInfo_() { var P = P_(); return { has_key: !!P.getProperty('BOT_KEY_HASH'), key_at: P.getProperty('BOT_KEY_AT') || '', seen_at: P.getProperty('BOT_SEEN_AT') || '', device: P.getProperty('BOT_DEVICE') || '', sources: BOT_SOURCES }; }
+function botInfo_() { var P = P_(), pol = policy_(); return { has_key: !!P.getProperty('BOT_KEY_HASH'), key_at: P.getProperty('BOT_KEY_AT') || '', seen_at: P.getProperty('BOT_SEEN_AT') || '', device: P.getProperty('BOT_DEVICE') || '', sources: BOT_SOURCES, enabled: !!pol.autonomy.enabled, fail_streak: parseInt(P.getProperty('BOT_FAIL_STREAK') || '0', 10), policy_version: pol.version, require_sig: cfg_('BOT_REQUIRE_SIG') === '1', day_spent: botDaySpent_() }; }
 // Hoa don GTGT phi dich vu (ban nhap -> quan tri duyet -> phat hanh qua nha cung cap HDDT & gui khach)
 function feeInvoice_(o) {
   if (!o.fee_net || rows_('Invoices').some(function (i) { return i.order_code === o.code; })) return;
@@ -981,18 +1096,21 @@ function adminList_(b, name, outFn) { session_(b.token, true); return { rows: ro
 function adminConfig_(b) {
   var s = session_(b.token, true);
   if (b.set) {
-    var allow = ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'VOUCHER_FEE_CAP_PCT', 'STATS_KEY'];
+    var allow = ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'VOUCHER_FEE_CAP_PCT', 'STATS_KEY', 'POLICY_JSON', 'AUTONOMY_ENABLED', 'BOT_REQUIRE_SIG'];
     var kept = [];
     Object.keys(b.set).forEach(function (k) {
       if (allow.indexOf(k) < 0) return;
-      var v = str_(b.set[k], 2000);
+      var v = str_(b.set[k], k === 'POLICY_JSON' ? 20000 : 2000);
+      if (k === 'POLICY_JSON' && v) { try { var pj = JSON.parse(v); if (!pj || typeof pj !== 'object' || Array.isArray(pj)) throw new Error('phải là đối tượng JSON'); v = JSON.stringify(pj); } catch (e) { throw err_('POLICY_JSON không hợp lệ: ' + e.message, 400); } }
+      if (k === 'AUTONOMY_ENABLED' || k === 'BOT_REQUIRE_SIG') { v = v === '1' || v === 'true' ? '1' : '0'; if (k === 'AUTONOMY_ENABLED' && v === '1') P_().setProperty('BOT_FAIL_STREAK', '0'); }
       // BAO VE TAI KHOAN NHAN TIEN: khong cho ghi de trong (form cu/tab cu) - muon xoa phai gui clear_bank: true
       if (!v && ['BANK_ACC', 'BANK_NAME', 'BANK_BIN'].indexOf(k) >= 0 && cfg_(k) && b.clear_bank !== true) { kept.push(k); return; }
       P_().setProperty(k, v);
     });
     log_('admin_config', s.email, Object.keys(b.set).join(',') + (kept.length ? ' | GIU NGUYEN (gia tri trong): ' + kept.join(',') : ''));
   }
-  var out = {}; ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'ADMIN_EMAILS', 'VOUCHER_FEE_CAP_PCT'].forEach(function (k) { out[k] = cfg_(k); });
+  var out = {}; ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'ADMIN_EMAILS', 'VOUCHER_FEE_CAP_PCT', 'POLICY_JSON', 'AUTONOMY_ENABLED', 'BOT_REQUIRE_SIG'].forEach(function (k) { out[k] = cfg_(k); });
+  out.POLICY_EFFECTIVE = policy_(); out.POLICY_DEFAULT = POLICY_DEFAULT;
   out.WEBHOOK_URL = ScriptApp.getService().getUrl() + '?a=webhook&key=' + P_().getProperty('WEBHOOK_KEY');
   if (!P_().getProperty('STATS_KEY')) P_().setProperty('STATS_KEY', rnd_());
   out.STATS_KEY = P_().getProperty('STATS_KEY'); out.BACKEND_URL = ScriptApp.getService().getUrl(); out.MAILSYNC = mailSyncInfo_(); out.BOT = botInfo_();
@@ -1026,6 +1144,7 @@ function audit_() {
       ps.forEach(function (p) {
         var d = parseData_(p), age = (now - new Date(o.paid_at || r.created_at).getTime()) / H;
         if (p.status === 'to_order' && age > 24) issues.push({ lvl: 'med', code: r.code, msg: 'Lệnh mua ' + p.po_id + ' chờ đặt ' + Math.round(age) + ' giờ' });
+        if (p.status === 'to_order' && d.bot && d.bot.state === 'hold') issues.push({ lvl: 'med', code: r.code, msg: 'Lệnh mua ' + p.po_id + ' chờ người duyệt: ' + ((d.bot.reasons || []).join(', ') || d.bot.note || '') });
         if (d.bot && ['paying', 'paying_unknown', 'pay_failed'].indexOf(d.bot.state) >= 0 && p.status === 'to_order' && (now - new Date(d.bot.at).getTime()) > H) issues.push({ lvl: 'high', code: r.code, msg: 'Bot: ' + p.po_id + ' đã bấm Đặt hàng nhưng chưa có kết quả (' + d.bot.state + ') - kiểm tra tại nguồn' });
         if (p.status === 'ordered' && (now - new Date(d.ordered_at || p.updated_at).getTime()) > 10 * 24 * H) issues.push({ lvl: 'med', code: r.code, msg: 'Lệnh mua ' + p.po_id + ' đã đặt quá 10 ngày chưa giao vận chuyển' });
       });
@@ -1045,8 +1164,24 @@ function dailyAudit() {
   log_('audit', 'system', r.issues.length + ' issues');
   return r;
 }
+// Moi gio: (1) bot khong ket noi trong gio lam viec ma co lenh cho dat -> bao; (2) lenh hold qua SLA nhac -> bao gop
+function botWatch_() {
+  try {
+    var pol = policy_(), P = P_(), pos = rows_('PO').filter(function (p) { return p.status === 'to_order'; });
+    if (!pos.length) return;
+    if (pol.autonomy.enabled && P.getProperty('BOT_KEY_HASH') && inHours_(pol.autonomy.hours, Date.now())) {
+      var seen = P.getProperty('BOT_SEEN_AT');
+      if ((!seen || Date.now() - new Date(seen).getTime() > 30 * 60e3) && rate_soft_('bot_hb_mail', 1, 21600))
+        adminsMail_('⚠️ Bot đặt hàng không kết nối', '<p>Có ' + pos.length + ' lệnh mua chờ đặt nhưng bot không kết nối từ <b>' + esc_(seen ? new Date(seen).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : 'chưa bao giờ') + '</b>. Kiểm tra máy chạy tiện ích hoặc đặt tay trong Quản trị → Lệnh mua.</p>');
+    }
+    var H = 3600e3, old = pos.filter(function (p) { var bt = parseData_(p).bot || {}; return bt.state === 'hold' && bt.at && Date.now() - new Date(bt.at).getTime() > Number(pol.holds.remind_hours) * H; });
+    if (old.length && rate_soft_('bot_hold_mail', 1, Number(pol.holds.remind_hours) * 3600))
+      adminsMail_('⏰ ' + old.length + ' lệnh mua chờ người duyệt quá ' + pol.holds.remind_hours + ' giờ', '<ul>' + old.map(function (p) { var bt = parseData_(p).bot || {}; return '<li><b>' + esc_(p.po_id) + '</b> ' + esc_(p.name) + ' · ' + vnd_(p.collected_cost) + ' · ' + esc_((bt.reasons || []).join(', ')) + ' · từ ' + esc_(new Date(bt.at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })) + '</li>'; }).join('') + '</ul><p>Đặt tay hoặc hủy và hoàn khách trong Quản trị → Lệnh mua (chính sách: hủy sau ' + pol.holds.cancel_refund_hours + ' giờ).</p>');
+  } catch (e) { log_('bot_watch', 'system', String(e.message).slice(0, 200)); }
+}
 /* =========================== ĐỊNH KỲ & SAO LƯU =========================== */
 function hourly() {
+  botWatch_();
   var lim = Number(cfg_('UNPAID_HOURS')) * 3600e3, remindAt = Math.min(2 * 3600e3, lim / 3), outbox = [];
   rows_('Orders').forEach(function (r) {
     if (r.status !== 'awaiting_payment') return;
