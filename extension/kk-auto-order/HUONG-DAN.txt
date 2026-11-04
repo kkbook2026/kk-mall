@@ -23,3 +23,8 @@ HOẠT ĐỘNG
 - Không bao giờ chọn "Thanh toán tiền mặt khi nhận hàng"; không đọc/lưu số thẻ; đã bấm Đặt hàng thì không tự đặt lại.
 - Lỗi hoặc thiếu thông tin (địa chỉ không đủ phường/xã...) -> tiện ích dừng ở đúng chỗ cần anh thao tác và báo.
 - Nút "⏹ Dừng bot" trên thanh màu ở đầu trang Tiki dừng ngay lập tức.
+
+PHIÊN BẢN 1.1.0 (04/11/2026) - đi cùng máy chủ v1.7.0
+- Mọi thông điệp gửi máy chủ đều có chữ ký HMAC + nonce + mốc thời gian (chống gửi lại). Máy chủ cũ (v1.6) vẫn nhận được; khi đã triển khai v1.7, bật "Bắt buộc chữ ký bot" trong Quản trị → Hệ thống.
+- Tiện ích đọc CHÍNH SÁCH TỰ ĐỘNG từ máy chủ (trần tự đặt, trần cần OTP, trần ngày, khung giờ, nguồn cho phép). Lệnh ngoài hành lang hiện "Chờ kiểm tra" kèm lý do; máy chủ là nơi quyết định cuối.
+- Máy chủ tắt tự động (công tắc hoặc tự dừng sau 3 lỗi liên tiếp) thì tiện ích chờ, không đặt.
