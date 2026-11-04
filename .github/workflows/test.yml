@@ -1,0 +1,30 @@
+name: Kiem thu tu dong (backend, tien ich, tim kiem, cu phap)
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['site/api/**', 'site/admin/data.enc', 'collector/feed-index.json']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Cu phap JS (site, collector, tien ich, service worker)
+        run: |
+          for f in site/*.js site/admin/ops.js collector/*.js extension/kk-auto-order/*.js; do node --check "$f"; done
+          cp backend/Code.gs /tmp/Code.gs.js && node --check /tmp/Code.gs.js
+          node -e "JSON.parse(require('fs').readFileSync('site/manifest.webmanifest','utf8'));JSON.parse(require('fs').readFileSync('extension/kk-auto-order/manifest.json','utf8'))"
+      - name: Backend (Apps Script gia lap) - chinh sach, chu ky bot, tran, cong tac
+        run: node tests/backend/test.js
+      - name: Tien ich Chrome - ke hoach nguon, chu ky, tach dia chi
+        run: node tests/extension/lib.test.js
+      - name: Tim kiem KK-SEARCH - nDCG@10 bo kiem tra
+        run: node tests/search/eval.js --test | tail -8
