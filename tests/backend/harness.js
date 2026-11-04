@@ -14,6 +14,7 @@ function makeEnv(opts = {}) {
   let now = opts.now || Date.now();
   const clock = { now: () => now, set: t => { now = t; }, add: ms => { now += ms; } };
   const mails = [];
+  const fetches = []; let fetchHandler = null; const setFetch = fn => { fetchHandler = fn; }; // gia lap UrlFetchApp: fn(url, opt) -> { code, body }
   const sheets = {}; // name -> rows (array of arrays), row 0 = header
 
   const Sheet = name => ({
@@ -64,7 +65,7 @@ function makeEnv(opts = {}) {
     SpreadsheetApp: { openById: () => Spreadsheet, create: () => Spreadsheet },
     MailApp: { sendEmail: m => { mails.push(m); }, getRemainingDailyQuota: () => 100 },
     GmailApp: { search: () => [] },
-    UrlFetchApp: { fetch: (url, o) => ({ getResponseCode: () => 200, getContentText: () => '{}' }) },
+    UrlFetchApp: { fetch: (url, o) => { fetches.push({ url, o }); const r = fetchHandler ? fetchHandler(url, o) : { code: 200, body: '{}' }; return { getResponseCode: () => r.code, getContentText: () => r.body }; } },
     ScriptApp: { getService: () => ({ getUrl: () => 'https://script.test/exec' }), getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ everyHours: () => ({ create: () => {} }), everyMinutes: () => ({ create: () => {} }), atHour: () => ({ everyDays: () => ({ create: () => {} }) }) }) }), deleteTrigger: () => {} },
     DriveApp: { createFolder: () => ({ getId: () => 'f', createFolder: () => ({ getId: () => 'f2' }) }), getFolderById: () => ({ createFile: () => ({ getId: () => 'x' }), getFiles: () => ({ hasNext: () => false }) }), getFileById: () => ({ moveTo: () => {} }) },
     ContentService: { createTextOutput: s => ({ setMimeType: () => ({ text: s }), text: s }), MimeType: { JSON: 'json' } },
@@ -72,7 +73,7 @@ function makeEnv(opts = {}) {
     Date: class extends Date { constructor(...a) { if (!a.length) super(clock.now()); else super(...a); } static now() { return clock.now(); } }
   };
   g.globalThis = g;
-  return { g, props, cache, clock, mails, sheets, Sheet };
+  return { g, props, cache, clock, mails, sheets, Sheet, fetches, setFetch };
 }
 
 function load(opts = {}) {

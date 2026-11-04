@@ -1,4 +1,4 @@
-name: Kiem thu tu dong (backend, tien ich, tim kiem, cu phap)
+name: Kiem thu tu dong (backend, tien ich, tim kiem, trinh duyet, Lighthouse)
 on:
   push:
     branches: [main]
@@ -19,7 +19,7 @@ jobs:
           node-version: '22'
       - name: Cu phap JS (site, collector, tien ich, service worker)
         run: |
-          for f in site/*.js site/admin/ops.js collector/*.js extension/kk-auto-order/*.js; do node --check "$f"; done
+          for f in site/*.js site/admin/ops.js collector/*.js extension/kk-auto-order/*.js tests/browser/*.js; do node --check "$f"; done
           cp backend/Code.gs /tmp/Code.gs.js && node --check /tmp/Code.gs.js
           node -e "JSON.parse(require('fs').readFileSync('site/manifest.webmanifest','utf8'));JSON.parse(require('fs').readFileSync('extension/kk-auto-order/manifest.json','utf8'))"
       - name: Backend (Apps Script gia lap) - chinh sach, chu ky bot, tran, cong tac
@@ -28,3 +28,23 @@ jobs:
         run: node tests/extension/lib.test.js
       - name: Tim kiem KK-SEARCH - nDCG@10 bo kiem tra
         run: node tests/search/eval.js --test | tail -8
+  browser:
+    # Trinh duyet that (Chromium cua Playwright) tren ban tinh cuc bo cua site/ + ngan sach Lighthouse di dong
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Cai Playwright + Lighthouse (phien ban co dinh)
+        run: |
+          npm init -y >/dev/null
+          npm i --no-save --no-audit --no-fund playwright@1.63.0 lighthouse@12.8.2
+          npx playwright install --with-deps chromium
+      - name: Kiem thu trinh duyet (trang chu, Worker + IndexedDB, service worker, tim kiem, san pham, gio hang, dien thoai, JS/CSP)
+        run: node tests/browser/smoke.js
+      - name: Ngan sach Lighthouse (hieu nang >= 80, tiep can >= 90, SEO >= 90, thuc hanh tot >= 80)
+        run: node tests/browser/lighthouse.js

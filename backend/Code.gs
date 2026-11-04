@@ -11,7 +11,7 @@
  */
 
 /* =========================== CẤU HÌNH =========================== */
-var VERSION = '1.7.0';
+var VERSION = '1.8.0';
 var CONSENT_VERSION = 'UQ-2026-10';
 var SHEETS = {
   Orders: ['code', 'created_at', 'status', 'payment_status', 'email', 'phone', 'name', 'goods', 'fee', 'total', 'paid_at', 'data', 'updated_at'],
@@ -24,7 +24,8 @@ var SHEETS = {
   Warranty: ['brand', 'hotline', 'url', 'confidence', 'note'],
   Log: ['at', 'action', 'actor', 'detail'],
   Reviews: ['id', 'sku', 'order_code', 'rating', 'content', 'name', 'status', 'created_at', 'data'],
-  SearchMiss: ['q', 'kind', 'n', 'results', 'first_at', 'last_at']
+  SearchMiss: ['q', 'kind', 'n', 'results', 'first_at', 'last_at'],
+  Chain: ['seq', 'at', 'kind', 'ref', 'digest', 'prev', 'hash']   // chuoi bam nhat ky tien & trang thai (chainhead cong khai)
 };
 var DEFAULTS = {
   SITE: 'https://www.kk-mall.com',
@@ -367,7 +368,7 @@ function saveOrder_(o, extra) {
   for (var k in (extra || {})) upd[k] = extra[k];
   update_('Orders', row, upd);
 }
-function setStatus_(o, s, by, note) { o.status = s; (o.history = o.history || []).push({ at: nowIso_(), s: s, by: by || 'system', note: note || '' }); }
+function setStatus_(o, s, by, note) { var ev = { at: nowIso_(), s: s, by: by || 'system', note: note || '' }; o.status = s; (o.history = o.history || []).push(ev); chain_('status', o.code, { code: o.code, s: s, by: ev.by, at: ev.at }); }
 /* Khach bao "Toi da chuyen khoan" (khi chua co SePay/Casso tu doi soat): ghi lich su + email quan tri doi soat ngay */
 function paidClaim_(b) {
   var o = ownedOrder_(b, false);
@@ -456,9 +457,65 @@ function refund_(o, amt, ref, by) {
   mail_(o.customer.email, 'KK-MALL đã hoàn tiền đơn ' + o.code, '<p>KK-MALL đã chuyển hoàn <b>' + vnd_(amt) + '</b> cho đơn <b>' + o.code + '</b>' + (o.refund_account ? ' vào tài khoản <b>' + esc_(o.refund_account.bank_label || o.refund_account.bin) + ' ' + esc_(o.refund_account.acc) + '</b>' : '') + '. Mã giao dịch: ' + esc_(ref) + '.</p>');
   return o;
 }
-function ledger_(code, ref, debit, credit, amount, note) { append_('Ledger', { at: nowIso_(), order_code: code, ref: ref || '', debit: debit, credit: credit, amount: amount, note: note }); }
+function ledger_(code, ref, debit, credit, amount, note) {
+  var row = { at: nowIso_(), order_code: code, ref: ref || '', debit: debit, credit: credit, amount: amount, note: note };
+  append_('Ledger', row); chain_('ledger', code, row, ledgerDigest_(row));
+}
+// Bam 1 dong so cai theo dang CHUAN HOA (Sheets co the doi '1121' thanh so, ISO -> Date) de kiem chung lai duoc tu du lieu doc ve
+function ledgerDigest_(r) { var at = r.at && typeof r.at.toISOString === 'function' ? r.at.toISOString() : String(r.at || ''); return sha_([at, r.order_code, r.ref || '', r.debit || '', r.credit || '', Math.round(Number(r.amount) || 0), r.note || ''].map(String).join('|')); }
+/* =========================== CHUỖI BĂM (hash-chain) NHẬT KÝ TIỀN & TRẠNG THÁI =========================== */
+// Moi su kien tien / trang thai (but toan, doi trang thai don, lenh mua, bot dat hang) duoc noi vao chuoi SHA-256:
+//   hash_n = sha256(prev_hash | seq | at | kind | ref | sha256(canon(payload)))
+// Dau chuoi (seq, hash) luu o Script Properties CHAIN_HEAD; kiem toan hang ngay tinh lai toan bo chuoi va doi chieu tung dong so cai
+// -> sua/xoa/chen 1 dong bat ky trong Ledger hay Chain deu lo. Dau chuoi cong khai qua ?a=chainhead de bo thu thap neo vao so cai gia
+// cong khai (meta.json, ledger-roots.json) = bang chung thoi diem khong can tin KK-MALL. Chi ghi hash, khong ghi du lieu ca nhan.
+function chainHead_() { try { var h = JSON.parse(P_().getProperty('CHAIN_HEAD') || '{}'); return { seq: Number(h.seq) || 0, hash: String(h.hash || '0'), at: h.at || '' }; } catch (e) { return { seq: 0, hash: '0', at: '' }; } }
+function chainHash_(prev, seq, at, kind, ref, digest) { return sha_([prev, seq, at, kind, ref || '', digest].join('|')); }
+function chain_(kind, ref, payload, digest) {
+  try {
+    var lock = LockService.getScriptLock(), mine = !lock.hasLock(); if (mine) lock.waitLock(10000);
+    try {
+      var h = chainHead_(), seq = h.seq + 1, at = nowIso_(); digest = digest || sha_(canon_(payload || {})); var hash = chainHash_(h.hash, seq, at, kind, ref, digest);
+      append_('Chain', { seq: seq, at: at, kind: kind, ref: str_(ref, 60), digest: digest, prev: h.hash, hash: hash });
+      P_().setProperty('CHAIN_HEAD', JSON.stringify({ seq: seq, hash: hash, at: at }));
+      return hash;
+    } finally { if (mine) lock.releaseLock(); }
+  } catch (e) { log_('chain_error', 'system', String(e && e.message || e).slice(0, 200)); return ''; }
+}
+// Kiem chung: (1) tung mat xich khop prev/hash; (2) dau chuoi trong Properties = dong cuoi; (3) moi dong so cai co dung 1 mat xich 'ledger' cung digest.
+function chainVerify_() {
+  var rows = rows_('Chain'), prev = '0', bad = [], n = 0;
+  rows.forEach(function (r, i) {
+    var seq = Number(r.seq), exp = chainHash_(prev, seq, r.at, r.kind, r.ref, r.digest);
+    if (seq !== i + 1) bad.push('seq ' + seq + ' (mong ' + (i + 1) + ')');
+    else if (String(r.prev) !== prev) bad.push('prev lệch tại seq ' + seq);
+    else if (String(r.hash) !== exp) bad.push('hash lệch tại seq ' + seq);
+    prev = String(r.hash); n++;
+  });
+  var head = chainHead_();
+  if (rows.length && (head.seq !== n || head.hash !== prev)) bad.push('đầu chuỗi (' + head.seq + ') ≠ dòng cuối (' + n + ')');
+  var ledger = rows_('Ledger'), links = rows.filter(function (r) { return r.kind === 'ledger'; });
+  if (ledger.length !== links.length) bad.push('sổ cái ' + ledger.length + ' dòng ≠ ' + links.length + ' mắt xích');
+  else ledger.forEach(function (l, i) { if (ledgerDigest_(l) !== String(links[i].digest)) bad.push('sổ cái dòng ' + (i + 2) + ' (' + l.order_code + ') khác mắt xích ' + links[i].seq); });
+  return { ok: !bad.length, links: n, ledger_rows: ledger.length, head: head, problems: bad.slice(0, 20), at: nowIso_() };
+}
 function adminsMail_(subject, html) { adminEmails_().forEach(function (e) { mail_(e, subject, html); }); }
 // Webhook SePay / Casso (cấu hình URL: <web app>?a=webhook&key=WEBHOOK_KEY). Nội dung CK phải chứa mã đơn.
+// Apps Script khong doc duoc header HTTP nen khoa trong URL chi la lop 1. Lop 2 (khuyen nghi): dat SEPAY_API_TOKEN (Quan tri -> He thong)
+// -> moi giao dich webhook duoc goi lai API SePay de xac minh; API loi/khong khop -> KHONG ghi nhan (fail-closed) + email quan tri.
+function whVerify_(t) {
+  var tok = P_().getProperty('SEPAY_API_TOKEN'); if (!tok) return { ok: true, mode: 'key-only' };
+  var id = String(t.id || '').replace(/\D/g, '').slice(0, 20); if (!id) return { ok: false, why: 'thiếu mã giao dịch (id) để đối chiếu' };
+  var r; try { r = UrlFetchApp.fetch('https://my.sepay.vn/userapi/transactions/details/' + id, { headers: { Authorization: 'Bearer ' + tok }, muteHttpExceptions: true }); } catch (e) { return { ok: false, why: 'không gọi được API SePay' }; }
+  if (r.getResponseCode() !== 200) return { ok: false, why: 'API SePay trả mã ' + r.getResponseCode() };
+  var j = {}; try { j = JSON.parse(r.getContentText()); } catch (e) { return { ok: false, why: 'API SePay trả dữ liệu không đọc được' }; }
+  var tx = j.transaction || (j.data && j.data.transaction) || null; if (!tx) return { ok: false, why: 'SePay không có giao dịch ' + id };
+  var got = Math.round(Number(tx.amount_in || 0)), want = Math.round(Number(t.transferAmount || t.amount || 0));
+  if (!(got > 0) || got !== want) return { ok: false, why: 'số tiền SePay ' + got + ' ≠ webhook ' + want };
+  var norm = function (x) { return String(x || '').toUpperCase().replace(/[\s.\-_]/g, '').slice(0, 60); }, c1 = norm(tx.transaction_content), c0 = norm(t.content || t.description);
+  if (c0 && c1 && c1.indexOf(c0.slice(0, 30)) < 0 && c0.indexOf(c1.slice(0, 30)) < 0) return { ok: false, why: 'nội dung SePay khác webhook' };
+  return { ok: true, mode: 'sepay-api' };
+}
 function webhook_(b, key) {
   if (!key || key !== P_().getProperty('WEBHOOK_KEY')) throw err_('Sai khóa webhook', 403);
   var txs = b.data && b.data.length ? b.data : [b];
@@ -468,7 +525,9 @@ function webhook_(b, key) {
     var txt = String(t.content || t.description || '').toUpperCase().replace(/[\s.\-_]/g, ''), ref = str_(t.referenceCode || t.id || t.tid || '', 100);
     var cands = []; txt.replace(CODE_RE, function (x) { cands.push(x); cands.push(x.slice(0, 13)); return x; }); // thu ca ma cu 5 ky tu
     if (!(amount > 0)) return;
-    if (!ref) ref = 'NOREF-' + amount + '-' + sha_(txt).slice(0, 10); // khong co ma GD: cung noi dung + so tien = cung giao dich (chong ghi trung khi gui lai)
+    if (!ref) ref = 'NOREF-' + amount + '-' + sha_(txt).slice(0, 10);
+    var vf = whVerify_(t); // lop 2 (khi co SEPAY_API_TOKEN): goi lai SePay - giao dich co that, dung so tien, dung noi dung
+    if (!vf.ok) { log_('webhook_unverified', '', ref + ' ' + vf.why); if (rate_soft_('wh_vf_' + ref, 1, 21600)) adminsMail_('⚠️ Webhook chưa xác minh được qua SePay: ' + vnd_(amount), '<p>Giao dịch <b>' + esc_(ref) + '</b> (' + vnd_(amount) + ', nội dung "' + esc_(String(t.content || t.description || '').slice(0, 80)) + '") <b>không được ghi nhận</b> vì ' + esc_(vf.why) + '. Kiểm tra trên SePay rồi bấm "Đã nhận tiền" nếu đúng.</p>'); return; } // khong co ma GD: cung noi dung + so tien = cung giao dich (chong ghi trung khi gui lai)
     var lock = LockService.getScriptLock(); lock.waitLock(20000);
     try {
       var o = null; for (var i = 0; i < cands.length && !o; i++) { try { o = loadOrder_(cands[i]); } catch (e) { } }
@@ -662,7 +721,7 @@ function poUpdate_(b, by) {
       mail_(o.customer.email, 'Đơn ' + o.code + ': ' + p.name + ' không đặt được - hoàn ' + vnd_(d.refund_due), '<p>Rất tiếc, <b>' + esc_(p.name) + '</b> hiện không đặt được tại nhà cung cấp' + (d.cancel_reason ? ' (' + esc_(d.cancel_reason) + ')' : '') + '. KK-MALL hoàn <b>100%</b> giá trị dòng hàng: <b>' + vnd_(d.refund_due) + '</b>.</p><p>Vui lòng nhập tài khoản nhận hoàn tiền tại <a href="' + cfg_('SITE') + '/?order=' + o.code + '&phone=' + o.customer.phone + '">trang theo dõi đơn</a>.</p>');
     }
     else throw err_('Trạng thái không hợp lệ');
-    upd.data = JSON.stringify(d); update_('PO', p._row, upd);
+    upd.data = JSON.stringify(d); update_('PO', p._row, upd); chain_('po', p.po_id, { po: p.po_id, status: st, by: by, at: upd.updated_at, cost: upd.actual_cost || '', src: upd.actual_source || '' });
     // dong bo trang thai don theo cac lenh mua
     var all = rows_('PO').filter(function (x) { return x.order_code === o.code; }), live = all.filter(function (x) { return x.status !== 'cancelled'; });
     var every = function (s2) { return live.length && live.every(function (x) { return x.status === s2 || (s2 === 'ordered' && (x.status === 'shipped' || x.status === 'delivered')) || (s2 === 'shipped' && x.status === 'delivered'); }); };
@@ -868,7 +927,7 @@ var POLICY_DEFAULT = {
   sources: { allow: ['tiki'], tier: { tiki: 'C' }, max_eta_days: 5, vat_sources: [] },   // vat_sources: nguon bot duoc phep dat cho don can hoa don GTGT (mac dinh: khong - dat tay)
   fallback: { max_replans: 2, allow_split: false },
   customer: { address_levels: 3, first_order_hold_over_vnd: 10000000 },
-  holds: { remind_hours: 4, escalate_hours: 8, cancel_refund_hours: 24 },
+  holds: { remind_hours: 4, escalate_hours: 8, cancel_refund_hours: 24, auto_cancel: false },   // auto_cancel: true -> qua cancel_refund_hours tu huy lenh hold + ghi hoan khach
   instrument: { per_txn_cap_vnd: 5000000 }
 };
 function policy_() {
@@ -1096,7 +1155,7 @@ function adminList_(b, name, outFn) { session_(b.token, true); return { rows: ro
 function adminConfig_(b) {
   var s = session_(b.token, true);
   if (b.set) {
-    var allow = ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'VOUCHER_FEE_CAP_PCT', 'STATS_KEY', 'POLICY_JSON', 'AUTONOMY_ENABLED', 'BOT_REQUIRE_SIG'];
+    var allow = ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'VOUCHER_FEE_CAP_PCT', 'STATS_KEY', 'POLICY_JSON', 'AUTONOMY_ENABLED', 'BOT_REQUIRE_SIG', 'SEPAY_API_TOKEN'];
     var kept = [];
     Object.keys(b.set).forEach(function (k) {
       if (allow.indexOf(k) < 0) return;
@@ -1105,12 +1164,13 @@ function adminConfig_(b) {
       if (k === 'AUTONOMY_ENABLED' || k === 'BOT_REQUIRE_SIG') { v = v === '1' || v === 'true' ? '1' : '0'; if (k === 'AUTONOMY_ENABLED' && v === '1') P_().setProperty('BOT_FAIL_STREAK', '0'); }
       // BAO VE TAI KHOAN NHAN TIEN: khong cho ghi de trong (form cu/tab cu) - muon xoa phai gui clear_bank: true
       if (!v && ['BANK_ACC', 'BANK_NAME', 'BANK_BIN'].indexOf(k) >= 0 && cfg_(k) && b.clear_bank !== true) { kept.push(k); return; }
+      if (k === 'SEPAY_API_TOKEN') { if (!v && b.clear_sepay !== true) return; if (v && !/^[\w.\-]{20,200}$/.test(v)) throw err_('Token API SePay không hợp lệ'); P_().setProperty(k, v); return; } // chi ghi, khong bao gio tra ve
       P_().setProperty(k, v);
     });
     log_('admin_config', s.email, Object.keys(b.set).join(',') + (kept.length ? ' | GIU NGUYEN (gia tri trong): ' + kept.join(',') : ''));
   }
   var out = {}; ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'ADMIN_EMAILS', 'VOUCHER_FEE_CAP_PCT', 'POLICY_JSON', 'AUTONOMY_ENABLED', 'BOT_REQUIRE_SIG'].forEach(function (k) { out[k] = cfg_(k); });
-  out.POLICY_EFFECTIVE = policy_(); out.POLICY_DEFAULT = POLICY_DEFAULT;
+  out.POLICY_EFFECTIVE = policy_(); out.POLICY_DEFAULT = POLICY_DEFAULT; out.SEPAY_VERIFY = !!P_().getProperty('SEPAY_API_TOKEN'); out.CHAIN = chainHead_();
   out.WEBHOOK_URL = ScriptApp.getService().getUrl() + '?a=webhook&key=' + P_().getProperty('WEBHOOK_KEY');
   if (!P_().getProperty('STATS_KEY')) P_().setProperty('STATS_KEY', rnd_());
   out.STATS_KEY = P_().getProperty('STATS_KEY'); out.BACKEND_URL = ScriptApp.getService().getUrl(); out.MAILSYNC = mailSyncInfo_(); out.BOT = botInfo_();
@@ -1154,6 +1214,7 @@ function audit_() {
       if (since > 72) issues.push({ lvl: 'med', code: r.code, msg: 'Còn phải hoàn khách ' + vnd_(o.refund_due) + (o.refund_account ? ' (khách đã khai tài khoản)' : ' (khách chưa khai tài khoản)') });
     }
   });
+  try { var cv = chainVerify_(); if (!cv.ok) issues.push({ lvl: 'high', code: '', msg: 'Chuỗi băm nhật ký KHÔNG khớp: ' + cv.problems.join('; ') }); } catch (e) { issues.push({ lvl: 'med', code: '', msg: 'Không kiểm chứng được chuỗi băm: ' + String(e && e.message || e).slice(0, 120) }); }
   var quota = -1; try { quota = MailApp.getRemainingDailyQuota(); } catch (e) { }
   if (quota >= 0 && quota < 20) issues.push({ lvl: 'med', code: '', msg: 'Hạn mức email còn ' + quota + ' trong ngày' });
   return { at: nowIso_(), orders: orders.length, ledger_rows: L.length, mail_quota: quota, issues: issues };
@@ -1175,6 +1236,15 @@ function botWatch_() {
         adminsMail_('⚠️ Bot đặt hàng không kết nối', '<p>Có ' + pos.length + ' lệnh mua chờ đặt nhưng bot không kết nối từ <b>' + esc_(seen ? new Date(seen).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : 'chưa bao giờ') + '</b>. Kiểm tra máy chạy tiện ích hoặc đặt tay trong Quản trị → Lệnh mua.</p>');
     }
     var H = 3600e3, old = pos.filter(function (p) { var bt = parseData_(p).bot || {}; return bt.state === 'hold' && bt.at && Date.now() - new Date(bt.at).getTime() > Number(pol.holds.remind_hours) * H; });
+    var late = pos.filter(function (p) { var bt = parseData_(p).bot || {}; return bt.state === 'hold' && bt.at && Date.now() - new Date(bt.at).getTime() > Number(pol.holds.escalate_hours) * H; });
+    if (late.length && rate_soft_('bot_hold_esc', 1, Number(pol.holds.escalate_hours) * 3600))
+      adminsMail_('🚨 KHẨN: ' + late.length + ' lệnh mua chờ duyệt quá ' + pol.holds.escalate_hours + ' giờ - khách đã trả tiền', '<p>Các lệnh mua sau đã quá <b>' + pol.holds.escalate_hours + ' giờ</b> chưa được người duyệt. Khách đã thanh toán và đang chờ: đặt tay hoặc hủy và hoàn ngay trong Quản trị → Lệnh mua.</p><ul>' + late.map(function (p) { var bt = parseData_(p).bot || {}; return '<li><b>' + esc_(p.po_id) + '</b> ' + esc_(p.name) + ' · ' + vnd_(p.collected_cost) + ' · ' + esc_((bt.reasons || []).join(', ')) + '</li>'; }).join('') + '</ul><p>Chính sách: ' + (pol.holds.auto_cancel ? 'TỰ HỦY và hoàn khách sau ' + pol.holds.cancel_refund_hours + ' giờ' : 'không tự hủy (bật holds.auto_cancel = true để tự hủy sau ' + pol.holds.cancel_refund_hours + ' giờ)') + '.</p>');
+    if (pol.holds.auto_cancel === true) pos.forEach(function (p) {
+      var bt = parseData_(p).bot || {}; if (!(bt.state === 'hold' && bt.at && Date.now() - new Date(bt.at).getTime() > Number(pol.holds.cancel_refund_hours) * H)) return;
+      var lk = LockService.getScriptLock(); if (!lk.tryLock(20000)) return;
+      try { poUpdate_({ po_id: p.po_id, status: 'cancelled', note: 'Quá ' + pol.holds.cancel_refund_hours + ' giờ chờ người duyệt - tự hủy theo chính sách holds.auto_cancel, hoàn khách' }, 'policy'); log_('po_auto_cancel', 'policy', p.po_id); }
+      catch (e) { log_('po_auto_cancel_error', p.po_id, String(e && e.message || e).slice(0, 200)); } finally { lk.releaseLock(); }
+    });
     if (old.length && rate_soft_('bot_hold_mail', 1, Number(pol.holds.remind_hours) * 3600))
       adminsMail_('⏰ ' + old.length + ' lệnh mua chờ người duyệt quá ' + pol.holds.remind_hours + ' giờ', '<ul>' + old.map(function (p) { var bt = parseData_(p).bot || {}; return '<li><b>' + esc_(p.po_id) + '</b> ' + esc_(p.name) + ' · ' + vnd_(p.collected_cost) + ' · ' + esc_((bt.reasons || []).join(', ')) + ' · từ ' + esc_(new Date(bt.at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })) + '</li>'; }).join('') + '</ul><p>Đặt tay hoặc hủy và hoàn khách trong Quản trị → Lệnh mua (chính sách: hủy sau ' + pol.holds.cancel_refund_hours + ' giờ).</p>');
   } catch (e) { log_('bot_watch', 'system', String(e.message).slice(0, 200)); }
@@ -1252,6 +1322,7 @@ function doGet(e) {
   try {
     if (a === 'config') return json_(publicConfig_());
     if (a === 'health') return json_({ ok: true, version: VERSION, at: nowIso_() });
+    if (a === 'chainhead') { var ch = chainHead_(); return json_({ seq: ch.seq, hash: ch.hash, at: ch.at, algo: 'sha256(prev|seq|at|kind|ref|sha256(canon(payload)))' }); }
     if (a === 'reviews') return json_(reviewList_(e.parameter.sku));
     if (a === 'shipstats') return json_(shipStats_(e.parameter.key));
     return json_({ error: 'Không hỗ trợ' });
@@ -1285,6 +1356,7 @@ function doPost(e) {
       'admin.reviews': function () { return adminList_(b, 'Reviews', function (r) { return { id: r.id, sku: r.sku, order_code: r.order_code, rating: r.rating, content: r.content, name: r.name, status: r.status, created_at: r.created_at, product: parseData_(r).product || '' }; }); },
       'admin.review.update': function () { return adminReviewUpdate_(b); },
       'admin.audit': function () { session_(b.token, true); return audit_(); },
+      'admin.chain': function () { session_(b.token, true); return chainVerify_(); },
       'orders.mine': function () { return ordersMine_(b); },
       'otp.request': function () { return otpRequest_(b); },
       'otp.verify': function () { return otpVerify_(b); },
