@@ -1,0 +1,21 @@
+{
+  "version": "HD-2026-11",
+  "label": "v1.0",
+  "kind": "contract",
+  "title": "Hợp đồng ủy thác mua hàng hóa điện tử và Điều khoản dịch vụ mua hộ",
+  "published": "2026-11-04",
+  "effective": null,
+  "effective_note": "Áp dụng sau khi có Giấy chứng nhận đăng ký doanh nghiệp và luật sư rà soát; ngày áp dụng được công bố trước ít nhất 7 ngày tại trang này (Luật Bảo vệ quyền lợi người tiêu dùng 2023, Điều 25 khoản 3, 4; Điều khoản dịch vụ mục 12).",
+  "contract_file": "hop-dong.html",
+  "terms_file": "dieu-khoan.html",
+  "legal_basis": "Luật Thương mại 2005 Điều 155-165; Luật Bảo vệ quyền lợi người tiêu dùng 2023 Điều 15-20, 23-28, 37-39; Luật Giao dịch điện tử 2023 Điều 8, 9, 22, 23, 34-37; Luật Bảo vệ dữ liệu cá nhân 2025; Luật Thương mại điện tử 2025 và Nghị định 248/2026/NĐ-CP",
+  "changes": [
+    "Thay \"Điều khoản ủy quyền tìm kiếm, đặt hàng và thanh toán hộ (UQ-2026-10)\" bằng Hợp đồng ủy thác mua hàng hóa lập cho từng đơn (14 điều + Phụ lục 1 tự điền theo đơn) theo Luật Thương mại 2005 Điều 155-165.",
+    "Tách Điều khoản dịch vụ mua hộ (13 mục) thành điều kiện giao dịch chung công bố trước khi giao dịch (Luật BVQLNTD 2023 Điều 27).",
+    "Ghi rõ hạn mức ủy quyền tự động đặt hàng: biên dung sai, danh sách nguồn, thời hạn đặt, không COD, không đổi địa chỉ (Điều 3).",
+    "Cam kết giá cuối cùng, hoàn chênh lệch khi mua rẻ hơn trong 7 ngày làm việc; lãi chậm hoàn theo Bộ luật Dân sự 2015 (Điều 2, 8, 12).",
+    "Quyền đơn phương chấm dứt trong 30 ngày khi thông tin không chính xác, không đầy đủ (Luật BVQLNTD 2023 Điều 38 khoản 3, 4).",
+    "Tách ô đồng ý hợp đồng (bắt buộc) và ô nhận tiếp thị (tùy chọn, không tích sẵn); xử lý dữ liệu giao hàng trên cơ sở thực hiện hợp đồng (Luật BVDLCN 2025 Điều 19 khoản 1 điểm d).",
+    "Hợp đồng đã điền được lưu kèm đơn với mã băm SHA-256, gửi email và tải về được tại trang theo dõi đơn (Luật BVQLNTD 2023 Điều 38 khoản 1)."
+  ]
+}

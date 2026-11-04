@@ -1,6 +1,7 @@
 /*
  * KK-MALL BACKEND CLIENT - kết nối máy chủ đơn hàng (Google Apps Script) khi đã cấu hình KK_BACKEND (config.js).
  * Mô hình mua hộ: Tiền hàng (thu hộ - chi hộ nhà cung cấp, NCC xuất VAT) + Phí dịch vụ KK-MALL (KK-MALL xuất VAT).
+ * Hợp đồng điện tử theo đơn (xem trước, 2 ô tích, xem - tải bản chốt) dùng thư viện KKHD (kk-hop-dong.js) chung với máy chủ.
  * Ghi đè luồng demo: đặt hàng, thanh toán VietQR, thành viên OTP, theo dõi đơn, bảo hành / đổi trả.
  * (c) 2026 Nguyễn Duy Điển. All rights reserved.
  */
@@ -74,6 +75,7 @@ if (KKB.on) {
       <button class="btn o" onclick="kkLogout()">Đăng xuất</button>
       <details style="margin-top:12px;font-size:13px"><summary style="cursor:pointer;font-weight:700;color:var(--ink)">🔐 Dữ liệu cá nhân của tôi</summary>
         <div style="color:var(--muted);margin:6px 0">Theo Luật Bảo vệ dữ liệu cá nhân 2025: bạn có quyền tải toàn bộ dữ liệu KK-MALL đang lưu về bạn và yêu cầu xóa tài khoản.</div>
+        <label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0"><input type="checkbox" ${m.marketing ? 'checked' : ''} onchange="setMarketing(this.checked)" style="margin-top:3px"><span>Nhận thông tin khuyến mãi, sản phẩm mới qua email (tùy chọn - rút lại bất kỳ lúc nào bằng cách bỏ tích)</span></label>
         <button class="btn i" style="margin:4px 0" onclick="myDataExport()">⬇ Tải dữ liệu của tôi (JSON)</button>
         <button class="btn" style="margin:4px 0;background:#FEF2F2;color:#B91C1C;border:1.5px solid #FECACA" onclick="myDelete()">🗑 Xóa tài khoản</button><div class="err" id="pdErr"></div></details></div>`;
     show('#mm');
@@ -134,7 +136,7 @@ if (KKB.on) {
         <div style="font-size:12px;color:var(--muted)">Hóa đơn <b>tiền hàng</b> do nhà cung cấp xuất trực tiếp cho bạn (hệ thống chỉ chọn nguồn có xuất hóa đơn điện tử); hóa đơn <b>phí dịch vụ</b> do KK-MALL xuất.</div></div>
       <div class="f"><label>Thanh toán trước (không hỗ trợ COD)</label><div class="pm"><label><input type="radio" name="payment_method" value="vietqr" checked> 📲 Chuyển khoản VietQR - mọi ngân hàng<span class="lv">● Miễn phí · xác nhận tự động</span></label>
         <label style="opacity:.5"><input type="radio" disabled> 🏦 Thẻ quốc tế / Ví điện tử<span class="lv">○ Sắp có</span></label></div></div>
-      <label class="consent"><input type="checkbox" name="consent" required style="margin-top:2px"><span>Tôi đồng ý <a href="./phap-ly#dieu-khoan" target="_blank" style="color:var(--ink);font-weight:700">Điều khoản dịch vụ</a> và <a href="./phap-ly#uy-quyen" target="_blank" style="color:var(--ink);font-weight:700">Hợp đồng ủy quyền mua hộ - thanh toán hộ</a> (${esc(C.consent_version || CONSENT_FALLBACK)}): KK-MALL thay mặt tôi đặt mua tại nhà cung cấp có giá tốt nhất, thu hộ - chi hộ tiền hàng và thu phí dịch vụ; đồng ý <a href="./phap-ly#bao-mat" target="_blank" style="color:var(--ink);font-weight:700">xử lý dữ liệu cá nhân</a> để giao hàng.</span></label>
+      ${consentBlock(C)}
       <div class="err" id="coErr"></div><button class="btn" style="font-size:16px" id="coSubmit">Xác nhận & thanh toán ${vnd(q.total)}</button></div>
       <div><div class="sum"><h3 style="margin:0 0 10px;color:var(--ink)">Đơn hàng (${q.lines.reduce((a, l) => a + l.qty, 0)} sản phẩm)</h3>
       ${q.lines.map(l => `<div class="row"><span style="flex:1;padding-right:8px;font-size:13px">${esc(l.name)} × ${l.qty}</span><b>${vnd(l.line_total)}</b></div>`).join('')}
@@ -148,6 +150,50 @@ if (KKB.on) {
       <div class="note" style="margin-top:12px">🔐 Tiền hàng được thu hộ và chuyển thẳng cho nhà cung cấp; hàng giao trực tiếp từ nhà cung cấp tới bạn. Hết hàng hoặc tăng giá vượt biên dung sai → <b>hoàn tiền 100%</b> tự động.</div></div></div></form>`;
     show('#com'); startLockTimer();
   };
+  /* ================= HỢP ĐỒNG ĐIỆN TỬ THEO ĐƠN (Luật BVQLNTD 2023 Đ.38: xem, xác nhận, tải về) ================= */
+  const termsVersion = () => (KKB.cfg && ((KKB.cfg.terms && KKB.cfg.terms.active) || KKB.cfg.consent_version)) || CONSENT_FALLBACK;
+  window.consentBlock = function (C) {
+    const T = C.terms || {}, v = T.active || C.consent_version || CONSENT_FALLBACK, lbl = T.label || v, isHD = v !== 'UQ-2026-10', m = getMember() || {};
+    const docName = isHD ? 'Hợp đồng ủy thác mua hàng hóa' : 'Hợp đồng ủy quyền mua hộ - thanh toán hộ', docUrl = T.contract_url || ('./phap-ly/hop-dong-' + v + '.html'), termsUrl = T.url || './phap-ly#dieu-khoan', L = 'style="color:var(--ink);font-weight:700"';
+    return `<div class="consent" style="display:block"><button type="button" class="vbtn" style="margin-bottom:8px" onclick="hdPreview()">📄 Xem ${docName} đã điền theo đơn này</button>
+      <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer"><input type="checkbox" name="consent" required style="margin-top:2px"><span>Tôi đã đọc và đồng ý <a href="${esc(docUrl)}" target="_blank" ${L}>${docName}</a> (số cấp khi đặt hàng) và <a href="${esc(termsUrl)}" target="_blank" ${L}>Điều khoản dịch vụ mua hộ</a> phiên bản <b>${esc(lbl)}</b>${T.effective ? ' (áp dụng từ ' + esc(KKHD.vnDate(T.effective)) + ')' : ''}: KK-MALL thay mặt tôi đặt mua tại nhà cung cấp có giá tốt nhất trong hạn mức đã nêu, thu hộ - chi hộ tiền hàng và thu phí dịch vụ; họ tên, số điện thoại, email, địa chỉ được dùng để giao hàng và xuất hóa đơn (thực hiện hợp đồng - <a href="./phap-ly#bao-mat" target="_blank" ${L}>Chính sách bảo vệ dữ liệu cá nhân</a>).</span></label>
+      <label style="display:flex;gap:10px;align-items:flex-start;margin-top:8px;cursor:pointer"><input type="checkbox" name="marketing" ${m.marketing ? 'checked' : ''} style="margin-top:2px"><span>Tùy chọn: nhận thông tin khuyến mãi, sản phẩm mới qua email (có thể rút lại bất kỳ lúc nào trong Tài khoản).</span></label></div>`;
+  };
+  KKB.terms = null;
+  const termsLoad = async () => { if (!KKB.terms) KKB.terms = await KKB.call('terms'); return KKB.terms; };
+  const hdCss = () => KKHD.CSS.replace(/^body\{[^}]*\}/, '');
+  window.hdPreview = async function () { // dien mau ngay tren trinh duyet tu du lieu form + bao gia (khong gui du lieu di)
+    const f = $('#coBox form'); if (!f || !QUOTE) return;
+    const g = n => (f.querySelector('[name=' + n + ']') || {}).value || '';
+    let T; try { T = await termsLoad(); } catch (e) { return toast('Chưa tải được mẫu hợp đồng: ' + e.message); }
+    const o = { customer: { name: g('name') || '[họ tên]', phone: g('phone') || '[số điện thoại]', email: g('email') || '[email]', address: g('address') || '[địa chỉ nhận hàng]' }, vat: f.querySelector('[name=vat_need]') && f.querySelector('[name=vat_need]').checked ? { name: g('vat_name'), tax_code: g('vat_tax'), address: g('vat_addr') } : null,
+      lines: QUOTE.lines, goods: QUOTE.goods, fee_net: QUOTE.fee_net, discount: QUOTE.discount, vouchers: QUOTE.vouchers, total: QUOTE.total, marketing: !!(f.querySelector('[name=marketing]') || {}).checked };
+    const html = KKHD.fill(T.templates[T.active], KKHD.data(o, T.config));
+    let ov = $('#hdOv'); if (!ov) { ov = document.createElement('div'); ov.id = 'hdOv'; ov.setAttribute('style', 'position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:14px'); ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); }); document.body.appendChild(ov); }
+    ov.innerHTML = `<div style="background:#fff;width:min(900px,100%);max-height:92vh;overflow:auto;border-radius:16px;padding:16px 18px;font-size:14px"><style>${hdCss()}</style>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px"><b>Bản xem trước - số hợp đồng, thời điểm và mã băm sẽ do hệ thống cấp khi bạn bấm "Xác nhận &amp; thanh toán"</b><button type="button" class="x" onclick="document.getElementById('hdOv').remove()">✕</button></div>
+      ${html}<div style="text-align:center;margin:14px 0 4px"><button type="button" class="btn i" onclick="hdPrint()">🖨 In / Lưu PDF bản xem trước</button> <button type="button" class="btn o" onclick="document.getElementById('hdOv').remove()">Đóng</button></div></div>`;
+    ov.scrollTop = 0; window._hdPrev = { html, title: (T.active === 'UQ-2026-10' ? 'Xác nhận ủy quyền mua hộ' : 'Hợp đồng ủy thác mua hàng hóa') + ' - bản xem trước' };
+  };
+  window.hdPrint = function () { const w = window.open('', '_blank'); if (!w || !window._hdPrev) return toast('Trình duyệt chặn cửa sổ mới'); w.document.open(); w.document.write(KKHD.doc(window._hdPrev.html, window._hdPrev.title, '')); w.document.close(); };
+  window.contractRow = function (o, phone) {
+    if (!o || !o.contract) return '';
+    const c = o.contract, isHD = c.version !== 'UQ-2026-10', code = JSON.stringify(String(o.code)), ph = JSON.stringify(String(phone || ''));
+    return `<div class="note" style="margin-top:10px">📄 <b>${isHD ? 'Hợp đồng ủy thác mua hàng hóa' : 'Xác nhận ủy quyền mua hộ'} số ${esc(o.code)}</b> (điều khoản ${esc(c.label || c.version)}) đã lưu kèm đơn và gửi email · mã băm SHA-256 <code style="font-size:11px">${esc(String(c.hash || '').slice(0, 20))}…</code><br>
+      <button type="button" class="vbtn" style="margin-top:6px" onclick='hdOpen(${esc(code)},${esc(ph)},"view")'>Xem</button> <button type="button" class="vbtn" style="margin-top:6px" onclick='hdOpen(${esc(code)},${esc(ph)},"download")'>⬇ Tải về (HTML, in được PDF)</button></div>`;
+  };
+  window.hdOpen = async function (code, phone, mode) {
+    const w = mode === 'view' ? window.open('', '_blank') : null; // mo cua so truoc khi await de khong bi chan popup
+    try {
+      const r = await KKB.call('order.contract', { code, phone, token: KKB.token() });
+      if (w) { w.document.open(); w.document.write(r.html); w.document.close(); }
+      else { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([r.html], { type: 'text/html' })); a.download = 'KK-MALL-' + code + '-hop-dong.html'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }
+    } catch (e) { if (w) w.close(); toast(e.message); }
+  };
+  window.setMarketing = async function (on) {
+    try { await KKB.call('member.marketing', { token: KKB.token(), on: !!on }); const s = KKB.sess(); if (s && s.member) { s.member.marketing = !!on; KKB.setSess(s); } toast(on ? 'Đã bật nhận thông tin khuyến mãi' : 'Đã tắt - KK-MALL không gửi tiếp thị cho bạn'); }
+    catch (e) { toast(e.message); }
+  };
   let _idem = null, _poll = null;
   window.submitOrder = async function (e) {
     e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)), b = $('#coSubmit'), er = $('#coErr'); er.style.display = 'none';
@@ -157,7 +203,7 @@ if (KKB.on) {
     try {
       try { localStorage.setItem('kk_cust', JSON.stringify({ name: f.name, phone: f.phone, email: f.email, address: f.address })); } catch { }
       const r = await KKB.call('order.create', { website: f.website || '', token: KKB.token(), items: QUOTE.lines.map(l => ({ sku: l.sku, qty: l.qty })),
-        customer: { name: f.name, phone: f.phone, email: f.email, address: f.address, note: f.note }, consent: !!f.consent, consent_version: (KKB.cfg && KKB.cfg.consent_version) || CONSENT_FALLBACK,
+        customer: { name: f.name, phone: f.phone, email: f.email, address: f.address, note: f.note }, consent: !!f.consent, consent_version: termsVersion(), marketing: !!f.marketing,
         vat: f.vat_need ? { need: true, name: f.vat_name, tax_code: f.vat_tax, address: f.vat_addr, email: f.vat_email } : null, lock: PRICE_LOCK, ua: navigator.userAgent.slice(0, 180) });
       cart = cart.filter(c => c.unavailable); save(); renderCart(); PRICE_LOCK = null;
       payScreen(r.order, r.payment, f.phone);
@@ -185,6 +231,7 @@ if (KKB.on) {
         <button type="button" id="claimBtn" class="btn g" style="margin-top:10px" onclick="paidClaim(${esc(JSON.stringify(String(o.code)))},_payPhone)">✅ Tôi đã chuyển khoản</button>`
         : `<div class="note">KK-MALL sẽ gọi điện / gửi email thông tin chuyển khoản cho đơn <b>${o.code}</b> trong giờ làm việc.</div>`}
       <div class="sum" style="margin-top:14px"><div class="row"><span>Tiền hàng thanh toán hộ nhà cung cấp</span><b>${vnd(o.goods)}</b></div><div class="row"><span>Phí dịch vụ KK-MALL (gồm VAT)</span><b>${vnd(o.fee_net)}</b></div><div class="row t"><span>Tổng</span><span style="color:var(--coral)">${vnd(o.total)}</span></div></div>
+      ${contractRow(o, phone)}
       <button class="btn i" onclick="showTrack(${esc(JSON.stringify(String(o.code)))},_payPhone)">📦 Theo dõi đơn hàng</button></div>`;
     show('#com');
     if (p && p.ready) _poll = setInterval(async () => {
@@ -236,6 +283,7 @@ if (KKB.on) {
           ${o.refund_account ? `<br>Tài khoản nhận hoàn: <b>${esc(o.refund_account.bank_label)} ${esc(o.refund_account.acc)}</b> - ${esc(o.refund_account.name)}. KK-MALL sẽ chuyển trong 1-2 ngày làm việc. <a href="#" onclick="refundForm();return false">Đổi tài khoản</a>` : `<br><b>Vui lòng nhập tài khoản nhận hoàn tiền:</b>`}<div id="rfBox"></div></div>` : (o.refunded ? `<div class="note">✅ KK-MALL đã hoàn <b>${vnd(o.refunded)}</b> cho đơn này.</div>` : '')}
         ${o.invoices.length ? `<div class="note">🧾 Hóa đơn phí dịch vụ: ${o.invoices.map(i => `${esc(i.inv_id)} - ${i.status === 'issued' ? 'đã gửi email' : 'đang lập'}`).join(', ')} · Hóa đơn tiền hàng do nhà cung cấp gửi trực tiếp.</div>` : ''}
         ${o.rmas.length ? `<div class="note">🛠 Yêu cầu sau bán: ${o.rmas.map(r => `<b>${esc(r.rma_id)}</b> (${r.type === 'warranty' ? 'bảo hành' : 'đổi trả'}): ${RMAST[r.status] || r.status}${r.return_tracking ? ' · mã thu hồi ' + esc(r.return_tracking) : ''}${r.pickup ? ' · lấy hàng ' + esc(r.pickup) : ''}`).join('<br>')}</div>` : ''}
+        ${contractRow(o, phone)}
         <div style="font-size:12.5px;color:var(--muted)">Giao đến: ${esc(o.customer.name)} · ${esc(o.customer.phone)} · ${esc(o.customer.address)}</div><div id="rmaBox"></div></div>`;
       show('#tm');
     } catch (x) { toast(x.message); openTrack(); }

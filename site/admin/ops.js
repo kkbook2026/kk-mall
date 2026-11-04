@@ -99,7 +99,7 @@ renderOrders = function () {
   $('#ordCount').textContent = '· ' + rows.length + ' đơn (máy chủ)';
   $('#ordTbl').innerHTML = '<tr><th>Mã đơn</th><th>Khách hàng</th><th>Sản phẩm</th><th>Tiền hàng thu hộ<br><small>TK 3388</small></th><th>Phí DV KK-MALL<br><small>TK 5113 + VAT</small></th><th>Tổng</th><th>Trạng thái</th><th>Thao tác</th></tr>' + (rows.map(o => {
     const paid = o.payment_status === 'paid';
-    return `<tr><td><b>${o.code}</b><br><span style="font-size:11px;color:var(--muted)">${new Date(o.created_at).toLocaleString('vi-VN')}</span>${o.vat ? '<br><span class="badge" style="background:#DBEAFE;color:#1E40AF">VAT: ' + esc(o.vat.tax_code || o.vat.name) + '</span>' : ''}</td>
+    return `<tr><td><b>${o.code}</b><br><span style="font-size:11px;color:var(--muted)">${new Date(o.created_at).toLocaleString('vi-VN')}</span>${o.vat ? '<br><span class="badge" style="background:#DBEAFE;color:#1E40AF">VAT: ' + esc(o.vat.tax_code || o.vat.name) + '</span>' : ''}${o.contract ? `<br><button class="btn2" style="font-size:11px;margin-top:3px" title="Mã băm ${esc(o.contract.hash || '')}" onclick="admContract('${o.code}')">📄 Hợp đồng ${esc(o.contract.label || o.contract.version)}${o.contract.marketing ? ' · tiếp thị ✓' : ''}</button>` : ''}</td>
     <td style="min-width:170px">${esc(o.customer.name)}<br><span style="font-size:11px;color:var(--muted)">📞 ${esc(o.customer.phone)}<br>✉ ${esc(o.customer.email)}<br>🏠 ${esc(o.customer.address)}</span></td>
     <td style="font-size:12px;min-width:200px">${o.lines.map(l => `${esc(l.name)}<br><span style="color:var(--muted)">${l.sku} · ${l.qty} × (${vnd(l.unit_cost)} + phí ${vnd(l.unit_fee)})</span>`).join('<hr style="border:0;border-top:1px dashed var(--line);margin:4px 0">')}</td>
     <td>${vnd(o.goods)}</td><td class="mg">${vnd(o.fee_net)}${o.discount ? `<br><small style="color:var(--ok)">đã giảm ${vnd(o.discount)}</small>` : ''}<br><small style="color:var(--muted)">trước thuế ${vnd(o.fee_pre_tax)} · VAT ${vnd(o.fee_vat)}</small></td>
@@ -241,6 +241,8 @@ function renderOpsCfg() {
       <div><label>Số tài khoản</label><input id="cAcc" value="${esc(C.BANK_ACC || '')}" inputmode="numeric"></div><div><label>Tên chủ tài khoản (IN HOA, không dấu)</label><input id="cName" value="${esc(C.BANK_NAME || '')}"></div>
       <div><label>Tên công ty (pháp nhân)</label><input id="coN" value="${esc(co.name || '')}"></div><div><label>Mã số thuế</label><input id="coT" value="${esc(co.tax || '')}"></div><div><label>Địa chỉ trụ sở</label><input id="coA" value="${esc(co.address || '')}"></div>
       <div><label>Hotline</label><input id="coP" value="${esc(co.phone || '')}"></div><div><label>Email CSKH</label><input id="coE" value="${esc(co.email || '')}"></div><div><label>Số đăng ký Bộ Công Thương</label><input id="coM" value="${esc(co.moit || '')}"></div>
+      <div><label>Số GCN đăng ký doanh nghiệp</label><input id="coG" value="${esc(co.reg_no || '')}" placeholder="điền khi có GCN"></div><div><label>Nơi cấp GCN</label><input id="coGB" value="${esc(co.reg_by || '')}" placeholder="Phòng ĐKKD - Sở Tài chính TP Hà Nội"></div><div><label>Ngày cấp GCN</label><input id="coGD" value="${esc(co.reg_date || '')}" placeholder="dd/mm/yyyy"></div>
+      <div><label>Người đại diện theo pháp luật</label><input id="coR" value="${esc(co.rep || '')}"></div><div><label>Chức vụ người đại diện</label><input id="coRT" value="${esc(co.rep_title || 'Giám đốc')}"></div>
       <div><label>Thuế suất GTGT phí dịch vụ (%)</label><input id="cVat" value="${esc(C.VAT_RATE || '10')}"></div><div><label>Biên dung sai trượt giá KK-MALL bù (đ/sp)</label><input id="cTol" value="${esc(C.TOLERANCE || '5000')}"></div><div><label>Hạn đổi trả (ngày)</label><input id="cRet" value="${esc(C.RETURN_DAYS || '7')}"></div></div>
     <div class="row" style="margin-top:12px"><button class="btn2 pri" onclick="saveOpsCfg()">💾 Lưu cấu hình</button><span id="cfgMsg" style="font-size:12.5px"></span><button class="btn2" onclick="OPS.call('admin.backup').then(()=>alert('Đã sao lưu vào Google Drive'))">🗄 Sao lưu ngay</button>${C.SHEET_URL ? `<a class="btn2" href="${safeUrl(C.SHEET_URL)}" target="_blank">📊 Mở Google Sheet dữ liệu</a>` : ''}</div>
     <div class="note" style="margin-top:12px">🔗 <b>Tự động xác nhận thanh toán</b>: đăng ký SePay (sepay.vn) hoặc Casso, liên kết tài khoản ngân hàng trên, khai báo Webhook URL:<br><code style="word-break:break-all">${esc(C.WEBHOOK_URL || '')}</code> ${C.WEBHOOK_URL ? cp(C.WEBHOOK_URL, '📋 Chép') : ''}<br>Biểu phí dịch vụ: ${(C.fee_table || []).map(t => `${t.to == null ? '> ' + vnd(t.from - 1) : vnd(t.from) + '-' + vnd(t.to)}: <b>${vnd(t.fee)}</b>`).join(' · ')} (chỉ sửa trong dự án Apps Script - Script Properties).<br>
@@ -252,7 +254,52 @@ function renderOpsCfg() {
       <button class="btn2" style="margin-left:8px" onclick="showShipStats()">📊 Xem chênh lệch ship theo nguồn</button><div id="shipStats" style="margin-top:8px;font-size:12.5px"></div></div>
     <div class="note" style="margin-top:12px" id="botBox">${botBoxHtml(C.BOT)}</div>
     <div class="note" style="margin-top:12px" id="policyBox">${policyBoxHtml(C)}</div>
+    <div class="note" style="margin-top:12px" id="termsBox">${termsBoxHtml(C)}</div>
+    <div class="note" style="margin-top:12px" id="incBox">${incidentBoxHtml()}</div>
     <div class="note" style="margin-top:12px">🧾 <b>Tự kiểm toán</b>: hằng ngày sau sao lưu, máy chủ đối soát sổ cái từng đơn, đơn đã thu tiền thiếu lệnh mua, lệnh mua/bot/hoàn tiền bị treo, hạn mức email - có vấn đề sẽ email quản trị. <button class="btn2 pri" style="margin-left:8px" onclick="runAudit()">🧾 Kiểm toán ngay</button><div id="auditOut" style="margin-top:8px;font-size:12.5px"></div></div>`;
+}
+function termsBoxHtml(C) {
+  const L = C.TERMS || [], act = C.TERMS_ACTIVE || '', vn = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
+  return `📜 <b>Điều khoản dịch vụ &amp; hợp đồng điện tử</b> - mỗi đơn hàng được lập văn bản theo phiên bản đang áp dụng, lưu nguyên văn + mã băm SHA-256 (đã có <b>${C.CONTRACTS || 0}</b> văn bản), gửi email và tải về tại trang theo dõi đơn. Công bố tại <a href="/phap-ly/phien-ban.html" target="_blank">/phap-ly/phien-ban.html</a>.
+    <table style="margin-top:8px;font-size:12.5px"><tr><th>Phiên bản</th><th>Tên</th><th>Công bố</th><th>Áp dụng từ</th><th></th></tr>${L.map(t => `<tr><td><b>${esc(t.version)}</b> (${esc(t.label)})</td><td>${esc(t.title)}</td><td>${vn(t.published)}</td><td>${t.effective ? vn(t.effective) : '<i style="color:#B45309">chưa đặt</i>'}</td><td>${t.version === act ? '<b style="color:#166534">● đang áp dụng</b>' : (t.effective ? 'sắp áp dụng' : 'chờ luật sư + GCN ĐKDN')}</td></tr>`).join('')}</table>
+    <div class="row" style="margin-top:8px;align-items:center;gap:8px;flex-wrap:wrap"><label style="font-size:12.5px">Ngày áp dụng phiên bản mới nhất (YYYY-MM-DD, cách hôm nay ≥ 7 ngày - phải công bố trước khi áp dụng):</label><input id="termsEff" value="${esc(C.TERMS_EFFECTIVE || '')}" placeholder="2026-12-01" style="width:130px"> <button class="btn2 pri" onclick="saveTerms()">💾 Đặt ngày áp dụng</button> <button class="btn2" onclick="saveTerms(true)">Bỏ ngày (hoãn)</button><span id="termsMsg" style="font-size:12.5px"></span></div>
+    <div style="font-size:12px;color:var(--muted);margin-top:6px">Chỉ đặt sau khi luật sư chốt văn bản và điền đủ thông tin doanh nghiệp ở trên (GCN ĐKDN, người đại diện, hotline, email); đơn đặt trước ngày áp dụng vẫn theo bản cũ. Thay đổi văn bản: sửa trong thư mục legal/terms của kho mã → chạy build → triển khai máy chủ.</div>`;
+}
+async function saveTerms(clear) {
+  const m = $('#termsMsg'); m.textContent = 'đang lưu…';
+  try { OPS.cfg = await OPS.call('admin.config', { set: { TERMS_EFFECTIVE: clear ? '' : $('#termsEff').value.trim() } }); m.innerHTML = '<b style="color:#166534">✓ Đã lưu</b>'; renderOpsCfg(); logAdmin('Ngày áp dụng điều khoản: ' + (clear ? 'bỏ' : $('#termsEff').value.trim())); }
+  catch (e) { m.textContent = '⚠ ' + e.message; }
+}
+const INC_K = { leak: 'Lộ / rò rỉ dữ liệu cá nhân', attack: 'Hệ thống bị tấn công', loss: 'Mất / hỏng dữ liệu', misuse: 'Truy cập, sử dụng trái phép', other: 'Khác' }, INC_S = { open: 'Mới mở', contained: 'Đã khoanh vùng', notified: 'Đã thông báo', closed: 'Đã đóng' };
+function incidentBoxHtml() {
+  setTimeout(loadIncidents, 0);
+  return `🚨 <b>Sự cố dữ liệu cá nhân</b> (quy trình 72 giờ - Luật BVDLCN 2025 Đ.23; 24 giờ khi bị tấn công - Luật BVQLNTD 2023 Đ.19): mở sự cố ngay khi phát hiện → hệ thống ghi sổ, nối chuỗi băm, email quản trị hạn chót và việc phải làm (xem docs/phap-ly/QUY-TRINH-NOI-BO-BVDLCN.md).
+    <div class="fgrid" style="margin-top:8px"><div><label>Loại sự cố</label><select id="incK">${Object.entries(INC_K).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div><div><label>Mức</label><select id="incS"><option value="high">Cao</option><option value="med">Vừa</option><option value="low">Thấp</option></select></div><div><label>Thời điểm phát hiện</label><input id="incT" type="datetime-local"></div>
+      <div style="grid-column:1/-1"><label>Mô tả (chuyện gì, dữ liệu nào, bao nhiêu khách)</label><input id="incD" placeholder="Ví dụ: email đơn hàng gửi nhầm người nhận, lộ họ tên + SĐT của 3 khách"></div><div style="grid-column:1/-1"><label>Phạm vi ảnh hưởng (tùy chọn)</label><input id="incA" placeholder="3 khách: họ tên, SĐT, địa chỉ"></div></div>
+    <div class="row" style="margin-top:8px"><button class="btn2 pri" onclick="openIncident()">🚨 Mở sự cố</button><span id="incMsg" style="font-size:12.5px"></span></div><div id="incList" style="margin-top:8px;font-size:12.5px">đang tải…</div>`;
+}
+async function loadIncidents() {
+  const box = $('#incList'); if (!box) return;
+  try {
+    const r = await OPS.call('admin.incidents'); const rows = r.rows || [];
+    box.innerHTML = rows.length ? `<table><tr><th>Mã</th><th>Loại / mức</th><th>Phát hiện</th><th>Hạn báo khách (24h)</th><th>Hạn báo A05 (72h)</th><th>Trạng thái</th><th>Cập nhật</th></tr>${rows.map(i => `<tr><td><b>${esc(i.id)}</b><br><small>${esc(i.summary).slice(0, 120)}</small></td><td>${esc(i.kind_text)}<br><small>${esc(i.severity)}</small></td><td>${new Date(i.detected_at).toLocaleString('vi-VN')}</td>
+      <td>${new Date(i.deadline_users).toLocaleString('vi-VN')}${i.notified_users_at ? '<br><b style="color:#166534">✓ đã báo</b>' : ''}</td><td>${new Date(i.deadline_a05).toLocaleString('vi-VN')}${i.notified_a05_at ? '<br><b style="color:#166534">✓ đã báo</b>' : (i.status !== 'closed' && Date.now() > new Date(i.deadline_a05).getTime() ? '<br><b style="color:#B91C1C">QUÁ HẠN</b>' : '')}</td><td>${INC_S[i.status] || i.status}</td>
+      <td style="min-width:220px">${i.status === 'closed' ? '' : `<select id="st_${i.id}">${Object.entries(INC_S).map(([k, v]) => `<option value="${k}" ${k === i.status ? 'selected' : ''}>${v}</option>`).join('')}</select> <label style="font-size:11px"><input type="checkbox" id="a05_${i.id}" ${i.notified_a05_at ? 'checked disabled' : ''}> đã báo A05</label> <label style="font-size:11px"><input type="checkbox" id="usr_${i.id}" ${i.notified_users_at ? 'checked disabled' : ''}> đã báo khách</label><br><input id="nt_${i.id}" placeholder="ghi chú" style="width:140px;font-size:11px;padding:4px"> <button class="btn2" style="font-size:11px" onclick="updIncident('${esc(i.id)}')">Lưu</button>`}</td></tr>`).join('')}</table>` : '<i>Chưa có sự cố nào được ghi nhận.</i>';
+  } catch (e) { box.textContent = '⚠ ' + e.message; }
+}
+async function openIncident() {
+  const m = $('#incMsg'); m.textContent = 'đang ghi…';
+  try { const r = await OPS.call('admin.incident', { kind: $('#incK').value, severity: $('#incS').value, detected_at: $('#incT').value ? new Date($('#incT').value).toISOString() : '', summary: $('#incD').value.trim(), affected: $('#incA').value.trim() }); m.innerHTML = `<b style="color:#B91C1C">Đã mở sự cố ${esc(r.id)}</b> - email hướng dẫn đã gửi quản trị`; $('#incD').value = ''; $('#incA').value = ''; logAdmin('Mở sự cố ' + r.id); loadIncidents(); }
+  catch (e) { m.textContent = '⚠ ' + e.message; }
+}
+async function updIncident(id) {
+  try { await OPS.call('admin.incident', { id, status: $('#st_' + id).value, note: $('#nt_' + id).value.trim(), notified_a05: !!$('#a05_' + id).checked, notified_users: !!$('#usr_' + id).checked }); logAdmin('Cập nhật sự cố ' + id); loadIncidents(); }
+  catch (e) { alert(e.message); }
+}
+async function admContract(code) {
+  const w = window.open('', '_blank');
+  try { const r = await OPS.call('order.contract', { code }); w.document.open(); w.document.write(r.html); w.document.close(); }
+  catch (e) { if (w) w.close(); alert(e.message); }
 }
 async function chainVerify() {
   const m = $('#chainMsg'); m.textContent = 'đang tính lại toàn bộ chuỗi…';
@@ -261,7 +308,8 @@ async function chainVerify() {
 }
 async function saveOpsCfg() {
   if (!$('#cAcc').value.trim() && OPS.cfg && OPS.cfg.BANK_ACC && !confirm('Ô số tài khoản đang TRỐNG trong khi máy chủ đang có tài khoản ' + OPS.cfg.BANK_LABEL + ' ' + OPS.cfg.BANK_ACC + '.\nMáy chủ sẽ GIỮ NGUYÊN tài khoản cũ. Tiếp tục lưu các mục khác?')) return;
-  const co = { name: $('#coN').value.trim(), short: 'KK-MALL', tax: $('#coT').value.trim(), address: $('#coA').value.trim(), phone: $('#coP').value.trim(), email: $('#coE').value.trim(), moit: $('#coM').value.trim() };
+  const co = { name: $('#coN').value.trim(), short: 'KK-MALL', tax: $('#coT').value.trim(), address: $('#coA').value.trim(), phone: $('#coP').value.trim(), email: $('#coE').value.trim(), moit: $('#coM').value.trim(),
+    reg_no: $('#coG').value.trim(), reg_by: $('#coGB').value.trim(), reg_date: $('#coGD').value.trim(), rep: $('#coR').value.trim(), rep_title: $('#coRT').value.trim() };
   const bin = $('#cBin').value, lab = (BANKS.find(b => b[0] === bin) || [, bin])[1];
   const set = { BANK_BIN: bin, BANK_LABEL: lab, BANK_ACC: $('#cAcc').value.replace(/\s/g, ''), BANK_NAME: $('#cName').value.trim().toUpperCase(), COMPANY_JSON: JSON.stringify(co), VAT_RATE: $('#cVat').value.trim(), TOLERANCE: $('#cTol').value.replace(/\D/g, ''), RETURN_DAYS: $('#cRet').value.replace(/\D/g, '') };
   const sepay = ($('#cSepay') || {}).value || '', clearSepay = !!($('#cSepayClear') && $('#cSepayClear').checked);

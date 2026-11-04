@@ -1,0 +1,14 @@
+{
+  "version": "UQ-2026-10",
+  "label": "UQ-2026-10",
+  "kind": "contract",
+  "title": "Điều khoản ủy quyền tìm kiếm, đặt hàng và thanh toán hộ (bản đang áp dụng)",
+  "published": "2026-10-23",
+  "effective": "2026-10-23",
+  "effective_note": "Đang áp dụng. Toàn văn điều khoản tại trang Pháp lý mục 3 và 4; từ máy chủ 1.9.0 mỗi đơn hàng được lập văn bản xác nhận ủy quyền riêng (số, thời điểm, nội dung đơn, mã băm) gửi email và tải về được.",
+  "contract_file": "hop-dong.html",
+  "terms_file": null,
+  "terms_url": "https://www.kk-mall.com/phap-ly.html#uy-quyen",
+  "legal_basis": "Bộ luật Dân sự 2015 (hợp đồng ủy quyền, dịch vụ); Luật Thương mại 2005; Luật Bảo vệ quyền lợi người tiêu dùng 2023; Luật Giao dịch điện tử 2023; Luật Bảo vệ dữ liệu cá nhân 2025",
+  "changes": []
+}

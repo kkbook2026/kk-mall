@@ -12,3 +12,6 @@ Dữ liệu nằm trong Google Sheet của chủ sở hữu; sao lưu JSON hằn
 
 Biểu phí dịch vụ nằm trong Script Properties `PRICING_TIERS` (mặc định do `setup()` đặt), công khai tại điều khoản dịch vụ.
 Cập nhật mã: dán bản mới → Triển khai → Quản lý triển khai → Sửa → Phiên bản mới (giữ nguyên URL).
+
+## Văn bản pháp lý nhúng trong Code.gs (từ v1.9.0)
+Khối giữa `HD:BEGIN` / `HD:END` (thư viện `KKHD` + `TERMS_META` + `TERMS_TPL`) được **sinh tự động** từ `site/kk-hop-dong.js` và `legal/terms/<phiên bản>/` bằng `node tools/build-terms.js` - không sửa tay trong Code.gs. Thay đổi điều khoản: sửa nguồn → chạy build → kiểm thử (`node tests/backend/test.js`, `node tests/browser/checkout.js`) → commit → dán Code.gs mới → New version. Ngày áp dụng phiên bản mới đặt tại Quản trị → Hệ thống → Điều khoản (`TERMS_EFFECTIVE`, cách hôm nay ≥ 7 ngày).

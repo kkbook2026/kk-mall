@@ -1,7 +1,8 @@
 /*
- * Kiem thu backend v1.8.0 (chay: node tests/backend/test.js) - khong can mang, khong can Apps Script.
+ * Kiem thu backend v1.9.0 (chay: node tests/backend/test.js) - khong can mang, khong can Apps Script.
  * Pham vi: chinh sach POLICY_JSON + policyEval_, chu ky/nonce bot, tran ngay/gio, cong tac dung, tu dung khi loi lien tiep,
- * luong claim -> paying -> done qua botUpdate_, canon_ (JSON chuan hoa), nhac lenh hold, chuoi bam nhat ky, xac minh webhook SePay, SLA ngoai le.
+ * luong claim -> paying -> done qua botUpdate_, canon_ (JSON chuan hoa), nhac lenh hold, chuoi bam nhat ky, xac minh webhook SePay, SLA ngoai le,
+ * hop dong dien tu theo don (phien ban, ma bam, email, tai ve, tiep thi), xoa tai khoan 24 thang, kiem tra chia se Drive, su co du lieu 72 gio.
  * (c) 2026 Nguyen Duy Dien. All rights reserved.
  */
 'use strict';
@@ -223,6 +224,124 @@ console.log('9. Duyet lenh hold mot cham (token ky, GET chi xem, POST moi doi tr
   t('POST x=cancel -> huy dong hang, ghi hoan khach', () => {
     const tk = gas.call('approveToken_', 'KK261104E0000002-1'); const h = gas.call('doPost', { parameter: { a: 'approve', t: tk, x: 'cancel' } }).html; assert.ok(/Đã hủy/.test(h), h.slice(0, 200));
     assert.equal(gas.call('find_', 'PO', 'po_id', 'KK261104E0000002-1').status, 'cancelled'); assert.ok(Number(gas.call('loadOrder_', 'KK261104E0000002').refund_due) > 0);
+  });
+}
+
+console.log('10. Hop dong dien tu theo don: phien ban dieu khoan, ban chot + ma bam + chuoi, email dinh kem, tai ve, tiep thi tach rieng');
+{
+  const gas = load({ now: T_WORK }); const KKHD = require('../../site/kk-hop-dong.js');
+  const PROD = { KK000123: { sku: 'KK000123', name: 'Tủ lạnh Samsung 300L <Inverter>', brand: 'Samsung', category_id: 'dien-lanh', image: '', kk_price: 932000, in_stock: true, sh: 0, trust: { fl: 0 } }, KK000124: { sku: 'KK000124', name: 'Nồi chiên', brand: 'Lock&Lock', category_id: 'gia-dung', image: '', kk_price: 218000, in_stock: true, sh: 0, trust: { fl: 0 } } };
+  gas.setFetch(url => { const m = /products\/(KK\d{6})\.json/.exec(url); return m && PROD[m[1]] ? { code: 200, body: JSON.stringify(PROD[m[1]]) } : { code: 404, body: '' }; });
+  gas.props.BANK_BIN = '970436'; gas.props.BANK_ACC = '0011002233'; gas.props.BANK_NAME = 'CONG TY TNHH KK-MALL'; gas.props.BANK_LABEL = 'Vietcombank';
+  const CUST = { name: 'Trần Thị B', phone: '0987654321', email: 'b@test.vn', address: '12 Phố Huế, Phường Hàng Bài, Quận Hoàn Kiếm, Hà Nội' };
+  const mk = (extra) => Object.assign({ items: [{ sku: 'KK000123', qty: 1 }, { sku: 'KK000124', qty: 2 }], customer: CUST, consent: true, consent_version: 'UQ-2026-10', ua: 'test' }, extra || {});
+  t('termsActive_: mac dinh UQ-2026-10; TERMS_EFFECTIVE qua khu -> HD-2026-11; tuong lai -> van UQ; hong -> UQ', () => {
+    assert.equal(gas.call('termsActive_').version, 'UQ-2026-10'); assert.equal(gas.call('termsList_').length, 2);
+    gas.props.TERMS_EFFECTIVE = '2026-11-01'; assert.equal(gas.call('termsActive_').version, 'HD-2026-11'); assert.equal(gas.call('termsList_')[1].effective, '2026-11-01');
+    gas.props.TERMS_EFFECTIVE = '2026-12-01'; assert.equal(gas.call('termsActive_').version, 'UQ-2026-10');
+    gas.props.TERMS_EFFECTIVE = 'abc'; assert.equal(gas.call('termsActive_').version, 'UQ-2026-10'); delete gas.props.TERMS_EFFECTIVE;
+  });
+  t('publicConfig_ va ?a=terms cong bo phien ban dang ap dung, mau hop dong, cau hinh dien', () => {
+    const c = gas.call('publicConfig_'); assert.equal(c.consent_version, 'UQ-2026-10'); assert.equal(c.terms.active, 'UQ-2026-10'); assert.equal(c.terms.versions.length, 2);
+    const tp = JSON.parse(gas.call('doGet', { parameter: { a: 'terms' } }).text); assert.equal(tp.active, 'UQ-2026-10'); assert.ok(tp.templates['UQ-2026-10'].includes('{{code}}')); assert.ok(tp.templates['HD-2026-11'].includes('Điều 14')); assert.equal(tp.config.bank.acc, '0011002233'); assert.ok(tp.config.sources.length >= 10);
+  });
+  t('khong tich dong y / sai phien ban -> tu choi, bao ro phien ban', () => {
+    assert.throws(() => gas.call('orderCreate_', mk({ consent: false })), e => /đồng ý/.test(e.message));
+    assert.throws(() => gas.call('orderCreate_', mk({ consent_version: 'HD-2026-11' })), e => /phiên bản cũ|tải lại/.test(e.message));
+  });
+  let ORD;
+  t('dat hang -> ban chot luu sheet Contracts, ma bam = sha256(van ban chuan), noi chuoi "contract", email dinh kem file HTML', () => {
+    const r = gas.call('orderCreate_', mk()); ORD = r.order; assert.ok(/^KK\d{6}[0-9A-F]{8}$/.test(ORD.code));
+    assert.equal(ORD.contract.version, 'UQ-2026-10'); assert.equal(ORD.contract.marketing, false); assert.equal(ORD.contract.hash.length, 64);
+    const row = gas.sheets.Contracts.slice(1).find(x => x[0] === ORD.code); assert.ok(row, 'thieu dong Contracts'); assert.equal(row[1], 'UQ-2026-10'); assert.equal(row[2], ORD.contract.hash);
+    assert.equal(sha(KKHD.text(row[5])), ORD.contract.hash); assert.ok(row[5].includes(ORD.code) && row[5].includes('Trần Thị B') && row[5].includes('&lt;Inverter&gt;') && row[5].includes('0011002233'));
+    const ch = gas.sheets.Chain.slice(1).find(x => x[2] === 'contract' && x[3] === ORD.code); assert.ok(ch, 'thieu mat xich contract'); assert.equal(ch[4], ORD.contract.hash);
+    const m = gas.mails.find(x => x.to === 'b@test.vn' && /đã nhận đơn/.test(x.subject)); assert.ok(m && m.attachments && m.attachments.length === 1, 'thieu dinh kem'); assert.equal(m.attachments[0].getName(), 'KK-MALL-' + ORD.code + '-hop-dong.html'); assert.ok(m.htmlBody.includes(ORD.contract.hash));
+    assert.ok(m.attachments[0].getDataAsString().includes('<!doctype html') && m.attachments[0].getDataAsString().includes(ORD.contract.hash));
+  });
+  t('trinh duyet (site/kk-hop-dong.js) dien mau ra DUNG van ban may chu da luu (cung ham, cung du lieu) - ca 2 phien ban', () => {
+    const o = gas.call('loadOrder_', ORD.code), cfg = gas.call('hdCfg_'), tp = gas.call('termsPublic_');
+    const html = KKHD.fill(tp.templates['UQ-2026-10'], KKHD.data(o, cfg)); assert.equal(html, gas.sheets.Contracts.slice(1).find(x => x[0] === ORD.code)[5]); assert.equal(sha(KKHD.text(html)), ORD.contract.hash);
+    const cfg2 = Object.assign({}, cfg, { terms: tp.versions[1] }); assert.equal(KKHD.fill(tp.templates['HD-2026-11'], KKHD.data(o, cfg2)), gas.call('hdHtml_', o, cfg2));
+  });
+  t('van ban chuan (KKHD.text) bo the va gop khoang trang: doi dinh dang HTML khong doi ma bam, doi noi dung thi doi', () => {
+    const row = gas.sheets.Contracts.slice(1).find(x => x[0] === ORD.code)[5];
+    assert.equal(sha(KKHD.text(row.replace(/<p>/g, '\n<p class="x">  '))), ORD.contract.hash); assert.notEqual(sha(KKHD.text(row.replace('Trần Thị B', 'Trần Thị C'))), ORD.contract.hash);
+  });
+  t('order.contract: ma don + SDT dung -> file HTML doc lap co ma bam; SDT sai -> 404; order.get co contract', () => {
+    const r = gas.call('orderContract_', { code: ORD.code, phone: '0987654321' }); assert.equal(r.hash, ORD.contract.hash); assert.ok(r.html.includes('<!doctype html') && r.html.includes(ORD.code) && r.html.includes(r.hash) && /window\.print/.test(r.html)); assert.ok(/Xác nhận ủy quyền/.test(r.title));
+    assert.throws(() => gas.call('orderContract_', { code: ORD.code, phone: '0900000000' }), e => e.code === 404);
+    assert.equal(gas.call('orderGet_', { code: ORD.code, phone: '0987654321' }).order.contract.hash, ORD.contract.hash);
+  });
+  t('thanh vien tich o tiep thi -> ghi vao ho so (rut lai qua member.marketing); khong tich -> khong ghi nhan', () => {
+    const tok = 'tkB'; gas.call('append_', 'Members', { email: 'b@test.vn', name: 'B', phone: '0987654321', address: '', role: 'member', created_at: new Date(gas.clock.now()).toISOString(), last_login: new Date(gas.clock.now()).toISOString(), data: '{}' });
+    gas.call('append_', 'Sessions', { token_hash: gas.call('hash_', tok), email: 'b@test.vn', role: 'member', created_at: new Date(gas.clock.now()).toISOString(), expires_at: new Date(gas.clock.now() + 3600e3).toISOString() });
+    gas.cache.clear(); const r = gas.call('orderCreate_', mk({ token: tok, marketing: true })); assert.equal(r.order.contract.marketing, true);
+    assert.equal(gas.call('memberOut_', gas.call('find_', 'Members', 'email', 'b@test.vn')).marketing, true); assert.ok(gas.sheets.Contracts.slice(1).find(x => x[0] === r.order.code)[5].includes('Đồng ý nhận thông tin khuyến mãi'));
+    const off = gas.call('doPost', { postData: { contents: JSON.stringify({ a: 'member.marketing', token: tok, on: false }) } }); assert.equal(JSON.parse(off.text).marketing, false); assert.equal(gas.call('memberOut_', gas.call('find_', 'Members', 'email', 'b@test.vn')).marketing, false);
+  });
+  t('quan tri dat ngay ap dung HD-2026-11: phai cach >= 7 ngay; sau ngay do don moi theo mau HOP DONG UY THAC, don cu giu UQ', () => {
+    gas.props.ADMIN_EMAILS = 'admin@test.vn'; const tok = 'tkAdm'; gas.call('append_', 'Sessions', { token_hash: gas.call('hash_', tok), email: 'admin@test.vn', role: 'admin', created_at: new Date(gas.clock.now()).toISOString(), expires_at: new Date(gas.clock.now() + 3600e3).toISOString() });
+    assert.throws(() => gas.call('adminConfig_', { token: tok, set: { TERMS_EFFECTIVE: '2026-11-06' } }), e => /7 ngày/.test(e.message));
+    assert.throws(() => gas.call('adminConfig_', { token: tok, set: { TERMS_EFFECTIVE: '12/11/2026' } }), e => /YYYY-MM-DD/.test(e.message));
+    const out = gas.call('adminConfig_', { token: tok, set: { TERMS_EFFECTIVE: '2026-11-12' } }); assert.equal(out.TERMS_EFFECTIVE, '2026-11-12'); assert.equal(out.TERMS_ACTIVE, 'UQ-2026-10'); assert.equal(out.CONTRACTS, 2);
+    gas.clock.set(Date.parse('2026-11-12T03:00:00Z')); gas.cache.clear(); assert.equal(gas.call('termsActive_').version, 'HD-2026-11');
+    const r = gas.call('orderCreate_', mk({ consent_version: 'HD-2026-11', customer: Object.assign({}, CUST, { phone: '0912000111', email: 'c@test.vn' }) })); assert.equal(r.order.contract.version, 'HD-2026-11'); assert.equal(r.order.contract.label, 'v1.0');
+    const html = gas.sheets.Contracts.slice(1).find(x => x[0] === r.order.code)[5]; assert.ok(/HỢP ĐỒNG ỦY THÁC MUA HÀNG HÓA/.test(html) && html.includes('12/11/2026') && /Điều 14/.test(html));
+    assert.throws(() => gas.call('orderCreate_', mk({ consent_version: 'UQ-2026-10', customer: Object.assign({}, CUST, { phone: '0912000112', email: 'd@test.vn' }) })), e => /phiên bản cũ/.test(e.message));
+    assert.equal(gas.call('orderContract_', { code: ORD.code, phone: '0987654321' }).version, 'UQ-2026-10'); // don cu giu nguyen van ban cu
+    delete gas.props.TERMS_EFFECTIVE; gas.clock.set(T_WORK);
+  });
+}
+
+console.log('11. Luu tru co thoi han (xoa tai khoan 24 thang) va kiem tra chia se Drive');
+{
+  const gas = load({ now: T_WORK }); const DAY = 86400e3, iso = t => new Date(t).toISOString();
+  const addM = (email, lastLogin) => gas.call('append_', 'Members', { email, name: 'N', phone: '0911111111', address: 'x', role: 'member', created_at: iso(lastLogin - 400 * DAY), last_login: iso(lastLogin), data: '{}' });
+  addM('cu@test.vn', T_WORK - 705 * DAY); addM('moi@test.vn', T_WORK - 10 * DAY); addM('codon@test.vn', T_WORK - 705 * DAY); addM('admin@test.vn', T_WORK - 900 * DAY);
+  gas.props.ADMIN_EMAILS = 'admin@test.vn';
+  gas.call('append_', 'Orders', { code: 'KK261104F0000001', created_at: iso(T_WORK - 20 * DAY), status: 'completed', payment_status: 'paid', email: 'codon@test.vn', phone: '0911111111', name: 'N', goods: 1, fee: 1, total: 2, paid_at: '', data: '{}', updated_at: '' });
+  gas.call('append_', 'Sessions', { token_hash: 'h1', email: 'cu@test.vn', role: 'member', created_at: iso(T_WORK), expires_at: iso(T_WORK + 365 * DAY) });
+  t('23 thang khong hoat dong -> email bao truoc 30 ngay, ghi retention_warn_at; khach moi / khach co don gan day / quan tri: khong dong den', () => {
+    const r = gas.call('retention_', T_WORK); assert.deepEqual([r.warned, r.deleted], [1, 0]);
+    assert.ok(JSON.parse(gas.call('find_', 'Members', 'email', 'cu@test.vn').data).retention_warn_at); assert.ok(gas.mails.some(m => m.to === 'cu@test.vn' && /30 ngày/.test(m.subject)));
+    ['moi@test.vn', 'codon@test.vn', 'admin@test.vn'].forEach(e => assert.equal(gas.call('find_', 'Members', 'email', e).data, '{}', e));
+  });
+  t('chay lai ngay sau do: khong bao lai, khong xoa', () => { const r = gas.call('retention_', T_WORK + DAY); assert.deepEqual([r.warned, r.deleted], [0, 0]); });
+  t('sau 24 thang + 28 ngay ke tu bao -> an danh hoa ho so (email bam, ten/SDT/dia chi trong, role deleted), thu hoi phien, email; chung tu don giu nguyen', () => {
+    const r = gas.call('retention_', T_WORK + 31 * DAY); assert.deepEqual([r.warned, r.deleted], [0, 1]);
+    assert.equal(gas.call('find_', 'Members', 'email', 'cu@test.vn'), null); const del = gas.sheets.Members.slice(1).find(x => /^da-xoa-/.test(x[0])); assert.ok(del); assert.equal(del[4], 'deleted'); assert.equal(del[1], ''); assert.equal(del[2], '');
+    assert.ok(!gas.sheets.Sessions.slice(1).some(x => x[1] === 'cu@test.vn')); assert.ok(gas.mails.some(m => m.to === 'cu@test.vn' && /đã xóa tài khoản/.test(m.subject))); assert.equal(gas.sheets.Orders.length, 2);
+  });
+  t('da bao truoc nhung khach dang nhap lai -> huy canh bao', () => {
+    addM('quaylai@test.vn', T_WORK - 705 * DAY); gas.call('retention_', T_WORK); assert.ok(JSON.parse(gas.call('find_', 'Members', 'email', 'quaylai@test.vn').data).retention_warn_at);
+    const m = gas.call('find_', 'Members', 'email', 'quaylai@test.vn'); gas.call('update_', 'Members', m._row, { last_login: iso(T_WORK + 5 * DAY) });
+    gas.call('retention_', T_WORK + 6 * DAY); assert.ok(!JSON.parse(gas.call('find_', 'Members', 'email', 'quaylai@test.vn').data).retention_warn_at);
+  });
+  t('shareCheck_: rieng tu + khong ai khac -> khong van de; chia se link / co nguoi sua -> muc cao, audit_ neu ten', () => {
+    gas.props.BACKUP_FOLDER_ID = 'bk'; assert.equal(gas.call('shareCheck_').length, 0);
+    gas.drive.access = 'ANYONE_WITH_LINK'; let r = gas.call('shareCheck_'); assert.ok(r.length >= 3 && r.every(i => i.lvl === 'high')); assert.ok(gas.call('audit_').issues.some(i => /chia sẻ/.test(i.msg)));
+    gas.drive.access = 'PRIVATE'; gas.drive.editors = [{ getEmail: () => 'la@gmail.com' }]; r = gas.call('shareCheck_'); assert.ok(r[0].msg.includes('la@gmail.com (sửa)')); gas.drive.editors = []; assert.equal(gas.call('shareCheck_').length, 0);
+  });
+}
+
+console.log('12. Su co du lieu ca nhan: mo su co -> han 24 gio / 72 gio, email quan tri, chuoi bam, cap nhat trang thai');
+{
+  const gas = load({ now: T_WORK }); gas.props.ADMIN_EMAILS = 'admin@test.vn'; const tok = 'tkAdm2';
+  gas.call('append_', 'Sessions', { token_hash: gas.call('hash_', tok), email: 'admin@test.vn', role: 'admin', created_at: new Date(T_WORK).toISOString(), expires_at: new Date(T_WORK + 3600e3).toISOString() });
+  let ID;
+  t('mo su co: ma SC..., han A05 = phat hien + 72 gio, han khach = + 24 gio, email quan tri co huong dan, mat xich incident', () => {
+    assert.throws(() => gas.call('adminIncident_', { token: tok, kind: 'leak', summary: 'ngan' }), e => /quá ngắn/.test(e.message));
+    const r = gas.call('adminIncident_', { token: tok, kind: 'leak', severity: 'high', summary: 'Email nhầm người nhận chứa thông tin 3 khách', affected: '3 khách, họ tên + SĐT', detected_at: '2026-11-04T02:00:00Z' });
+    ID = r.id; assert.ok(/^SC\d{6}[0-9A-F]{4}$/.test(ID), ID); assert.equal(r.incident.deadline_a05, '2026-11-07T02:00:00.000Z'); assert.equal(r.incident.deadline_users, '2026-11-05T02:00:00.000Z'); assert.equal(r.incident.status, 'open');
+    const m = gas.mails.find(x => x.to === 'admin@test.vn' && /SỰ CỐ DỮ LIỆU/.test(x.subject)); assert.ok(m && /A05/.test(m.htmlBody) && /72 giờ/.test(m.htmlBody) && /09:00 07\/11\/2026/.test(m.htmlBody), m && m.htmlBody.slice(0, 200));
+    assert.ok(gas.sheets.Chain.slice(1).some(x => x[2] === 'incident' && x[3] === ID));
+  });
+  t('cap nhat: da thong bao A05 + khach, trang thai closed; danh sach admin.incidents', () => {
+    const r = gas.call('adminIncident_', { token: tok, id: ID, status: 'closed', note: 'Đã gửi thông báo qua Cổng DVC', notified_a05: true, notified_users: true });
+    assert.equal(r.incident.status, 'closed'); assert.ok(r.incident.notified_a05_at && r.incident.notified_users_at); assert.equal(r.incident.log.length, 2);
+    const l = JSON.parse(gas.call('doPost', { postData: { contents: JSON.stringify({ a: 'admin.incidents', token: tok }) } }).text); assert.equal(l.rows.length, 1); assert.equal(l.rows[0].id, ID);
+    assert.throws(() => gas.call('adminIncident_', { token: 'sai', kind: 'leak', summary: 'x'.repeat(20) }), e => e.code === 401);
   });
 }
 

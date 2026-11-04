@@ -16,6 +16,7 @@ function makeEnv(opts = {}) {
   const mails = [];
   const fetches = []; let fetchHandler = null; const setFetch = fn => { fetchHandler = fn; }; // gia lap UrlFetchApp: fn(url, opt) -> { code, body }
   const sheets = {}; // name -> rows (array of arrays), row 0 = header
+  const drive = { access: 'PRIVATE', editors: [], viewers: [] }; // gia lap quyen chia se Drive (shareCheck_)
 
   const Sheet = name => ({
     getName: () => name,
@@ -57,7 +58,7 @@ function makeEnv(opts = {}) {
       formatDate: (d, tz, fmt) => {
         const dt = new Date(d); const p = new Intl.DateTimeFormat('en-GB', { timeZone: tz || 'UTC', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(dt);
         const m = {}; p.forEach(x => { m[x.type] = x.value; }); if (m.hour === '24') m.hour = '00';
-        return fmt.replace('yyyy', m.year).replace('MM', m.month).replace('dd', m.day).replace('HH', m.hour).replace('mm', m.minute).replace('ss', m.second);
+        return fmt.replace('yyyy', m.year).replace('yy', m.year.slice(2)).replace('MM', m.month).replace('dd', m.day).replace('HH', m.hour).replace('mm', m.minute).replace('ss', m.second);
       },
       base64Encode: s => Buffer.from(s).toString('base64'), base64Decode: s => bytes(Buffer.from(s, 'base64')), base64DecodeWebSafe: s => bytes(Buffer.from(s, 'base64url')),
       newBlob: (d, t, n) => ({ getBytes: () => d, getContentType: () => t, getName: () => n, getDataAsString: () => String(d) }), sleep: () => {}
@@ -66,15 +67,17 @@ function makeEnv(opts = {}) {
     MailApp: { sendEmail: m => { mails.push(m); }, getRemainingDailyQuota: () => 100 },
     GmailApp: { search: () => [] },
     UrlFetchApp: { fetch: (url, o) => { fetches.push({ url, o }); const r = fetchHandler ? fetchHandler(url, o) : { code: 200, body: '{}' }; return { getResponseCode: () => r.code, getContentText: () => r.body }; } },
-    ScriptApp: { getService: () => ({ getUrl: () => 'https://script.test/exec' }), getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ everyHours: () => ({ create: () => {} }), everyMinutes: () => ({ create: () => {} }), atHour: () => ({ everyDays: () => ({ create: () => {} }) }) }) }), deleteTrigger: () => {} },
-    DriveApp: { createFolder: () => ({ getId: () => 'f', createFolder: () => ({ getId: () => 'f2' }) }), getFolderById: () => ({ createFile: () => ({ getId: () => 'x' }), getFiles: () => ({ hasNext: () => false }) }), getFileById: () => ({ moveTo: () => {} }) },
+    ScriptApp: { getService: () => ({ getUrl: () => 'https://script.test/exec' }), getScriptId: () => 'script-test', getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ everyHours: () => ({ create: () => {} }), everyMinutes: () => ({ create: () => {} }), atHour: () => ({ everyDays: () => ({ create: () => {} }) }) }) }), deleteTrigger: () => {} },
+    DriveApp: { createFolder: () => ({ getId: () => 'f', createFolder: () => ({ getId: () => 'f2' }) }),
+      getFolderById: () => ({ createFile: () => ({ getId: () => 'x' }), getFiles: () => ({ hasNext: () => false }), getSharingAccess: () => drive.access, getEditors: () => drive.editors, getViewers: () => drive.viewers }),
+      getFileById: () => ({ moveTo: () => {}, getSharingAccess: () => drive.access, getEditors: () => drive.editors, getViewers: () => drive.viewers }) },
     ContentService: { createTextOutput: s => ({ setMimeType: () => ({ text: s }), text: s }), MimeType: { JSON: 'json' } },
     HtmlService: { createHtmlOutput: s => { const o = { html: s, setTitle: () => o, setXFrameOptionsMode: () => o }; return o; }, XFrameOptionsMode: { DENY: 'deny' } },
     Logger: { log: () => {} },
     Date: class extends Date { constructor(...a) { if (!a.length) super(clock.now()); else super(...a); } static now() { return clock.now(); } }
   };
   g.globalThis = g;
-  return { g, props, cache, clock, mails, sheets, Sheet, fetches, setFetch };
+  return { g, props, cache, clock, mails, sheets, Sheet, fetches, setFetch, drive };
 }
 
 function load(opts = {}) {
