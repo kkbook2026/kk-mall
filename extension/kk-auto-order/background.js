@@ -84,9 +84,11 @@ async function cycle(trigger) {
     let M; try { M = await offers(); } catch (e) { await log('⚠ ' + e.message, 'e'); if (e.pause) await pause(e.message); return; }
     const retry = (await getState()).retry || {};
     const view = q.items.map(it => {
-      const pl = L.planAuto(it, M[it.sku], q.tolerance, q.sources, pol), b = it.bot;
+      const b = it.bot, approved = !!(b && b.state === 'approved' && Date.now() - new Date(b.at).getTime() < 48 * 3600e3); // nguoi da duyet tren may chu (email/quan tri)
+      const pl = L.planAuto(it, M[it.sku], q.tolerance, q.sources, pol, { approved });
       let plan = pl.pick ? 'auto' : (pl.reasons && pl.reasons.length ? 'hold' : 'manual'), why = pl.why;
       if (b && b.state === 'hold' && plan !== 'auto') { plan = 'hold'; why = b.note || why; }
+      if (approved && plan === 'auto') why = 'Đã được người duyệt' + (b.note ? ' - ' + b.note : '');
       if (b && ['paying', 'paying_unknown', 'pay_failed'].includes(b.state)) { plan = 'hold'; why = 'Đã bấm Đặt hàng trước đó - chờ quản trị kiểm tra'; }
       else if (b && b.state === 'failed' && !retry[it.po_id]) { plan = 'failed'; why = b.note || 'Lỗi lần trước - bấm Thử lại'; }
       else if (b && b.state === 'working' && Date.now() - new Date(b.at).getTime() < 15 * 60e3) { plan = 'busy'; why = 'Phiên bot khác đang xử lý'; }

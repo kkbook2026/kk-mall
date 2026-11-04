@@ -112,11 +112,14 @@
     const tol = pol.price && pol.price.tolerance_vnd !== undefined ? Number(pol.price.tolerance_vnd) : (ctx.tol !== undefined ? Number(ctx.tol) : 5000);
     if (offer && offer.l !== undefined) { const total = Math.round(Number(offer.l) * (Number(item.qty) || 1)); if (total > val + tol) r.push('OVER_CAP'); }
     if (ctx.firstOrder && pol.customer && val > Number(pol.customer.first_order_hold_over_vnd)) r.push('NEW_CUSTOMER_HIGH_VALUE');
-    const decision = r.length ? 'hold' : (A.auto_max_vnd !== undefined && val > Number(A.auto_max_vnd) ? 'otp' : 'auto');
-    return { decision, reasons: r };
+    // nguoi da duyet (email mot cham / quan tri): bo ly do MEM, giu ly do CUNG - giong may chu
+    const soft = ['OVER_AUTO_CAP', 'NEW_CUSTOMER_HIGH_VALUE', 'OUT_OF_HOURS', 'DAILY_CAP', 'HOURLY_CAP'], rr = ctx.approved ? r.filter(x => !soft.includes(x)) : r;
+    const decision = rr.length ? 'hold' : (A.auto_max_vnd !== undefined && val > Number(A.auto_max_vnd) ? 'otp' : 'auto');
+    return { decision, reasons: rr, approved: !!ctx.approved };
   }
   /* kế hoạch đặt: nguồn tự động (Tiki) rẻ nhất trong biên dung sai so với giá đã thu; pol (tùy chọn) = chính sách từ máy chủ */
-  function planAuto(item, offers, tol, sources, pol) {
+  function planAuto(item, offers, tol, sources, pol, ctx) {
+    ctx = ctx || {};
     if (pol && pol.price && pol.price.tolerance_vnd !== undefined) tol = Number(pol.price.tolerance_vnd);
     let src = (sources || ['tiki']).slice(); if (pol && pol.sources && Array.isArray(pol.sources.allow)) src = src.filter(x => pol.sources.allow.includes(x));
     const unit = Number(item.unit_cost) || Math.round(item.collected_cost / item.qty);
@@ -129,7 +132,7 @@
     else if (!ok.length) why = 'Nguồn phù hợp (' + fit[0].s + ') chưa có bot hoặc không trong danh sách cho phép - đặt tay';
     const pick = why ? null : ok[0];
     let ev = null;
-    if (pick && pol) { ev = policyEval(item, pick, pol, { daySpent: pol._daySpent, tol }); if (ev.decision === 'hold') why = 'Ngoài hành lang chính sách: ' + ev.reasons.join(', '); }
+    if (pick && pol) { ev = policyEval(item, pick, pol, { daySpent: pol._daySpent, tol, approved: !!ctx.approved }); if (ev.decision === 'hold') why = 'Ngoài hành lang chính sách: ' + ev.reasons.join(', '); }
     return { unit, best: fit[0] || null, pick: why ? null : pick, why, decision: ev ? ev.decision : (pick ? 'auto' : 'hold'), reasons: ev ? ev.reasons : [] };
   }
   const api = { norm, digits, money, expandAddr, patterns, pickUnit, parseAddress, streetOf, cover, planAuto, policyEval, inHours, canon };

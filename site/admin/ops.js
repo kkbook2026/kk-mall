@@ -301,14 +301,14 @@ async function runMailSync() {
 }
 
 /* ---------- bot đặt hàng tự động (tiện ích Chrome KK-MALL Auto Order) ---------- */
-const BOT_ST = { hold: ['⏸ Chờ người duyệt (ngoài hành lang chính sách)', '#B45309'], working: ['🤖 Bot đang đặt', '#1D4ED8'], paying: ['💳 Đã bấm Đặt hàng - chờ OTP', '#7C3AED'], done: ['✅ Bot đã đặt', '#166534'], failed: ['⚠️ Bot lỗi (chưa đặt)', '#B45309'], skip: ['↪️ Bot bỏ qua - đặt tay', '#475569'], pay_failed: ['🚨 Thanh toán tại nguồn lỗi', '#B91C1C'], paying_unknown: ['🚨 Đã bấm Đặt hàng - chưa rõ kết quả', '#B91C1C'] };
+const BOT_ST = { hold: ['⏸ Chờ người duyệt (ngoài hành lang chính sách)', '#B45309'], approved: ['✅ Đã duyệt - bot sẽ đặt ở chu kỳ tới (hiệu lực 48 giờ)', '#166534'], working: ['🤖 Bot đang đặt', '#1D4ED8'], paying: ['💳 Đã bấm Đặt hàng - chờ OTP', '#7C3AED'], done: ['✅ Bot đã đặt', '#166534'], failed: ['⚠️ Bot lỗi (chưa đặt)', '#B45309'], skip: ['↪️ Bot bỏ qua - đặt tay', '#475569'], pay_failed: ['🚨 Thanh toán tại nguồn lỗi', '#B91C1C'], paying_unknown: ['🚨 Đã bấm Đặt hàng - chưa rõ kết quả', '#B91C1C'] };
 function botBadge(p) {
   const b = p.data && p.data.bot; if (!b || p.status !== 'to_order') return '';
   const [t, c] = BOT_ST[b.state] || [b.state, '#475569'];
   const canReset = ['failed', 'pay_failed', 'paying_unknown', 'skip', 'hold'].includes(b.state);
   return `<div style="margin-top:8px;padding:8px 12px;border-radius:10px;border:1px solid ${c}33;background:${c}0D;font-size:12.5px"><b style="color:${c}">${t}</b> · ${esc(new Date(b.at).toLocaleString('vi-VN'))}${b.note ? ' · ' + esc(b.note) : ''}${b.total ? ' · tổng tại nguồn ' + vnd(b.total) : ''}
     ${['pay_failed', 'paying_unknown'].includes(b.state) ? '<br>Đã bấm Đặt hàng tại nguồn: kiểm tra đơn trên ứng dụng nguồn trước. Nếu nguồn KHÔNG có đơn, bấm cho phép đặt lại.' : ''}
-    ${canReset ? ` <button class="btn2" style="padding:3px 10px;font-size:12px" onclick="botReset('${p.po_id}')">↻ Cho bot đặt lại</button>` : ''}</div>`;
+    ${canReset ? ` <button class="btn2" style="padding:3px 10px;font-size:12px" onclick="botReset('${p.po_id}')">${b.state === 'hold' ? '✅ Duyệt - cho bot đặt (bỏ lý do mềm: trần, giờ, khách mới)' : '↻ Cho bot đặt lại'}</button>` : ''}</div>`;
 }
 async function botReset(po_id) {
   if (!confirm('Cho bot đặt lại lệnh mua ' + po_id + '?\nChỉ đồng ý khi đã kiểm tra nguồn KHÔNG có đơn cho lệnh này (tránh mua trùng).')) return;
@@ -326,7 +326,7 @@ function policyBoxHtml(C) {
   const on = C.AUTONOMY_ENABLED !== '0';
   return `🧭 <b>Chính sách tự động đặt hàng</b> (máy chủ quyết định cuối; tiện ích đọc cùng bản) · phiên bản <code>${esc(eff.version || 'default')}</code> · hôm nay bot đã chi <b>${vnd(B.day_spent || 0)}</b> / trần ${vnd(A.daily_cap_vnd || 0)} · lỗi liên tiếp: ${B.fail_streak || 0}
     <div class="row" style="margin-top:8px;gap:12px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="polOn" ${on ? 'checked' : ''}> Cho phép bot tự đặt (công tắc tổng)</label>
-      <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="polSig" ${C.BOT_REQUIRE_SIG === '1' ? 'checked' : ''}> Bắt buộc chữ ký bot (tiện ích ≥ 1.1.0)</label>
+      <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="polSig" ${C.BOT_REQUIRE_SIG === '1' ? 'checked' : ''}> Bắt buộc chữ ký bot (tiện ích ≥ 1.1.0; 1.2.0 để nhận lệnh đã duyệt)</label>
       <button class="btn2" style="color:#B91C1C;border-color:#FCA5A5" onclick="botStopAll()">🛑 Dừng mọi bot ngay</button></div>
     <div style="margin-top:8px;font-size:12.5px">Tự đặt không cần người ≤ <b>${vnd(A.auto_max_vnd || 0)}</b> · bot làm, chủ sở hữu duyệt OTP ≤ <b>${vnd(A.otp_max_vnd || 0)}</b> · trên đó: chờ người · tối đa ${A.max_per_hour || 0} lệnh/giờ · khung giờ ${esc((A.hours || {}).from || '')}-${esc((A.hours || {}).to || '')} · dung sai ${vnd((eff.price || {}).tolerance_vnd || 0)} · nguồn: ${esc(((eff.sources || {}).allow || []).join(', '))}</div>
     <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12.5px">Sửa POLICY_JSON (chỉ ghi phần muốn thay đổi; phần còn lại dùng mặc định)</summary>
