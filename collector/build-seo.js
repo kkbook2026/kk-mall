@@ -35,16 +35,16 @@ for (const d of ['p', 'c', 'n']) { fs.rmSync(path.join(SITE, d), { recursive: tr
 const CSS = `*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:#F8FAFC;color:#0F172A;line-height:1.55}a{color:#1E3A8A}
 header{background:#fff;border-bottom:1px solid #E2E8F0;position:sticky;top:0;z-index:5}header .w{display:flex;gap:14px;align-items:center;padding:10px 16px;max-width:1200px;margin:0 auto}
 header img{height:42px;display:block}header form{flex:1;display:flex}header input{flex:1;min-width:0;padding:10px 16px;border:2px solid #E2E8F0;border-radius:999px;font-size:15px}
-.cta{display:inline-block;background:#EA580C;color:#fff!important;text-decoration:none;font-weight:800;padding:11px 20px;border-radius:12px;white-space:nowrap}.cta.s{padding:9px 14px;font-size:14px}
+.cta{display:inline-block;background:#C2410C;color:#fff!important;text-decoration:none;font-weight:800;padding:11px 20px;border-radius:12px;white-space:nowrap}.cta.s{padding:9px 14px;font-size:14px}
 main{max-width:1200px;margin:0 auto;padding:16px}.bc{font-size:13px;color:#64748B;margin-bottom:12px}.bc a{color:#475569;text-decoration:none}
 .pd{display:grid;grid-template-columns:minmax(0,420px) 1fr;gap:28px;background:#fff;border-radius:18px;padding:22px;box-shadow:0 8px 30px rgba(30,58,138,.08)}
-.pd .im{background:#F1F5F9;border-radius:14px;aspect-ratio:1;display:grid;place-items:center;overflow:hidden}.pd .im img{max-width:100%;max-height:100%;object-fit:contain}
+.pd .im{background:#F1F5F9;border-radius:14px;aspect-ratio:1;display:grid;place-items:center;overflow:hidden}.pd .im img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
 h1{font-size:24px;line-height:1.3;margin:0 0 8px;color:#1E3A8A}h2{font-size:17px;margin:22px 0 8px;color:#1E3A8A}
 .price{font-size:32px;font-weight:900;color:#DC2626;margin:6px 0}.ok{color:#047857;font-weight:700;font-size:14px}.proof{background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;border-radius:10px;padding:8px 12px;font-size:14px;margin:8px 0;font-weight:600}
 .badge{display:inline-block;font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;margin:0 6px 6px 0;background:#EFF6FF;color:#1E3A8A}.badge.u{background:#FEF3C7;color:#92400E}.badge.h{background:#FEF2F2;color:#991B1B}
-table{border-collapse:collapse;width:100%;font-size:14px}td,th{padding:7px 10px;border-bottom:1px solid #F1F5F9;text-align:left}th{background:#F8FAFC;font-size:12px;color:#475569}code{font-size:12px;color:#1E3A8A}
+table{border-collapse:collapse;width:100%;font-size:14px}td,th{padding:7px 10px;border-bottom:1px solid #F1F5F9;text-align:left}th{background:#F8FAFC;font-size:12px;color:#334155}code{font-size:12px;color:#1E3A8A}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;padding:0;list-style:none}.grid li{background:#fff;border-radius:14px;padding:12px;box-shadow:0 4px 16px rgba(30,58,138,.06)}
-.grid a{text-decoration:none;color:#0F172A;font-size:13.5px;font-weight:600;display:block;line-height:1.35}.grid b{display:block;color:#DC2626;margin-top:6px}.grid small{color:#047857;font-size:11.5px}
+.grid a{text-decoration:none;color:#0F172A;font-size:13.5px;font-weight:600;display:block;line-height:1.35}.grid b{display:block;color:#DC2626;margin-top:6px}.grid small{color:#047857;font-size:12px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;padding:0;list-style:none}.chips a{display:block;background:#fff;border:1px solid #E2E8F0;border-radius:999px;padding:7px 14px;text-decoration:none;font-size:14px;font-weight:600}
 .pg{display:flex;gap:6px;flex-wrap:wrap;margin:18px 0}.pg a,.pg span{padding:7px 12px;border-radius:9px;background:#fff;border:1px solid #E2E8F0;text-decoration:none}.pg span{background:#1E3A8A;color:#fff}
 footer{background:#0F172A;color:#CBD5E1;font-size:13px;padding:24px 16px;margin-top:30px}footer .w{max-width:1200px;margin:0 auto}footer a{color:#E2E8F0}
@@ -55,7 +55,8 @@ const head = ({ title, desc, url, img, ld, type = 'website' }) => `<!doctype htm
 <title>${esc(title)}</title><meta name="description" content="${esc(desc).slice(0, 300)}"><link rel="canonical" href="${url}">
 <meta name="referrer" content="no-referrer"><meta name="robots" content="index,follow,max-image-preview:large">
 <meta property="og:type" content="${type}"><meta property="og:site_name" content="KK-MALL"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc).slice(0, 300)}"><meta property="og:url" content="${url}">${img ? `<meta property="og:image" content="${esc(img)}">` : ''}
-<meta property="og:locale" content="vi_VN"><link rel="icon" href="/logo.svg"><link rel="stylesheet" href="/seo.css">
+<meta property="og:locale" content="vi_VN"><meta name="theme-color" content="#1E3A8A"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/logo.svg"><link rel="stylesheet" href="/seo.css">
+<script type="speculationrules">{"prefetch":[{"source":"document","where":{"or":[{"href_matches":"/p/*"},{"href_matches":"/c/*"},{"href_matches":"/n/*"}]},"eagerness":"moderate"}]}</script>
 <script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script></head><body>
 <header><div class="w"><a href="/" aria-label="KK-MALL trang chủ"><img src="/logo.svg" alt="KK-MALL - Đại siêu thị trực tuyến"></a><form action="/" method="get" role="search"><input name="q" placeholder="Tìm trong ${(meta.totalProducts || full.length).toLocaleString('vi-VN')}+ mặt hàng..." aria-label="Tìm kiếm"></form><a class="cta s" href="/">🛒 Vào KK-MALL</a></div></header><main>`;
 const foot = `</main><footer><div class="w"><p><b>KK-MALL - Đại siêu thị trực tuyến</b> · Giá hiển thị là giá cuối cùng: đã gồm thuế GTGT và giao hàng tận cửa, không phụ phí. Lịch sử giá được niêm phong SHA-256 + Merkle, tự kiểm chứng tại <a href="/?ledger=1">Sổ cái giá</a>.</p>
@@ -88,7 +89,7 @@ for (const r of full) {
     crumbs([['Trang chủ', '/'], [cat.name, `/c/${cat.id}.html`], [d.grp, `/n/${gslug(d.category_id, d.grp)}.html`], [T.cleanText(d.name), `/p/${slug}.html`]])] };
   const html = head({ title: hold ? `${T.cleanText(d.name)} | KK-MALL` : `${T.cleanText(d.name)} - giá ${vnd(d.kk_price)} | KK-MALL`, desc, url, img: /^https:/.test(d.image || '') ? d.image : '', ld, type: 'product' })
     + `<nav class="bc"><a href="/">Trang chủ</a> › <a href="/c/${cat.id}.html">${esc(cat.name)}</a> › <a href="/n/${gslug(d.category_id, d.grp)}.html">${esc(d.grp)}</a></nav>
-<article class="pd"><div class="im"><img src="${/^https:/.test(d.image || '') ? esc(d.image) : '/logo.svg'}" alt="${esc(d.name)}" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='/logo.svg'"></div><div>
+<article class="pd"><div class="im"><img src="${/^https:/.test(d.image || '') ? esc(d.image) : '/logo.svg'}" alt="${esc(d.name)}" width="600" height="600" decoding="async" fetchpriority="high" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='/logo.svg'"></div><div>
 <h1>${esc(d.name)}</h1><div>${used ? '<span class="badge u">♻️ Đã qua sử dụng</span>' : '<span class="badge">✓ Chính hãng</span>'}${hold ? '<span class="badge h">⏸ Đang xác minh giá</span>' : ''}${fl & 4 ? '<span class="badge">📉 Đáy giá lịch sử</span>' : ''}<span class="badge">${esc(d.brand)}</span><span class="badge">SKU ${d.sku}</span></div>
 ${hold ? '<div class="price" style="color:#64748B">Đang xác minh giá</div>' : `<div class="price">${vnd(d.kk_price)}</div><div class="ok">✓ Giá cuối cùng - đã gồm giao hàng tận cửa, không phụ phí${disc ? ` · giảm ${disc}% đã xác minh` : ''}</div>`}
 <div class="proof">🔗 Lịch sử giá niêm phong SHA-256 + Merkle - không thể sửa lùi. Hóa đơn điện tử, hoàn tiền 100% nếu hết hàng.</div>

@@ -35,9 +35,17 @@
     if (!CHUNK[id]) CHUNK[id] = realFetch('api/cat/' + encodeURIComponent(id) + '.json?v=' + encodeURIComponent((CATIDX && CATIDX.v) || '')).then(r => r.ok ? r.json() : []).catch(() => []);
     return CHUNK[id];
   }
+  let LITE = null;
   async function getPack() {
-    if (!PACK) PACK = realFetch('api/catalog-pack.json').then(r => r.json());
+    if (!PACK) PACK = (async () => {
+      try { if (window.kkPackRows) { const rows = await window.kkPackRows(); if (rows) return { rows }; } } catch { }  // hang tu Worker (da luu IndexedDB)
+      return realFetch('api/catalog-pack.json').then(r => r.json());
+    })();
     return PACK;
+  }
+  async function getLite() {
+    if (!LITE) { const pk = await getPack(); LITE = pk.rows.map(r => ({ sku: r[0], name: r[1], brand: r[2], category_id: r[3], category_name: r[4], grp: r[5], kk_price: r[6], in_stock: r[7], rating: r[8], sold: r[9], disc: r[10] || 0, fl: r[11] || 0 })); }
+    return LITE;
   }
   function getProd(sku) {
     if (!PROD[sku]) PROD[sku] = realFetch('api/products/' + sku + '.json').then(r => r.ok ? r.json() : null).catch(() => null);
@@ -153,8 +161,7 @@
       const all = await loadCat(q.cat); brandSrc = all;
       rows = filterRows(all.slice(), q);
     } else {                                     // tim kiem / tat ca: loc tren chi muc gon, roi lay chi tiet dung trang can xem
-      const pk = await getPack();
-      const lite = pk.rows.map(r => ({ sku: r[0], name: r[1], brand: r[2], category_id: r[3], category_name: r[4], grp: r[5], kk_price: r[6], in_stock: r[7], rating: r[8], sold: r[9], disc: r[10] || 0, fl: r[11] || 0 }));
+      const lite = await getLite();
       let hit, search = null, brands = [];
       if (q.q && window.kkSearch) {                // KK-SEARCH: xep theo do phu hop (Worker), roi ap cac bo loc phu
         const must = String(q.attr || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 4);   // bo loc thuoc tinh (55 inch, 256GB...)
@@ -200,7 +207,7 @@
     try {
       if (path === '/api/meta') return jr(fixImg(await realFetch('api/meta.json').then(r => r.json())));
       if (path === '/api/sdui/home') return jr(fixImg(await realFetch('api/sdui-home.json').then(r => r.json())));
-      if (path === '/api/catalog-pack') return jr(await realFetch('api/catalog-pack.json').then(r => r.json()));
+      if (path === '/api/catalog-pack') return jr(await getPack());
       if (path === '/api/vouchers') return jr(VOUCHERS.map(v => ({ ...v })));
       if (path === '/api/ledger-roots') return jr(await realFetch('api/ledger-roots.json', { cache: 'no-cache' }).then(r => r.json()).catch(() => []));
       if (path === '/api/ledger-recent') return jr(await realFetch('api/ledger-recent.json', { cache: 'no-cache' }).then(r => r.json()).catch(() => ({ items: [] })));

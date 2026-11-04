@@ -59,9 +59,9 @@ const SMART_F = {
 function renderNav() {
   const cats = (META.categories || []);
   $('#catnav').innerHTML = `<a class="mm-btn" id="mmBtn" onclick="toggleMega(event)" aria-haspopup="true">☰ Danh mục <span class="car">▾</span></a>`
-    + `<a data-f="" class="on" onclick="goHome()">🏠 Trang chủ</a>`
-    + Object.entries(SMART_F).map(([k, f]) => `<a data-f="${k}" onclick="setFilter('${k}')">${f.icon} ${f.label}</a>`).join('')
-    + `<a class="ledger-nav" onclick="openLedger()">🔗 Sổ cái giá</a>`;
+    + `<a data-f="" class="on" href="./" onclick="event.preventDefault();goHome()">🏠 Trang chủ</a>`
+    + Object.entries(SMART_F).map(([k, f]) => `<a data-f="${k}" href="./?f=${k}" onclick="event.preventDefault();setFilter('${k}')">${f.icon} ${f.label}</a>`).join('')
+    + `<a class="ledger-nav" href="./?ledger=1" onclick="event.preventDefault();openLedger()">🔗 Sổ cái giá</a>`;
   let mm = document.getElementById('megaMenu');
   if (!mm) { mm = document.createElement('div'); mm.id = 'megaMenu'; mm.className = 'mega'; document.querySelector('.catnav').appendChild(mm); }
   mm.innerHTML = `<div class="wrap"><div class="mega-g">${cats.map(c => `<a class="mega-c" href="./c/${c.id}.html" onclick="event.preventDefault();closeMega();setCat('${c.id}')"><span class="mi">${c.icon}</span><span><b>${esc(c.name)}</b><small>${(c.count || 0).toLocaleString('vi-VN')} mặt hàng</small><em>${c.groups.slice(0, 4).map(g => `<i onclick="event.stopPropagation();event.preventDefault();closeMega();setCat('${c.id}','${esc(g).replace(/'/g, "\\'")}')">${esc(g)}</i>`).join('')}</em></span></a>`).join('')}</div></div>`;
@@ -214,8 +214,7 @@ async function lgSearch() {
 let _PR = null;
 async function packRows() {
   if (_PR) return _PR;
-  let rows = null; try { const c = JSON.parse(localStorage.getItem('kk_pack') || 'null'); const M = window.META || (typeof META !== 'undefined' ? META : null);
-    if (c && c.rows && M && (c.v === M.packV || c.v === M.lastSync)) rows = c.rows; } catch { } // chi dung ban luu cuc bo neu cung phien ban danh muc hien hanh
+  let rows = null; try { if (window.kkPackRows) rows = await window.kkPackRows(); } catch { } // hang do Worker giu (IndexedDB), khong phan tich JSON tren luong chinh
   if (!rows) rows = (await api('/api/catalog-pack')).rows;
   for (const r of rows) r._h = kFold(r[1] + ' ' + r[2] + ' ' + r[5]);
   return (_PR = rows);

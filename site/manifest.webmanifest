@@ -1,0 +1,16 @@
+{
+  "name": "KK-MALL - Đại siêu thị trực tuyến",
+  "short_name": "KK-MALL",
+  "description": "Tìm giá tốt nhất từ các nguồn lớn tại Việt Nam, mua hộ và giao tận nơi, giá cuối cùng đã gồm giao hàng.",
+  "lang": "vi",
+  "start_url": "./?utm_source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1E3A8A",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

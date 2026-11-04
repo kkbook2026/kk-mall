@@ -51,6 +51,8 @@ async function main() {
   const adm = await get(SITE + '/admin/'); add('Trang quản trị', adm.status === 200 && /noindex/.test(adm.body), 'HTTP ' + adm.status);
   const enc = await get(SITE + '/admin/data.enc', { method: 'HEAD' }); add('Gói dữ liệu quản trị (mã hóa)', enc.status === 200, 'HTTP ' + enc.status);
   const ext = await get(SITE + '/admin/ext/kk-auto-order.zip', { method: 'HEAD' }); add('Gói tiện ích đặt hàng', ext.status === 200, 'HTTP ' + ext.status);
+  const pwa = await Promise.all(['/manifest.webmanifest', '/sw.js', '/offline.html', '/icons/icon-192.png'].map(u => get(SITE + u, { method: 'HEAD' })));
+  add('PWA (manifest, service worker, offline, icon)', pwa.every(r => r.status === 200), pwa.map(r => r.status).join('/'));
   const sm = await get(SITE + '/sitemap.xml'); add('Sitemap', sm.status === 200 && /<(urlset|sitemapindex)/.test(sm.body), 'HTTP ' + sm.status);
   const legal = await get(SITE + '/phap-ly.html'); add('Trang pháp lý / chính sách', legal.status === 200, 'HTTP ' + legal.status);
   const days = await certDays(new URL(SITE).hostname); add('Chứng chỉ HTTPS', days > 14, days < 0 ? 'không đọc được' : 'còn ' + days + ' ngày');
