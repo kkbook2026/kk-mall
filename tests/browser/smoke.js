@@ -2,7 +2,8 @@
  * KK-MALL - Kiem thu trinh duyet (Playwright, Chromium) tren ban tinh cuc bo cua site/ - khong can mang ngoai.
  * Chay: node tests/browser/smoke.js   (tu mo may chu tinh tai cong 8766; bien PORT de doi)
  * Pham vi: trang chu dung du lieu that trong site/api, Worker tim kiem + IndexedDB, service worker, PWA, tim kiem, mo san pham,
- * gio hang, chan trang (danh muc nam ngang, khong co link quan tri), khong loi JS / vi pham CSP, dien thoai 390px khong tran ngang.
+ * gio hang, chan trang (danh muc nam ngang, khong co link quan tri), thu vien hop dong KKHD, trang phap ly theo phien ban,
+ * khong loi JS / vi pham CSP, dien thoai 390px khong tran ngang.
  * (c) 2026 Nguyen Duy Dien. All rights reserved.
  */
 'use strict';
@@ -42,6 +43,16 @@ async function t(name, f) { try { await f(); pass++; console.log('  ✓', name);
   await t('chan trang: danh muc xep ngang (cao < 200 px), 15 lien ket', async () => {
     const m = await page.$eval('#seoLinks', n => ({ h: n.getBoundingClientRect().height, a: n.querySelectorAll('a').length, disp: getComputedStyle(n.querySelector('a')).display }));
     if (m.a < 10 || m.h > 200 || m.disp !== 'inline') throw new Error(JSON.stringify(m));
+  });
+
+  await t('thu vien hop dong KKHD nap trong trang + dien mau dung (vnd, escape, dong hang)', async () => {
+    const r = await page.evaluate(() => { if (typeof KKHD !== 'object') return 'no KKHD'; const h = KKHD.fill('<b>{{code}}</b>{{#lines}}<i>{{i}}:{{name}}={{line_cost}}</i>{{/lines}}', KKHD.data({ code: 'KK1', lines: [{ sku: 'KK000001', name: 'A<b>', qty: 1, unit_cost: 1234567, line_cost: 1234567, line_fee: 1 }] }, {})); return h; });
+    if (r !== '<b>KK1</b><i>1:A&lt;b&gt;=1.234.567 đ</i>') throw new Error(r);
+  });
+  await t('trang phap ly: phien-ban.html + mau hop dong 2 phien ban + dieu khoan v1.0 (200, dung noi dung)', async () => {
+    for (const [u, re] of [['/phap-ly/phien-ban.html', /UQ-2026-10[\s\S]*HD-2026-11|HD-2026-11[\s\S]*UQ-2026-10/], ['/phap-ly/hop-dong-HD-2026-11.html', /HỢP ĐỒNG ỦY THÁC MUA HÀNG HÓA[\s\S]*Điều 14/], ['/phap-ly/hop-dong-UQ-2026-10.html', /XÁC NHẬN ỦY QUYỀN/], ['/phap-ly/dieu-khoan-HD-2026-11.html', /13\. Thông tin bắt buộc công bố/], ['/phap-ly.html', /Phiên bản điều khoản/]]) {
+      const x = await page.evaluate(async u => { const r = await fetch(u); return { st: r.status, tx: await r.text() }; }, u); if (x.st !== 200 || !re.test(x.tx)) throw new Error(u + ' ' + x.st);
+    }
   });
 
   console.log('2. Tim kiem va san pham');

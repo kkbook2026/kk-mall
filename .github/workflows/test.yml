@@ -22,7 +22,9 @@ jobs:
           for f in site/*.js site/admin/ops.js collector/*.js extension/kk-auto-order/*.js tests/browser/*.js; do node --check "$f"; done
           cp backend/Code.gs /tmp/Code.gs.js && node --check /tmp/Code.gs.js
           node -e "JSON.parse(require('fs').readFileSync('site/manifest.webmanifest','utf8'));JSON.parse(require('fs').readFileSync('extension/kk-auto-order/manifest.json','utf8'))"
-      - name: Backend (Apps Script gia lap) - chinh sach, chu ky bot, tran, cong tac
+      - name: Van ban phap ly (legal/terms) khop ma may chu va trang web da sinh
+        run: node tools/build-terms.js --check
+      - name: Backend (Apps Script gia lap) - chinh sach, chu ky bot, tran, cong tac, hop dong dien tu, luu tru, su co
         run: node tests/backend/test.js
       - name: Tien ich Chrome - ke hoach nguon, chu ky, tach dia chi
         run: node tests/extension/lib.test.js
@@ -46,5 +48,7 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Kiem thu trinh duyet (trang chu, Worker + IndexedDB, service worker, tim kiem, san pham, gio hang, dien thoai, JS/CSP)
         run: node tests/browser/smoke.js
+      - name: Dau-cuoi dat hang + hop dong dien tu (trinh duyet that + may chu gia lap trong tien trinh)
+        run: node tests/browser/checkout.js
       - name: Ngan sach Lighthouse (hieu nang >= 80, tiep can >= 90, SEO >= 90, thuc hanh tot >= 80)
         run: node tests/browser/lighthouse.js

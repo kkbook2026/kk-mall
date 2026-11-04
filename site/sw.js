@@ -6,7 +6,7 @@
  *    yeu cau cache:'no-store' (giu gia luc thanh toan), config.js, sw.js, so cai gia
  * (c) 2026 Nguyen Duy Dien. All rights reserved. */
 'use strict';
-const V = 'kk-sw-2611041';
+const V = 'kk-sw-2611042';
 const C_PAGE = 'kk-page-' + V, C_API = 'kk-api-' + V, C_IMG = 'kk-img-' + V, C_STATIC = 'kk-static-' + V;
 const OFFLINE = './offline.html';
 const LIMIT = { [C_API]: 400, [C_IMG]: 300, [C_STATIC]: 60, [C_PAGE]: 30 };

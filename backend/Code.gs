@@ -4,6 +4,8 @@
  *  - Đơn hàng, thành viên (OTP email), lệnh mua (PO), đổi trả / bảo hành (RMA), sổ kế toán (TK 1121/3388/5113/33311/632),
  *    hóa đơn phí dịch vụ, cấu hình - lưu trên Google Sheet của chủ sở hữu.
  *  - Sao lưu 2 nơi: Google Sheet (bản sống) + bản JSON hằng ngày trong thư mục Google Drive (giữ 60 bản).
+ *  - Hợp đồng điện tử: mỗi đơn có văn bản hợp đồng/xác nhận ủy quyền tự điền theo phiên bản điều khoản, lưu nguyên văn, băm SHA-256,
+ *    nối chuỗi băm, đính kèm email, tải về; ô tiếp thị tách riêng; xóa tài khoản 24 tháng không hoạt động; kiểm tra chia sẻ Drive; sự cố dữ liệu 72 giờ.
  *  - Bảo mật: OTP 6 số băm SHA-256 + pepper, hết hạn 10 phút, tối đa 5 lần thử, giới hạn tần suất;
  *    phiên đăng nhập token 256-bit chỉ lưu dạng băm; quyền quản trị chỉ theo ADMIN_EMAILS (Script Properties);
  *    chống chèn công thức vào Sheet; khóa ghi đồng thời (LockService); giá luôn tính lại phía máy chủ.
@@ -11,8 +13,7 @@
  */
 
 /* =========================== CẤU HÌNH =========================== */
-var VERSION = '1.8.0';
-var CONSENT_VERSION = 'UQ-2026-10';
+var VERSION = '1.9.0';
 var SHEETS = {
   Orders: ['code', 'created_at', 'status', 'payment_status', 'email', 'phone', 'name', 'goods', 'fee', 'total', 'paid_at', 'data', 'updated_at'],
   PO: ['po_id', 'order_code', 'sku', 'name', 'qty', 'status', 'collected_cost', 'actual_source', 'actual_cost', 'supplier_order_id', 'tracking', 'data', 'updated_at'],
@@ -25,6 +26,8 @@ var SHEETS = {
   Log: ['at', 'action', 'actor', 'detail'],
   Reviews: ['id', 'sku', 'order_code', 'rating', 'content', 'name', 'status', 'created_at', 'data'],
   SearchMiss: ['q', 'kind', 'n', 'results', 'first_at', 'last_at'],
+  Contracts: ['code', 'version', 'hash', 'created_at', 'marketing', 'html'],
+  Incidents: ['id', 'at', 'by', 'kind', 'severity', 'status', 'detected_at', 'summary', 'data', 'updated_at'],
   Chain: ['seq', 'at', 'kind', 'ref', 'digest', 'prev', 'hash']   // chuoi bam nhat ky tien & trang thai (chainhead cong khai)
 };
 var DEFAULTS = {
@@ -61,6 +64,120 @@ var ST = {
 };
 
 /* =========================== TIỆN ÍCH =========================== */
+/* ==== HD:BEGIN - sinh tu site/kk-hop-dong.js + legal/terms/* bang node tools/build-terms.js - KHONG SUA TAY ==== */
+/*
+ * KK-MALL - HOP DONG DIEN TU: dien mau hop dong theo don hang + van ban chuan de bam (SHA-256).
+ * File nay dung CHUNG cho trinh duyet (xem truoc khi dat) va may chu Apps Script (ban chot luu kem don):
+ * tools/build-terms.js chep nguyen van vao backend/Code.gs giua hai dau moc HD:BEGIN / HD:END - KHONG sua ban trong Code.gs.
+ * Chi dung cu phap ES5 + ham thuan (khong Intl, khong Date local) de ket qua giong het nhau o moi noi.
+ * (c) 2026 Nguyen Duy Dien. All rights reserved.
+ */
+var KKHD = (function () {
+  'use strict';
+  var NA = '[đang cập nhật]';
+  var CSS = 'body{font-family:"Segoe UI",Arial,sans-serif;max-width:860px;margin:0 auto;padding:20px 16px;color:#0F172A;line-height:1.55;font-size:14px}'
+    + '.hd h1,.dk h1{font-size:20px;text-align:center;margin:8px 0 4px;letter-spacing:.3px}.hd-top{text-align:center;margin:0 0 6px}.hd-sub{text-align:center;color:#334155;margin:0 0 14px}'
+    + '.hd h2,.dk h2{font-size:15px;margin:16px 0 4px;color:#1E3A8A}.hd p,.dk p{margin:4px 0;text-align:justify}'
+    + 'table.hd-t{width:100%;border-collapse:collapse;margin:8px 0}table.hd-t th,table.hd-t td{border:1px solid #CBD5E1;padding:6px 8px;vertical-align:top;text-align:left}table.hd-t th{background:#F1F5F9}'
+    + 'table.hd-l{width:100%;border-collapse:collapse;font-size:13px}table.hd-l th,table.hd-l td{border:1px solid #E2E8F0;padding:4px 6px}table.hd-l th{background:#F8FAFC}'
+    + '.hd-foot{font-size:12px;color:#475569;margin-top:14px;border-top:1px dashed #CBD5E1;padding-top:8px}.hd-print{text-align:center;margin:18px 0}.hd-print button{font-size:14px;padding:8px 16px;cursor:pointer}'
+    + '@media print{.hd-print{display:none}body{padding:0}}';
+  function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function vnd(n) { n = Math.round(Number(n) || 0); var s = String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); return (n < 0 ? '-' : '') + s + ' đ'; }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function vnTime(iso) { // dd/mm/yyyy hh:mm theo gio Viet Nam (UTC+7), khong phu thuoc mui gio may chay
+    var t = new Date(iso).getTime(); if (!isFinite(t)) return '';
+    var d = new Date(t + 7 * 3600e3);
+    return pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear() + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+  }
+  function vnDate(ymd) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd || '')); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; }
+  function or(v, alt) { v = v === null || v === undefined ? '' : String(v).replace(/^\s+|\s+$/g, ''); return v || alt; }
+  /* Du lieu dien mau: o = don hang (code, created_at, customer, vat, lines, goods, fee_net, discount, vouchers, total, marketing)
+   * c = cau hinh cong khai cua may chu (company, bank, terms, vat_rate, voucher_cap, tolerance, order_days, unpaid_hours, return_days, sources, eta) */
+  function data(o, c) {
+    o = o || {}; c = c || {};
+    var cu = o.customer || {}, co = c.company || {}, b = c.bank || {}, t = c.terms || {}, v = o.vat || null;
+    var vatBlock = v && v.name ? 'Yêu cầu hóa đơn GTGT tiền hàng: ' + or(v.name, '') + (v.tax_code ? ', MST ' + v.tax_code : '') + (v.address ? ', ' + v.address : '') + '.' : 'Không yêu cầu hóa đơn GTGT tiền hàng.';
+    var codes = (o.vouchers || []).map(function (x) { return x && x.code ? x.code : String(x || ''); }).filter(String).join('+');
+    return {
+      code: or(o.code, '[cấp khi đặt hàng]'), at: o.created_at ? vnTime(o.created_at) : '[thời điểm đặt hàng]',
+      terms_label: or(t.label, ''), terms_date: vnDate(t.effective) || '[ngày áp dụng]', terms_published: vnDate(t.published) || '', terms_url: or(t.url, 'https://www.kk-mall.com/phap-ly.html'),
+      cust_name: or(cu.name, ''), cust_phone: or(cu.phone, ''), cust_email: or(cu.email, ''), cust_address: or(cu.address, ''), vat_block: vatBlock,
+      co_name: or(co.name, 'CÔNG TY TNHH KK-MALL'), co_tax: or(co.tax, NA), co_reg_no: or(co.reg_no, NA), co_reg_by: or(co.reg_by, NA), co_reg_date: or(co.reg_date, NA),
+      co_address: or(co.address, NA), co_phone: or(co.phone, NA), co_email: or(co.email, NA), co_rep: or(co.rep, NA), co_rep_title: or(co.rep_title, 'Giám đốc'),
+      vat_rate: String(c.vat_rate === undefined || c.vat_rate === null ? 10 : c.vat_rate), voucher_cap: String(c.voucher_cap === undefined || c.voucher_cap === null ? 50 : c.voucher_cap),
+      tolerance: vnd(c.tolerance === undefined ? 5000 : c.tolerance), order_days: String(c.order_days || 5), unpaid_hours: String(c.unpaid_hours || 24), return_days: String(c.return_days || 7),
+      lines: (o.lines || []).map(function (l) { return { sku: or(l.sku, ''), name: or(l.name, ''), qty: String(l.qty || 1), unit_cost: vnd(l.unit_cost), line_cost: vnd(l.line_cost), line_fee: vnd(l.line_fee) }; }),
+      goods: vnd(o.goods), fee: vnd(o.fee_net), discount_note: o.discount ? ' (đã trừ mã giảm giá ' + (codes || '') + ' ' + vnd(-o.discount) + ' vào phí dịch vụ)' : '', total: vnd(o.total),
+      bank_label: or(b.label, NA), bank_acc: or(b.acc, NA), sources: (c.sources || []).join(', ') || NA,
+      eta: or(c.eta, 'theo trang theo dõi đơn hàng (thường 2-7 ngày làm việc sau khi đặt tại nguồn)'), marketing: o.marketing ? 'Đồng ý nhận thông tin khuyến mãi qua email (có thể rút lại bất kỳ lúc nào)' : 'Không nhận'
+    };
+  }
+  function fill(tpl, d) { // {{#lines}}...{{/lines}} lap theo dong hang; {{key}} thay gia tri (da escape HTML)
+    tpl = String(tpl || '').replace(/\{\{#lines\}\}([\s\S]*?)\{\{\/lines\}\}/g, function (m, row) {
+      return (d.lines || []).map(function (l, i) { return row.replace(/\{\{(\w+)\}\}/g, function (m2, k) { return esc(k === 'i' ? i + 1 : l[k]); }); }).join('');
+    });
+    return tpl.replace(/\{\{(\w+)\}\}/g, function (m, k) { return esc(d[k] === undefined || d[k] === null ? '' : d[k]); });
+  }
+  function text(html) { // van ban chuan de bam: bo the, giai ma thuc the HTML, gop khoang trang
+    return String(html || '').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+  }
+  function doc(inner, title, hash) { // file HTML doc lap de gui email / tai ve / in - luu PDF
+    return '<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + esc(title) + '</title><style>' + CSS + '</style></head><body>' + inner
+      + (hash ? '<p class="hd-foot">Mã băm SHA-256 của văn bản: <code>' + esc(hash) + '</code> (tính trên nội dung đã bỏ định dạng, gộp khoảng trắng).</p>' : '')
+      + '<p class="hd-print"><button type="button" onclick="window.print()">In / Lưu PDF</button></p></body></html>';
+  }
+  return { NA: NA, CSS: CSS, esc: esc, vnd: vnd, vnTime: vnTime, vnDate: vnDate, data: data, fill: fill, text: text, doc: doc };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = KKHD;
+/* Phien ban dieu khoan (thu tu cong bo) va mau hop dong tung phien ban */
+var TERMS_META = [{"version":"UQ-2026-10","label":"UQ-2026-10","kind":"contract","title":"Điều khoản ủy quyền tìm kiếm, đặt hàng và thanh toán hộ (bản đang áp dụng)","published":"2026-10-23","effective":"2026-10-23","url":"https://www.kk-mall.com/phap-ly.html#uy-quyen","contract_url":"https://www.kk-mall.com/phap-ly/hop-dong-UQ-2026-10.html"},
+  {"version":"HD-2026-11","label":"v1.0","kind":"contract","title":"Hợp đồng ủy thác mua hàng hóa điện tử và Điều khoản dịch vụ mua hộ","published":"2026-11-04","effective":null,"url":"https://www.kk-mall.com/phap-ly/dieu-khoan-HD-2026-11.html","contract_url":"https://www.kk-mall.com/phap-ly/hop-dong-HD-2026-11.html"}];
+var TERMS_TPL = {
+  'UQ-2026-10': "<div class=\"hd\" data-version=\"UQ-2026-10\">\n<h1>XÁC NHẬN ỦY QUYỀN TÌM KIẾM, ĐẶT HÀNG VÀ THANH TOÁN HỘ</h1>\n<p class=\"hd-sub\">Số: <b>{{code}}</b> - Phiên bản điều khoản: <b>{{terms_label}}</b> (áp dụng từ {{terms_date}}) - Xác nhận lúc {{at}} (giờ Việt Nam)</p>\n<p><b>Bên ủy quyền (Khách hàng):</b> {{cust_name}} - số điện thoại {{cust_phone}} - email {{cust_email}} - địa chỉ nhận hàng: {{cust_address}}. {{vat_block}}</p>\n<p><b>Bên nhận ủy quyền (KK-MALL):</b> {{co_name}}; địa chỉ: {{co_address}}; mã số doanh nghiệp: {{co_tax}}; hotline {{co_phone}}; email {{co_email}}; website www.kk-mall.com.</p>\n<p>Bằng việc tích chọn đồng ý tại bước đặt hàng và chuyển tiền thanh toán, Khách hàng xác nhận đã đọc và đồng ý toàn văn Điều khoản ủy quyền dưới đây và Điều khoản sử dụng, Chính sách thanh toán, Đổi trả - bảo hành, Chính sách bảo vệ dữ liệu cá nhân công bố tại {{terms_url}} ở thời điểm xác nhận.</p>\n\n<h2>Điều 1. Bản chất dịch vụ</h2>\n<p>KK-MALL là nền tảng công nghệ cung cấp công cụ tự động giúp Khách hàng tìm nguồn hàng có giá tối ưu từ các Nhà cung cấp và thực hiện đặt hàng, thanh toán hộ theo yêu cầu của Khách hàng. KK-MALL không phải là người bán hàng hóa, không sở hữu hàng hóa và không định giá gốc của hàng hóa. Quan hệ mua bán hàng hóa được xác lập trực tiếp giữa Khách hàng và Nhà cung cấp.</p>\n<h2>Điều 2. Nội dung ủy quyền thu hộ - chi hộ</h2>\n<p>Khách hàng ủy quyền cho KK-MALL: (1) nhận tiền ủy thác bằng đúng giá hàng tại Nhà cung cấp; (2) dùng chính khoản tiền đó thanh toán cho Nhà cung cấp để hoàn tất đơn hàng, với thông tin người nhận là Khách hàng; (3) thay mặt Khách hàng cung cấp thông tin xuất hóa đơn (nếu Khách hàng yêu cầu) để Nhà cung cấp xuất hóa đơn GTGT tiền hàng trực tiếp cho Khách hàng; (4) thay mặt Khách hàng thực hiện thủ tục đổi trả, hoàn tiền với Nhà cung cấp và nhận lại tiền hoàn để chuyển trả Khách hàng.</p>\n<h2>Điều 3. Phí dịch vụ và hóa đơn của KK-MALL</h2>\n<p>Khách hàng trả phí dịch vụ mua hộ và xử lý đơn hàng theo biểu phí công bố (đã gồm thuế GTGT {{vat_rate}}%), ghi tại Phụ lục. KK-MALL xuất hóa đơn GTGT cho khoản phí dịch vụ này. Mã giảm giá chỉ trừ vào phí dịch vụ, tối đa {{voucher_cap}}% phí dịch vụ của đơn.</p>\n<h2>Điều 4. Trượt giá và hết hàng</h2>\n<p>Nếu tại thời điểm đặt mua, giá Nhà cung cấp cao hơn giá đã thu trong biên dung sai {{tolerance}} mỗi đơn vị hàng, KK-MALL tự chịu phần chênh lệch; nếu thấp hơn, phần chênh lệch được hoàn lại Khách hàng. Nếu vượt biên dung sai hoặc hết hàng, KK-MALL đổi sang nguồn tương đương cùng mã sản phẩm hoặc hoàn tiền 100%.</p>\n<h2>Điều 5. Trách nhiệm</h2>\n<p>Nhà cung cấp chịu trách nhiệm về chất lượng, nguồn gốc, bảo hành hàng hóa theo pháp luật và chính sách của hãng. KK-MALL chịu trách nhiệm thực hiện đúng, đủ, kịp thời các công việc được ủy quyền và hỗ trợ Khách hàng trong suốt quá trình đổi trả, bảo hành; đổi trả trong {{return_days}} ngày kể từ ngày nhận theo Chính sách đổi trả.</p>\n<h2>Điều 6. Thời hạn ủy quyền, thanh toán và dữ liệu</h2>\n<p>Ủy quyền có hiệu lực từ khi Khách hàng xác nhận đơn hàng đến khi hoàn tất giao hàng và các nghĩa vụ đổi trả, hoàn tiền liên quan đến đơn hàng đó. Đơn chưa thanh toán sau {{unpaid_hours}} giờ tự động hủy. Họ tên, số điện thoại, email, địa chỉ nhận hàng và thông tin hóa đơn của Khách hàng được xử lý để thực hiện ủy quyền này (chuyển cho Nhà cung cấp và đơn vị vận chuyển để giao hàng, xuất hóa đơn) theo Chính sách bảo vệ dữ liệu cá nhân; không dùng cho tiếp thị nếu Khách hàng không đồng ý riêng. Lựa chọn nhận thông tin tiếp thị: {{marketing}}. Thời điểm và phiên bản điều khoản Khách hàng đồng ý được lưu kèm đơn hàng cùng mã băm SHA-256 của văn bản này.</p>\n\n<h2>Phụ lục - Nội dung đơn hàng (hệ thống tự lập)</h2>\n<table class=\"hd-t\">\n<tr><th>Mục</th><th>Nội dung</th></tr>\n<tr><td>Mã đơn hàng, thời điểm xác nhận</td><td>{{code}} - {{at}} (giờ Việt Nam)</td></tr>\n<tr><td>Khách hàng</td><td>{{cust_name}}, {{cust_phone}}, {{cust_email}}, {{cust_address}}. {{vat_block}}</td></tr>\n<tr><td>Hàng hóa</td><td><table class=\"hd-l\"><tr><th>#</th><th>Mã KK</th><th>Tên hàng</th><th>SL</th><th>Tiền hàng/đơn vị</th><th>Thành tiền hàng</th><th>Phí dịch vụ dòng</th></tr>{{#lines}}<tr><td>{{i}}</td><td>{{sku}}</td><td>{{name}}</td><td>{{qty}}</td><td>{{unit_cost}}</td><td>{{line_cost}}</td><td>{{line_fee}}</td></tr>{{/lines}}</table></td></tr>\n<tr><td>Tiền hàng thanh toán hộ Nhà cung cấp</td><td>{{goods}}</td></tr>\n<tr><td>Phí dịch vụ mua hộ và xử lý đơn (đã gồm VAT {{vat_rate}}%)</td><td>{{fee}}{{discount_note}}</td></tr>\n<tr><td>Tổng thanh toán</td><td><b>{{total}}</b> - chuyển khoản VietQR: {{bank_label}} {{bank_acc}}, nội dung chuyển khoản \"{{code}}\"</td></tr>\n<tr><td>Nguồn hàng được phép đặt</td><td>{{sources}}</td></tr>\n<tr><td>Biên dung sai, thời hạn đặt</td><td>{{tolerance}}/đơn vị; {{order_days}} ngày làm việc kể từ khi nhận đủ thanh toán</td></tr>\n<tr><td>Thời gian giao dự kiến</td><td>{{eta}}</td></tr>\n<tr><td>Điều khoản đã đồng ý</td><td>{{terms_label}} (áp dụng từ {{terms_date}}) - {{terms_url}}</td></tr>\n<tr><td>Nhận thông tin tiếp thị</td><td>{{marketing}}</td></tr>\n</table>\n<p class=\"hd-foot\">Văn bản này do hệ thống KK-MALL lập tự động từ dữ liệu Khách hàng nhập và được lưu nguyên văn kèm đơn hàng; mã băm SHA-256 của nội dung (sau khi bỏ định dạng, gộp khoảng trắng) được ghi vào chuỗi băm nhật ký của hệ thống để chứng minh không bị sửa đổi.</p>\n</div>",
+  'HD-2026-11': "<div class=\"hd\" data-version=\"HD-2026-11\">\n<p class=\"hd-top\">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM<br><b>Độc lập - Tự do - Hạnh phúc</b></p>\n<h1>HỢP ĐỒNG ỦY THÁC MUA HÀNG HÓA</h1>\n<p class=\"hd-sub\">Số: <b>{{code}}</b> - Phiên bản điều khoản: <b>{{terms_label}}</b> (áp dụng từ {{terms_date}}) - Giao kết lúc {{at}} (giờ Việt Nam)</p>\n<p><i>Căn cứ Bộ luật Dân sự 2015; Luật Thương mại 2005; Luật Bảo vệ quyền lợi người tiêu dùng 2023; Luật Giao dịch điện tử 2023; Luật Thương mại điện tử 2025; Luật Bảo vệ dữ liệu cá nhân 2025 và các văn bản hướng dẫn.</i></p>\n<p><b>Bên ủy thác (Khách hàng, gọi tắt \"Bên A\"):</b> {{cust_name}} - số điện thoại {{cust_phone}} - email {{cust_email}} - địa chỉ nhận hàng: {{cust_address}}. {{vat_block}}</p>\n<p><b>Bên nhận ủy thác (\"Bên B\"):</b> {{co_name}} - Giấy chứng nhận đăng ký doanh nghiệp số {{co_reg_no}} do {{co_reg_by}} cấp ngày {{co_reg_date}}; địa chỉ trụ sở: {{co_address}}; điện thoại {{co_phone}}; email {{co_email}}; website www.kk-mall.com; người đại diện: {{co_rep}}, chức vụ {{co_rep_title}}.</p>\n<p>Hai bên thỏa thuận như sau:</p>\n\n<h2>Điều 1. Nội dung ủy thác</h2>\n<p>1.1. Bên A ủy thác cho Bên B, với danh nghĩa của Bên B, mua các hàng hóa liệt kê tại Phụ lục 1 (gọi là \"Hàng hóa\") từ nhà cung cấp theo Điều 3 và tổ chức giao Hàng hóa đến địa chỉ Bên A chỉ định.</p>\n<p>1.2. Hàng hóa là hàng lưu thông hợp pháp tại Việt Nam, mới 100%, nguyên hộp của nhà sản xuất hoặc nhà phân phối chính thức, trừ khi trang sản phẩm ghi rõ khác. Bên B không mua hộ hàng cấm, hàng hạn chế kinh doanh, hàng đã qua sử dụng.</p>\n<p>1.3. Bên B là thương nhân kinh doanh các mặt hàng phù hợp với Hàng hóa ủy thác theo ngành nghề đã đăng ký (Luật Thương mại 2005, Điều 156).</p>\n\n<h2>Điều 2. Giá, thù lao ủy thác và tổng tiền thanh toán</h2>\n<p>2.1. Tổng tiền Bên A thanh toán cho một đơn hàng gồm hai khoản tách bạch, hiển thị riêng tại thời điểm đặt hàng và trong email xác nhận:</p>\n<p>a) Tiền hàng: giá bán niêm yết của nhà cung cấp cộng chi phí giao hàng và phụ phí dự phòng của nhà cung cấp đó (gọi chung là \"giá thực trả tại nguồn\"). Bên B thu hộ khoản này và chi trả cho nhà cung cấp; khoản này không phải doanh thu của Bên B.</p>\n<p>b) Thù lao ủy thác (gọi là \"phí dịch vụ mua hộ và xử lý đơn hàng\"): tính theo từng dòng hàng theo biểu phí công bố tại Điều khoản dịch vụ, đã gồm thuế giá trị gia tăng {{vat_rate}}%. Biểu phí tại ngày giao kết ghi ở Phụ lục 1.</p>\n<p>2.2. Tổng tiền tại 2.1 là giá cuối cùng. Bên B không thu thêm bất kỳ khoản nào của Bên A sau khi giao kết, kể cả khi giá tại nguồn tăng. Nếu giá thực trả tại nguồn tại thời điểm Bên B đặt mua thấp hơn tiền hàng đã thu, Bên B hoàn phần chênh lệch cho Bên A theo Điều 8 trong vòng 7 ngày làm việc kể từ ngày đặt mua.</p>\n<p>2.3. Mã giảm giá (voucher) chỉ giảm vào thù lao ủy thác, tối đa {{voucher_cap}}% thù lao của đơn hàng; không giảm vào tiền hàng.</p>\n\n<h2>Điều 3. Lựa chọn nhà cung cấp và phạm vi ủy quyền tự động</h2>\n<p>3.1. Bên A ủy quyền cho Bên B lựa chọn nhà cung cấp trong danh sách nguồn công bố tại Điều khoản dịch vụ theo thứ tự: còn hàng đúng mã sản phẩm, giá thực trả thấp nhất, xuất được hóa đơn GTGT nếu Bên A yêu cầu hóa đơn, thời gian giao dự kiến phù hợp.</p>\n<p>3.2. Bên A đồng ý để hệ thống của Bên B tự động đặt mua Hàng hóa tại nhà cung cấp mà không cần Bên A xác nhận lại, với các giới hạn sau (hạn mức ủy quyền):</p>\n<p>a) Số tiền thanh toán cho nhà cung cấp không vượt tiền hàng đã thu cộng biên dung sai {{tolerance}} mỗi đơn vị hàng; phần vượt trong biên dung sai do Bên B chịu;</p>\n<p>b) Chỉ đặt tại nhà cung cấp trong danh sách nguồn công bố;</p>\n<p>c) Chỉ đặt trong thời hạn {{order_days}} ngày làm việc kể từ khi nhận đủ thanh toán;</p>\n<p>d) Giao đúng tên, số điện thoại, địa chỉ nhận hàng Bên A đã khai; Bên B không đổi địa chỉ nếu Bên A không yêu cầu bằng văn bản điện tử;</p>\n<p>đ) Không chọn phương thức thu tiền khi nhận hàng; không mua hàng thay thế khác mã sản phẩm nếu Bên A chưa đồng ý.</p>\n<p>3.3. Ngoài hạn mức 3.2, Bên B phải hỏi ý kiến Bên A qua email hoặc điện thoại trước khi đặt mua. Nếu Bên A không trả lời trong 48 giờ, Bên B hủy dòng hàng đó và hoàn tiền theo Điều 8.</p>\n<p>3.4. Bên B không ủy thác lại cho bên thứ ba thực hiện hợp đồng này, trừ khi Bên A chấp thuận bằng văn bản điện tử (Luật Thương mại 2005, Điều 160). Việc nhà cung cấp hoặc đơn vị vận chuyển giao hàng theo đơn mua của Bên B không phải là ủy thác lại.</p>\n\n<h2>Điều 4. Giao kết, hiệu lực và thời hạn</h2>\n<p>4.1. Hợp đồng được giao kết khi Bên A đã đọc nội dung hợp đồng và Điều khoản dịch vụ, đánh dấu xác nhận đồng ý, bấm \"Đặt hàng\" và nhận được email xác nhận mã đơn từ Bên B. Thời điểm giao kết là thời điểm hệ thống ghi nhận mã đơn (giờ Việt Nam) ghi tại Phụ lục 1.</p>\n<p>4.2. Hợp đồng được thực hiện khi Bên B nhận đủ tổng tiền thanh toán theo Điều 5. Nếu sau {{unpaid_hours}} giờ kể từ khi giao kết Bên B chưa nhận được thanh toán, đơn hàng tự hủy; tiền chuyển đến sau đó được hoàn lại toàn bộ theo Điều 8.</p>\n<p>4.3. Hợp đồng chấm dứt khi: Hàng hóa đã giao và hết thời hạn đổi trả tại Điều 7; hoặc các bên hoàn tất hoàn tiền sau khi hủy; hoặc theo thỏa thuận khác bằng văn bản điện tử.</p>\n\n<h2>Điều 5. Thanh toán</h2>\n<p>5.1. Bên A thanh toán trước toàn bộ tổng tiền bằng chuyển khoản VietQR vào tài khoản ngân hàng của Bên B ghi trên trang thanh toán và email xác nhận, nội dung chuyển khoản là mã đơn hàng. Bên B không nhận tiền mặt, không thu tiền khi nhận hàng.</p>\n<p>5.2. Bên B xác nhận đã nhận thanh toán qua email trong vòng 15 phút khi ngân hàng báo có tự động, hoặc tối đa 04 giờ làm việc khi đối soát thủ công.</p>\n<p>5.3. Tiền hàng Bên B thu hộ được hạch toán tách bạch với thù lao ủy thác. Bên B chỉ dùng tiền hàng để thanh toán cho nhà cung cấp Hàng hóa của chính đơn hàng đó hoặc hoàn lại cho Bên A.</p>\n\n<h2>Điều 6. Hóa đơn, chứng từ</h2>\n<p>6.1. Nếu Bên A yêu cầu hóa đơn GTGT cho tiền hàng, Bên B chọn nhà cung cấp xuất được hóa đơn và yêu cầu nhà cung cấp xuất hóa đơn tiền hàng mang tên, mã số thuế Bên A theo Phụ lục 1. Bên B không xuất hóa đơn cho tiền hàng thu hộ.</p>\n<p>6.2. Bên B xuất hóa đơn điện tử cho thù lao ủy thác (nội dung \"Phí dịch vụ mua hộ và xử lý đơn hàng KK-MALL\") trong vòng 03 ngày làm việc kể từ ngày Hàng hóa giao thành công, gửi vào email Bên A.</p>\n<p>6.3. Bên B cung cấp cho Bên A mã đơn tại nhà cung cấp, mã vận đơn và tình trạng giao hàng trên trang theo dõi đơn.</p>\n\n<h2>Điều 7. Giao hàng, kiểm tra, đổi trả và bảo hành</h2>\n<p>7.1. Hàng hóa do nhà cung cấp hoặc đơn vị vận chuyển của nhà cung cấp giao trực tiếp đến địa chỉ Bên A. Thời gian giao dự kiến ghi trên trang theo dõi đơn; Bên B thông báo khi Hàng hóa được đặt, được giao cho vận chuyển và giao thành công.</p>\n<p>7.2. Bên A có quyền kiểm tra Hàng hóa khi nhận. Hàng hóa sai mã, thiếu, hư hỏng do vận chuyển, hoặc lỗi kỹ thuật phát hiện trong {{return_days}} ngày kể từ ngày nhận được đổi hoặc trả theo quy trình đổi trả tại Điều khoản dịch vụ; Bên B thay mặt Bên A làm việc với nhà cung cấp và chịu trách nhiệm theo dõi đến khi giải quyết xong.</p>\n<p>7.3. Bảo hành theo chính sách của nhà sản xuất hoặc nhà cung cấp; Bên B cung cấp thông tin trung tâm bảo hành chính hãng và hỗ trợ Bên A liên hệ.</p>\n<p>7.4. Bên B không chịu trách nhiệm về Hàng hóa đã bàn giao đúng thỏa thuận cho Bên A (Luật Thương mại 2005, Điều 164 khoản 3), nhưng vẫn chịu trách nhiệm về việc lựa chọn nguồn, đặt mua, theo dõi và hỗ trợ đổi trả theo hợp đồng này; quyền của Bên A theo pháp luật bảo vệ quyền lợi người tiêu dùng không bị hạn chế.</p>\n\n<h2>Điều 8. Hủy đơn, hoàn tiền</h2>\n<p>8.1. Bên A được hủy toàn bộ hoặc một phần đơn hàng miễn phí trước khi Bên B đặt mua tại nhà cung cấp (trạng thái \"Cần đặt\" trên trang theo dõi đơn). Sau khi đã đặt mua, việc hủy thực hiện theo chính sách của nhà cung cấp; Bên B hỗ trợ tối đa và hoàn các khoản thu được từ nhà cung cấp.</p>\n<p>8.2. Bên B hủy dòng hàng và hoàn 100% tiền hàng cùng thù lao của dòng hàng đó khi: nhà cung cấp hết hàng; giá thực trả tại nguồn vượt tiền hàng đã thu quá biên dung sai và Bên A không đồng ý phương án thay thế; hoặc quá thời hạn tại khoản 3.2 c mà chưa đặt được.</p>\n<p>8.3. Mọi khoản hoàn được chuyển về tài khoản ngân hàng Bên A khai trên trang theo dõi đơn trong vòng 07 ngày làm việc kể từ ngày phát sinh khoản hoàn, nội dung \"HOAN {{code}}\". Bên B không hoàn bằng tiền mặt, không giữ tiền hoàn dưới dạng điểm hay mã giảm giá nếu Bên A không yêu cầu.</p>\n<p>8.4. Nếu Bên B cung cấp không chính xác hoặc không đầy đủ thông tin theo Điều 37 Luật Bảo vệ quyền lợi người tiêu dùng 2023, Bên A có quyền đơn phương chấm dứt hợp đồng trong 30 ngày kể từ ngày giao kết và được hoàn tiền theo Điều 38 Luật này.</p>\n\n<h2>Điều 9. Quyền và nghĩa vụ của Bên A</h2>\n<p>9.1. Cung cấp đúng, đủ họ tên, số điện thoại, địa chỉ nhận hàng ba cấp (tỉnh/thành, quận/huyện, phường/xã) và thông tin hóa đơn nếu có; chịu trách nhiệm về thông tin đã khai (Luật Thương mại 2005, Điều 163 khoản 1).</p>\n<p>9.2. Thanh toán đúng hạn; nhận hàng hoặc ủy quyền người nhận; kiểm tra hàng khi nhận.</p>\n<p>9.3. Được yêu cầu Bên B thông báo đầy đủ tình hình thực hiện (Điều 162 khoản 1); được tra cứu đơn mọi lúc trên trang theo dõi đơn bằng mã đơn và số điện thoại hoặc tài khoản.</p>\n<p>9.4. Không chịu trách nhiệm về hành vi vi phạm pháp luật của Bên B, trừ trường hợp nguyên nhân do Bên A gây ra hoặc các bên cố ý làm trái pháp luật (Điều 162 khoản 2, Điều 163 khoản 4).</p>\n\n<h2>Điều 10. Quyền và nghĩa vụ của Bên B</h2>\n<p>10.1. Thực hiện mua hàng đúng thỏa thuận và trong hạn mức ủy quyền; thông báo kịp thời các vấn đề phát sinh; thực hiện chỉ dẫn hợp lý của Bên A; giao hàng, giao tiền đúng thỏa thuận (Điều 165).</p>\n<p>10.2. Bảo quản tài sản, tài liệu và giữ bí mật thông tin liên quan đến hợp đồng (Điều 165 khoản 4, 5); bảo vệ dữ liệu cá nhân của Bên A theo Điều 11.</p>\n<p>10.3. Được nhận thù lao ủy thác và yêu cầu Bên A cung cấp thông tin cần thiết (Điều 164 khoản 1, 2).</p>\n<p>10.4. Duy trì sổ kế toán tách bạch tiền hàng thu hộ và thù lao; lưu trữ hợp đồng, chứng từ điện tử của đơn hàng tối thiểu 10 năm theo pháp luật kế toán và cung cấp bản sao cho Bên A trong 07 ngày làm việc khi được yêu cầu.</p>\n\n<h2>Điều 11. Bảo vệ thông tin và dữ liệu cá nhân</h2>\n<p>11.1. Bên B xử lý họ tên, số điện thoại, email, địa chỉ nhận hàng và thông tin hóa đơn của Bên A để thực hiện hợp đồng này, gồm chuyển cho nhà cung cấp và đơn vị vận chuyển để giao hàng và xuất hóa đơn. Việc xử lý này là để thực hiện thỏa thuận giữa hai bên (Luật Bảo vệ dữ liệu cá nhân 2025, Điều 19 khoản 1 điểm d) và được Bên A biết rõ tại thời điểm đặt hàng.</p>\n<p>11.2. Bên B không dùng dữ liệu của Bên A cho quảng cáo, tiếp thị nếu Bên A không đồng ý riêng; không bán, không chuyển cho bên thứ ba ngoài mục đích 11.1. Lựa chọn của Bên A về việc nhận thông tin tiếp thị: {{marketing}}.</p>\n<p>11.3. Dữ liệu được lưu trữ có mã hóa trên hạ tầng của Google (Google Workspace, Google Cloud) đặt ngoài lãnh thổ Việt Nam theo hồ sơ đánh giá tác động chuyển dữ liệu xuyên biên giới mà Bên B đã lập; Bên A có quyền xem, tải về, yêu cầu sửa hoặc xóa dữ liệu bằng công cụ trên website, trừ chứng từ phải lưu theo pháp luật kế toán.</p>\n<p>11.4. Chi tiết tại Chính sách bảo vệ dữ liệu cá nhân công bố trên website, là một phần của Điều khoản dịch vụ.</p>\n\n<h2>Điều 12. Trách nhiệm do vi phạm, bất khả kháng</h2>\n<p>12.1. Bên vi phạm phải bồi thường thiệt hại thực tế, trực tiếp cho bên kia theo Bộ luật Dân sự 2015 và Luật Thương mại 2005. Bên B hoàn tiền chậm quá thời hạn tại Điều 8 phải trả lãi theo lãi suất quy định tại Bộ luật Dân sự 2015 cho thời gian chậm.</p>\n<p>12.2. Bên B không được miễn trách nhiệm chỉ vì Hàng hóa do nhà cung cấp hoặc đơn vị vận chuyển thực hiện (Luật Bảo vệ quyền lợi người tiêu dùng 2023, Điều 25 khoản 9).</p>\n<p>12.3. Sự kiện bất khả kháng theo Bộ luật Dân sự 2015 (thiên tai, dịch bệnh, quyết định của cơ quan nhà nước, sự cố hệ thống ngân hàng hoặc nhà cung cấp ngoài tầm kiểm soát) kéo dài thời hạn thực hiện tương ứng; quá 15 ngày, mỗi bên được chấm dứt hợp đồng và Bên B hoàn toàn bộ tiền đã thu chưa chi cho nhà cung cấp.</p>\n\n<h2>Điều 13. Giải quyết khiếu nại và tranh chấp</h2>\n<p>13.1. Bên A gửi khiếu nại qua hotline {{co_phone}}, email {{co_email}} hoặc trang theo dõi đơn. Bên B tiếp nhận trong 01 ngày làm việc và trả lời kết quả trong 07 ngày làm việc kể từ ngày nhận đủ thông tin.</p>\n<p>13.2. Tranh chấp được giải quyết bằng thương lượng; không thành, mỗi bên có quyền đưa ra Tòa án nhân dân có thẩm quyền theo pháp luật Việt Nam. Bên A là người tiêu dùng có thể lựa chọn phương thức giải quyết tranh chấp theo Luật Bảo vệ quyền lợi người tiêu dùng 2023, gồm Tòa án nơi Bên A cư trú.</p>\n\n<h2>Điều 14. Điều khoản chung</h2>\n<p>14.1. Hợp đồng được giao kết bằng thông điệp dữ liệu, có giá trị như văn bản theo Luật Giao dịch điện tử 2023. Việc Bên A xác nhận bằng tài khoản đăng nhập mã OTP email hoặc bằng cặp mã đơn + số điện thoại và thanh toán từ tài khoản ngân hàng là chữ ký điện tử chuyên dùng theo thỏa thuận của các bên (Luật Giao dịch điện tử 2023, Điều 22 khoản 2). Bản hợp đồng kèm Phụ lục 1 được gửi vào email Bên A và lưu tại trang theo dõi đơn để Bên A xem lại, tải về bất kỳ lúc nào.</p>\n<p>14.2. Ngôn ngữ hợp đồng là tiếng Việt. Khi có cách hiểu khác nhau, hợp đồng được giải thích theo hướng có lợi cho Bên A.</p>\n<p>14.3. Điều khoản dịch vụ mua hộ công bố trên website tại thời điểm giao kết ({{terms_url}}) là một phần của hợp đồng; nếu mâu thuẫn, hợp đồng này và Phụ lục 1 được ưu tiên. Mọi sửa đổi phải được hai bên xác nhận bằng văn bản điện tử.</p>\n\n<h2>Phụ lục 1 - Nội dung đơn hàng (hệ thống tự lập)</h2>\n<table class=\"hd-t\">\n<tr><th>Mục</th><th>Nội dung</th></tr>\n<tr><td>Mã đơn hàng, thời điểm giao kết</td><td>{{code}} - {{at}} (giờ Việt Nam)</td></tr>\n<tr><td>Bên A</td><td>{{cust_name}}, {{cust_phone}}, {{cust_email}}, {{cust_address}}. {{vat_block}}</td></tr>\n<tr><td>Hàng hóa</td><td><table class=\"hd-l\"><tr><th>#</th><th>Mã KK</th><th>Tên hàng</th><th>SL</th><th>Tiền hàng/đơn vị</th><th>Thành tiền hàng</th><th>Thù lao dòng</th></tr>{{#lines}}<tr><td>{{i}}</td><td>{{sku}}</td><td>{{name}}</td><td>{{qty}}</td><td>{{unit_cost}}</td><td>{{line_cost}}</td><td>{{line_fee}}</td></tr>{{/lines}}</table></td></tr>\n<tr><td>Tổng tiền hàng thu hộ</td><td>{{goods}}</td></tr>\n<tr><td>Thù lao ủy thác (đã gồm VAT {{vat_rate}}%)</td><td>{{fee}}{{discount_note}}</td></tr>\n<tr><td>Tổng thanh toán</td><td><b>{{total}}</b> - chuyển khoản VietQR: {{bank_label}} {{bank_acc}}, nội dung chuyển khoản \"{{code}}\"</td></tr>\n<tr><td>Danh sách nguồn được phép đặt</td><td>{{sources}}</td></tr>\n<tr><td>Hạn mức ủy quyền tự động</td><td>biên dung sai {{tolerance}}/đơn vị; thời hạn đặt {{order_days}} ngày làm việc kể từ khi nhận đủ thanh toán</td></tr>\n<tr><td>Thời gian giao dự kiến</td><td>{{eta}}</td></tr>\n<tr><td>Phiên bản Điều khoản dịch vụ đã đồng ý</td><td>{{terms_label}} (áp dụng từ {{terms_date}}) - {{terms_url}}</td></tr>\n<tr><td>Nhận thông tin tiếp thị</td><td>{{marketing}}</td></tr>\n</table>\n<p class=\"hd-foot\">Bản hợp đồng này do hệ thống KK-MALL lập tự động từ dữ liệu Bên A nhập và được lưu nguyên văn kèm đơn hàng; mã băm SHA-256 của nội dung văn bản (sau khi bỏ định dạng, gộp khoảng trắng) được ghi vào chuỗi băm nhật ký của hệ thống để chứng minh không bị sửa đổi.</p>\n</div>"
+};
+/* ==== HD:END ==== */
+
+/* =========================== ĐIỀU KHOẢN & HỢP ĐỒNG ĐIỆN TỬ ===========================
+ * TERMS_META / TERMS_TPL sinh tu legal/terms (nguon duy nhat). Phien ban moi nhat chua co ngay ap dung -> chu so huu dat
+ * TERMS_EFFECTIVE (YYYY-MM-DD, cach hom nay >= 7 ngay) tai Quan tri sau khi luat su chot van ban. Don dat truoc ngay do van theo ban cu.
+ * Moi don: van ban dien theo don -> luu nguyen van (sheet Contracts) + bam SHA-256 van ban chuan + noi chuoi bam + dinh kem email + tai ve. */
+var SOURCES_PUBLIC = ['Tiki', 'Shopee', 'Lazada', 'TikTok Shop', 'Sendo', 'Điện Máy Xanh', 'Thế Giới Di Động', 'FPT Shop', 'CellphoneS', 'Hoàng Hà Mobile', 'Phúc Anh', 'An Phát'];
+function vnToday_(t) { return Utilities.formatDate(new Date(t || Date.now()), 'Asia/Ho_Chi_Minh', 'yyyy-MM-dd'); }
+function termsList_() {
+  var ov = str_(P_().getProperty('TERMS_EFFECTIVE') || '', 10);
+  return TERMS_META.map(function (t, i) { var x = {}; for (var k in t) x[k] = t[k]; if (!x.effective && i === TERMS_META.length - 1 && /^\d{4}-\d{2}-\d{2}$/.test(ov)) x.effective = ov; return x; });
+}
+function termsActive_(t) { var today = vnToday_(t), L = termsList_(), a = L[0]; L.forEach(function (x) { if (x.effective && x.effective <= today) a = x; }); return a; }
+function hdCfg_() {
+  var b = bank_();
+  return { company: company_(), bank: b.ready ? { label: b.label, acc: b.acc } : {}, terms: termsActive_(), vat_rate: Number(cfg_('VAT_RATE')), voucher_cap: Number(cfg_('VOUCHER_FEE_CAP_PCT')), tolerance: Number(cfg_('TOLERANCE')),
+    order_days: 5, unpaid_hours: Number(cfg_('UNPAID_HOURS')), return_days: Number(cfg_('RETURN_DAYS')), sources: SOURCES_PUBLIC, fee_table: feeTable_() };
+}
+function termsPublic_() { var c = hdCfg_(); return { active: c.terms.version, versions: termsList_(), config: c, templates: TERMS_TPL }; }
+function hdHtml_(o, c) { c = c || hdCfg_(); var tpl = TERMS_TPL[c.terms.version]; if (!tpl) throw err_('Thiếu mẫu hợp đồng ' + c.terms.version, 500); return KKHD.fill(tpl, KKHD.data(o, c)); }
+function hdHash_(html) { return sha_(KKHD.text(html)); }
+function hdTitle_(code, version) { return (version === 'UQ-2026-10' ? 'Xác nhận ủy quyền mua hộ ' : 'Hợp đồng ủy thác mua hàng hóa ') + code; }
+function contractSave_(o) { // ban chot cua don: luu nguyen van + ma bam + noi chuoi (goi trong khoa, truoc khi ghi don)
+  var c = hdCfg_(), html = hdHtml_(o, c), hash = hdHash_(html);
+  o.contract = { version: c.terms.version, label: c.terms.label, effective: c.terms.effective || '', at: o.created_at, hash: hash, marketing: !!o.marketing, consent: true };
+  append_('Contracts', { code: o.code, version: c.terms.version, hash: hash, created_at: o.created_at, marketing: o.marketing ? 1 : 0, html: html });
+  chain_('contract', o.code, { code: o.code, version: c.terms.version, hash: hash, marketing: !!o.marketing, at: o.created_at }, hash);
+  return { html: html, hash: hash, version: c.terms.version };
+}
+function contractDoc_(code, version, html, hash) { return KKHD.doc(html, hdTitle_(code, version) + ' - KK-MALL', hash); }
+function orderContract_(b) {
+  var o = ownedOrder_(b, true), r = find_('Contracts', 'code', o.code);
+  if (!r) throw err_('Đơn này đặt trước khi hệ thống lập văn bản hợp đồng điện tử - liên hệ KK-MALL để nhận bản sao', 404);
+  return { code: o.code, version: r.version, hash: r.hash, created_at: r.created_at, title: hdTitle_(o.code, r.version), html: contractDoc_(o.code, r.version, String(r.html), r.hash) };
+}
+function memberMarketing_(email, on, version) {
+  var m = find_('Members', 'email', String(email || '').toLowerCase()); if (!m) return false;
+  var d = parseData_(m); d.marketing = { on: !!on, at: nowIso_(), version: version || '' }; update_('Members', m._row, { data: JSON.stringify(d) });
+  log_(on ? 'marketing_on' : 'marketing_off', email, version || ''); return true;
+}
+
 function P_() { return PropertiesService.getScriptProperties(); }
 function cfg_(k) { var v = P_().getProperty(k); return v === null || v === undefined ? (DEFAULTS[k] !== undefined ? DEFAULTS[k] : '') : v; }
 function nowIso_() { return new Date().toISOString(); }
@@ -171,12 +288,14 @@ function quote_(items, codes, fresh) {
 
 /* =========================== EMAIL =========================== */
 function company_() { var c = {}; try { c = JSON.parse(cfg_('COMPANY_JSON') || '{}'); } catch (e) { } return c; }
-function mail_(to, subject, html) {
+function mail_(to, subject, html, opt) {
   try {
     var c = company_();
-    MailApp.sendEmail({ to: to, subject: subject, name: c.short || 'KK-MALL', htmlBody: '<div style="font-family:Segoe UI,Arial,sans-serif;max-width:640px;margin:auto;color:#0F172A;line-height:1.55">'
+    var m = { to: to, subject: subject, name: c.short || 'KK-MALL' }; if (opt && opt.attachments) m.attachments = opt.attachments;
+    m.htmlBody = '<div style="font-family:Segoe UI,Arial,sans-serif;max-width:640px;margin:auto;color:#0F172A;line-height:1.55">'
       + '<div style="background:#1E3A8A;color:#fff;padding:14px 20px;border-radius:12px 12px 0 0;font-weight:800;font-size:18px">KK-MALL</div><div style="border:1px solid #E2E8F0;border-top:0;padding:18px 20px;border-radius:0 0 12px 12px">'
-      + html + '<hr style="border:0;border-top:1px solid #E2E8F0;margin:18px 0"><div style="font-size:12px;color:#64748B">' + esc_(c.name || 'KK-MALL') + (c.tax ? ' · MST ' + esc_(c.tax) : '') + (c.phone ? ' · ' + esc_(c.phone) : '') + ' · ' + cfg_('SITE') + '</div></div></div>' });
+      + html + '<hr style="border:0;border-top:1px solid #E2E8F0;margin:18px 0"><div style="font-size:12px;color:#64748B">' + esc_(c.name || 'KK-MALL') + (c.tax ? ' · MST ' + esc_(c.tax) : '') + (c.phone ? ' · ' + esc_(c.phone) : '') + ' · ' + cfg_('SITE') + '</div></div></div>';
+    MailApp.sendEmail(m);
     return true;
   } catch (e) { log_('mail_error', to, e.message); return false; }
 }
@@ -268,7 +387,7 @@ function otpVerifyLocked_(b) {
   if (role === 'admin') adminsMail_('🔐 Đăng nhập quản trị KK-MALL: ' + email, '<p>Tài khoản <b>' + esc_(email) + '</b> vừa đăng nhập trang quản trị lúc ' + new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) + ' (phiên hiệu lực 12 giờ).</p><p>Nếu không phải bạn: đổi mật khẩu Google ngay và xóa các dòng phiên trong sheet Sessions.</p>');
   return { token: token, member: memberOut_(find_('Members', 'email', email)) };
 }
-function memberOut_(m) { return m ? { email: m.email, name: m.name, phone: m.phone, address: m.address, role: m.role } : null; }
+function memberOut_(m) { return m ? { email: m.email, name: m.name, phone: m.phone, address: m.address, role: m.role, marketing: !!((parseData_(m).marketing || {}).on) } : null; }
 function session_(token, needAdmin) {
   if (!token) throw err_('Vui lòng đăng nhập', 401);
   var s = find_('Sessions', 'token_hash', hash_(str_(token, 100)));
@@ -316,7 +435,8 @@ function orderCreate_(b) {
   if (!/^0\d{9}$/.test(phone)) throw err_('Số điện thoại không hợp lệ');
   if (!isEmail_(email)) throw err_('Email không hợp lệ (dùng để nhận hóa đơn)');
   if (addr.length < 10) throw err_('Địa chỉ nhận hàng chưa đầy đủ');
-  if (b.consent !== true || b.consent_version !== CONSENT_VERSION) throw err_('Bạn cần đồng ý Điều khoản dịch vụ và Ủy quyền mua hộ - thanh toán hộ');
+  var T = termsActive_();
+  if (b.consent !== true || b.consent_version !== T.version) throw err_('Bạn cần đọc và đồng ý ' + (T.version === 'UQ-2026-10' ? 'Điều khoản dịch vụ và Ủy quyền mua hộ - thanh toán hộ' : 'Hợp đồng ủy thác mua hàng hóa và Điều khoản dịch vụ mua hộ') + ' (phiên bản ' + T.label + ')' + (b.consent_version && b.consent_version !== T.version ? ' - trang đang mở theo phiên bản cũ, vui lòng tải lại trang' : ''));
   rate_('ord_' + phone, 10, 3600); rate_('ord_e_' + email, 10, 3600); rate_('ord_all', 40, 3600);
   if (!mailBudget_(5)) throw err_('Hệ thống đang quá tải, vui lòng thử lại sau ít phút', 503);
   var q = quote_(b.items, b.voucher_codes, true);
@@ -336,16 +456,21 @@ function orderCreate_(b) {
   var o = { code: newCode_(), created_at: nowIso_(), status: 'awaiting_payment', payment_status: 'unpaid', member: member,
     customer: { name: name, phone: phone, email: email, address: addr, note: str_(c.note, 300) }, vat: vat,
     lines: q.lines, goods: q.goods, fee: q.fee, discount: q.discount, vouchers: q.vouchers, fee_net: q.fee_net, fee_pre_tax: q.fee_pre_tax, fee_vat: q.fee_vat, vat_rate: q.vat_rate, total: q.total,
-    payment_method: 'vietqr', consent: { version: CONSENT_VERSION, at: nowIso_(), ua: str_(b.ua, 200) },
+    payment_method: 'vietqr', marketing: b.marketing === true, consent: { version: T.version, at: nowIso_(), ua: str_(b.ua, 200), marketing: b.marketing === true },
     price_lock: b.lock ? { at: b.lock.at ? new Date(Number(b.lock.at)).toISOString() : '', ms: b.lock.ms || null } : null,
     history: [{ at: nowIso_(), s: 'awaiting_payment', by: 'customer' }] };
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     for (var tries = 0; find_('Orders', 'code', o.code); tries++) { if (tries > 5) throw err_('Hệ thống bận, vui lòng thử lại', 503); o.code = newCode_(); }
+    var hd = contractSave_(o); // van ban giao ket: luu nguyen van + bam + noi chuoi truoc khi ghi don
     append_('Orders', { code: o.code, created_at: o.created_at, status: o.status, payment_status: o.payment_status, email: email, phone: phone, name: name, goods: o.goods, fee: o.fee_net, total: o.total, paid_at: '', data: JSON.stringify(o), updated_at: nowIso_() }); }
   finally { lock.releaseLock(); }
+  if (member) { try { memberMarketing_(member, o.marketing, T.version); } catch (e) { } }
+  var hdDoc = contractDoc_(o.code, hd.version, hd.html, hd.hash);
   mail_(email, 'KK-MALL đã nhận đơn ' + o.code + ' - vui lòng thanh toán', '<p>Chào <b>' + esc_(name) + '</b>,</p><p>KK-MALL đã nhận đơn <b>' + o.code + '</b>. Ngay khi nhận được thanh toán, hệ thống tự động đặt mua tại nhà cung cấp có giá tốt nhất và giao thẳng đến bạn.</p>' + orderTable_(o) + payBox_(o)
-    + '<p style="font-size:13px;color:#475569">Hóa đơn GTGT tiền hàng do <b>nhà cung cấp</b> xuất trực tiếp cho bạn; KK-MALL xuất hóa đơn GTGT riêng cho <b>phí dịch vụ</b>. Đơn chưa thanh toán sau ' + cfg_('UNPAID_HOURS') + ' giờ sẽ tự hủy.</p><p><a href="' + cfg_('SITE') + '/?order=' + o.code + '&phone=' + phone + '">Theo dõi đơn hàng →</a></p>');
+    + '<p style="font-size:13px;color:#475569">📄 <b>' + esc_(hdTitle_(o.code, hd.version)) + '</b> (phiên bản ' + esc_(T.label) + ') đính kèm email này - đây là xác nhận giao kết của KK-MALL; mã băm SHA-256 của văn bản: <code>' + hd.hash + '</code>. Bạn xem lại, tải về bất kỳ lúc nào tại trang theo dõi đơn.</p>'
+    + '<p style="font-size:13px;color:#475569">Hóa đơn GTGT tiền hàng do <b>nhà cung cấp</b> xuất trực tiếp cho bạn; KK-MALL xuất hóa đơn GTGT riêng cho <b>phí dịch vụ</b>. Đơn chưa thanh toán sau ' + cfg_('UNPAID_HOURS') + ' giờ sẽ tự hủy.</p><p><a href="' + cfg_('SITE') + '/?order=' + o.code + '&phone=' + phone + '">Theo dõi đơn hàng →</a></p>',
+    { attachments: [Utilities.newBlob(hdDoc, 'text/html', 'KK-MALL-' + o.code + '-hop-dong.html')] });
   adminsMail_('🆕 Đơn mới ' + o.code + ' - ' + vnd_(o.total) + ' (chờ thanh toán)', '<p>Đơn mới từ <b>' + esc_(name) + '</b> (' + maskPhone_(phone) + ').</p>' + orderTable_(o));
   log_('order_create', email, o.code + ' ' + o.total);
   return { order: publicOrder_(o), payment: payInfo_(o) };
@@ -357,6 +482,7 @@ function publicOrder_(o, pos, invs, rmas) {
     lines: o.lines.map(function (l) { return { sku: l.sku, name: l.name, image: l.image, category_id: l.category_id, warranty_ok: WARRANTY_CATS.indexOf(l.category_id) >= 0, qty: l.qty, unit: l.unit, unit_cost: l.unit_cost, unit_fee: l.unit_fee, line_total: l.line_total, line_cost: l.line_cost, line_fee: l.line_fee }; }),
     goods: o.goods, fee: o.fee, discount: o.discount, vouchers: o.vouchers, fee_net: o.fee_net, fee_pre_tax: o.fee_pre_tax, fee_vat: o.fee_vat, total: o.total, refund_due: o.refund_due || 0, refunded: o.refunded || 0,
     refund_account: o.refund_account ? { bank_label: o.refund_account.bank_label || o.refund_account.bin, acc: '****' + String(o.refund_account.acc).slice(-4), name: o.refund_account.name } : null,
+    contract: o.contract ? { version: o.contract.version, label: o.contract.label, hash: o.contract.hash, at: o.contract.at, marketing: !!o.contract.marketing } : null,
     history: o.history, shipments: (pos || []).map(function (p) { var d = parseData_(p); return { sku: p.sku, name: p.name, qty: p.qty, status: p.status, carrier: d.carrier || '', tracking: p.tracking || '', eta: d.eta || '', delivered_at: d.delivered_at || '' }; }),
     invoices: (invs || []).map(function (i) { return { inv_id: i.inv_id, status: i.status, content: i.content, total: i.total }; }),
     rmas: (rmas || []).map(function (r) { var d = parseData_(r); return { rma_id: r.rma_id, sku: r.sku, type: r.type, status: r.status, created_at: r.created_at, return_tracking: d.return_tracking || '', pickup: d.pickup || '' }; }) };
@@ -1210,11 +1336,13 @@ function adminList_(b, name, outFn) { session_(b.token, true); return { rows: ro
 function adminConfig_(b) {
   var s = session_(b.token, true);
   if (b.set) {
-    var allow = ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'VOUCHER_FEE_CAP_PCT', 'STATS_KEY', 'POLICY_JSON', 'AUTONOMY_ENABLED', 'BOT_REQUIRE_SIG', 'SEPAY_API_TOKEN'];
+    var allow = ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'VOUCHER_FEE_CAP_PCT', 'STATS_KEY', 'POLICY_JSON', 'AUTONOMY_ENABLED', 'BOT_REQUIRE_SIG', 'SEPAY_API_TOKEN', 'TERMS_EFFECTIVE'];
     var kept = [];
     Object.keys(b.set).forEach(function (k) {
       if (allow.indexOf(k) < 0) return;
       var v = str_(b.set[k], k === 'POLICY_JSON' ? 20000 : 2000);
+      if (k === 'COMPANY_JSON' && v) { try { var cj = JSON.parse(v); if (!cj || typeof cj !== 'object' || Array.isArray(cj)) throw new Error('phải là đối tượng JSON'); } catch (e) { throw err_('COMPANY_JSON không hợp lệ: ' + e.message, 400); } }
+      if (k === 'TERMS_EFFECTIVE' && v) { if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw err_('Ngày áp dụng điều khoản phải dạng YYYY-MM-DD', 400); if (v < vnToday_(Date.now() + 7 * 86400e3)) throw err_('Ngày áp dụng phải cách hôm nay ít nhất 7 ngày (phải công bố trước khi áp dụng - Điều khoản mục 12)', 400); }
       if (k === 'POLICY_JSON' && v) { try { var pj = JSON.parse(v); if (!pj || typeof pj !== 'object' || Array.isArray(pj)) throw new Error('phải là đối tượng JSON'); v = JSON.stringify(pj); } catch (e) { throw err_('POLICY_JSON không hợp lệ: ' + e.message, 400); } }
       if (k === 'AUTONOMY_ENABLED' || k === 'BOT_REQUIRE_SIG') { v = v === '1' || v === 'true' ? '1' : '0'; if (k === 'AUTONOMY_ENABLED' && v === '1') P_().setProperty('BOT_FAIL_STREAK', '0'); }
       // BAO VE TAI KHOAN NHAN TIEN: khong cho ghi de trong (form cu/tab cu) - muon xoa phai gui clear_bank: true
@@ -1226,6 +1354,7 @@ function adminConfig_(b) {
   }
   var out = {}; ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'ADMIN_EMAILS', 'VOUCHER_FEE_CAP_PCT', 'POLICY_JSON', 'AUTONOMY_ENABLED', 'BOT_REQUIRE_SIG'].forEach(function (k) { out[k] = cfg_(k); });
   out.POLICY_EFFECTIVE = policy_(); out.POLICY_DEFAULT = POLICY_DEFAULT; out.SEPAY_VERIFY = !!P_().getProperty('SEPAY_API_TOKEN'); out.CHAIN = chainHead_();
+  out.TERMS = termsList_(); out.TERMS_ACTIVE = termsActive_().version; out.TERMS_EFFECTIVE = cfg_('TERMS_EFFECTIVE') || ''; out.CONTRACTS = rows_('Contracts').length; out.INCIDENTS_OPEN = rows_('Incidents').filter(function (r) { return r.status !== 'closed'; }).length;
   out.WEBHOOK_URL = ScriptApp.getService().getUrl() + '?a=webhook&key=' + P_().getProperty('WEBHOOK_KEY');
   if (!P_().getProperty('STATS_KEY')) P_().setProperty('STATS_KEY', rnd_());
   out.STATS_KEY = P_().getProperty('STATS_KEY'); out.BACKEND_URL = ScriptApp.getService().getUrl(); out.MAILSYNC = mailSyncInfo_(); out.BOT = botInfo_();
@@ -1269,6 +1398,7 @@ function audit_() {
       if (since > 72) issues.push({ lvl: 'med', code: r.code, msg: 'Còn phải hoàn khách ' + vnd_(o.refund_due) + (o.refund_account ? ' (khách đã khai tài khoản)' : ' (khách chưa khai tài khoản)') });
     }
   });
+  try { shareCheck_().forEach(function (i) { issues.push(i); }); } catch (e) { issues.push({ lvl: 'med', code: '', msg: 'Không kiểm tra được quyền chia sẻ Drive: ' + String(e && e.message || e).slice(0, 100) }); }
   try { var cv = chainVerify_(); if (!cv.ok) issues.push({ lvl: 'high', code: '', msg: 'Chuỗi băm nhật ký KHÔNG khớp: ' + cv.problems.join('; ') }); } catch (e) { issues.push({ lvl: 'med', code: '', msg: 'Không kiểm chứng được chuỗi băm: ' + String(e && e.message || e).slice(0, 120) }); }
   var quota = -1; try { quota = MailApp.getRemainingDailyQuota(); } catch (e) { }
   if (quota >= 0 && quota < 20) issues.push({ lvl: 'med', code: '', msg: 'Hạn mức email còn ' + quota + ' trong ngày' });
@@ -1339,6 +1469,86 @@ function dailyBackup() {
   files.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); }).slice(60).forEach(function (f) { f.setTrashed(true); });
   log_('backup', 'system', 'ok');
   try { dailyAudit(); } catch (e) { log_('audit_error', 'system', String(e && e.message || e)); }
+  try { retention_(); } catch (e) { log_('retention_error', 'system', String(e && e.message || e)); }
+}
+
+/* =========================== LƯU TRỮ CÓ THỜI HẠN & AN TOÀN DỮ LIỆU ===========================
+ * retention_: tai khoan 24 thang khong dang nhap va khong co don -> bao truoc 30 ngay -> an danh hoa ho so (email, ten, SDT, dia chi),
+ *   thu hoi phien. Chung tu don hang GIU NGUYEN 10 nam theo Luat Ke toan (Dieu khoan dich vu muc 8.1, 9.2; ho so DPIA muc 4).
+ * shareCheck_: Sheet, thu muc Drive, du an Apps Script phai o che do rieng tu, khong co nguoi xem/sua khac chu so huu. */
+var RETAIN_MONTHS = 24, RETAIN_WARN_DAYS = 30;
+function retention_(now) {
+  now = now || Date.now(); var admins = adminEmails_(), out = { warned: 0, deleted: 0, checked: 0 }, DAY = 86400e3, LIMIT = RETAIN_MONTHS * 30.4375 * DAY;
+  var lastOrder = {}; rows_('Orders').forEach(function (r) { var d = parseData_(r), t = new Date(r.created_at).getTime() || 0; [String(r.email || '').toLowerCase(), String(d.member || '').toLowerCase()].forEach(function (e) { if (e && t > (lastOrder[e] || 0)) lastOrder[e] = t; }); });
+  rows_('Members').forEach(function (m) {
+    var email = String(m.email || '').toLowerCase(); if (!email || m.role === 'deleted' || m.role === 'admin' || admins.indexOf(email) >= 0) return;
+    var last = Math.max(new Date(m.last_login || 0).getTime() || 0, new Date(m.created_at || 0).getTime() || 0, lastOrder[email] || 0); if (!last) return;
+    out.checked++; var idle = now - last, d = parseData_(m);
+    if (idle < LIMIT - RETAIN_WARN_DAYS * DAY) { if (d.retention_warn_at) { delete d.retention_warn_at; update_('Members', m._row, { data: JSON.stringify(d) }); } return; } // da hoat dong lai -> huy canh bao
+    if (!d.retention_warn_at) {
+      d.retention_warn_at = nowIso_(); update_('Members', m._row, { data: JSON.stringify(d) }); out.warned++;
+      mail_(email, 'Tài khoản KK-MALL sẽ được xóa sau 30 ngày nếu không đăng nhập', '<p>Tài khoản <b>' + esc_(email) + '</b> đã không đăng nhập và không có đơn hàng trong gần 24 tháng. Theo Điều khoản dịch vụ và Chính sách bảo vệ dữ liệu cá nhân (lưu trữ có thời hạn), KK-MALL sẽ xóa hồ sơ tài khoản (họ tên, số điện thoại, địa chỉ mặc định) sau <b>30 ngày</b> nữa nếu bạn không đăng nhập lại. Chứng từ của các đơn đã phát sinh vẫn được lưu theo Luật Kế toán.</p><p><a href="' + cfg_('SITE') + '/">Đăng nhập để giữ tài khoản →</a></p>');
+      return;
+    }
+    if (idle >= LIMIT && (now - new Date(d.retention_warn_at).getTime()) >= (RETAIN_WARN_DAYS - 2) * DAY) {
+      var anon = 'da-xoa-' + sha_(email).slice(0, 16) + '@xoa.kk-mall.invalid';
+      update_('Members', m._row, { email: anon, name: '', phone: '', address: '', role: 'deleted', data: JSON.stringify({ deleted_at: nowIso_(), reason: 'retention_24m' }) });
+      var sh = sh_('Sessions'), v = sh.getDataRange().getValues(); for (var i = v.length - 1; i >= 1; i--) if (String(v[i][1]).toLowerCase() === email) sh.deleteRow(i + 1);
+      mail_(email, 'KK-MALL đã xóa tài khoản không hoạt động 24 tháng', '<p>Hồ sơ tài khoản <b>' + esc_(email) + '</b> (họ tên, số điện thoại, địa chỉ mặc định, phiên đăng nhập) đã được xóa vì không hoạt động trong 24 tháng, theo Điều khoản dịch vụ mục 8 và 9. Chứng từ đơn hàng được lưu theo Luật Kế toán và chỉ dùng cho nghĩa vụ kế toán, thuế, bảo hành. Bạn có thể đăng ký lại bất kỳ lúc nào.</p>');
+      log_('member_retention_delete', 'system', anon + ' (24 thang khong hoat dong)'); out.deleted++;
+    }
+  });
+  if (out.warned || out.deleted) log_('retention', 'system', JSON.stringify(out));
+  return out;
+}
+function shareCheck_() {
+  var P = P_(), out = [], scriptId = ''; try { scriptId = ScriptApp.getScriptId(); } catch (e) { }
+  [['Bảng tính dữ liệu', P.getProperty('SHEET_ID'), 'file'], ['Thư mục sao lưu', P.getProperty('BACKUP_FOLDER_ID'), 'folder'], ['Thư mục ảnh đổi trả', P.getProperty('RMA_FOLDER_ID'), 'folder'], ['Dự án Apps Script', scriptId, 'file']].forEach(function (it) {
+    if (!it[1]) return;
+    try {
+      var f = it[2] === 'folder' ? DriveApp.getFolderById(it[1]) : DriveApp.getFileById(it[1]), acc = String(f.getSharingAccess()), who = [];
+      f.getEditors().forEach(function (u) { who.push(u.getEmail() + ' (sửa)'); }); f.getViewers().forEach(function (u) { who.push(u.getEmail() + ' (xem)'); });
+      if (acc !== 'PRIVATE' || who.length) out.push({ lvl: 'high', code: '', msg: it[0] + ' đang được chia sẻ (' + acc + (who.length ? ': ' + who.join(', ') : '') + ') → thu hồi ngay: chỉ tài khoản chủ sở hữu được truy cập dữ liệu khách' });
+    } catch (e) { out.push({ lvl: 'med', code: '', msg: 'Không kiểm tra được quyền chia sẻ ' + it[0] + ': ' + String(e && e.message || e).slice(0, 80) }); }
+  });
+  return out;
+}
+
+/* =========================== SỰ CỐ DỮ LIỆU CÁ NHÂN (quy trình 72 giờ) ===========================
+ * Luat BVDLCN 2025 D.23: thong bao Cuc A05 trong 72 gio ke tu khi phat hien vi pham co the gay ton hai; Luat BVQLNTD 2023 D.19 k3:
+ * thong bao nguoi tieu dung trong 24 gio khi he thong bi tan cong. Mo su co -> ghi so + noi chuoi + email quan tri kem han chot & viec can lam. */
+var INCIDENT_KINDS = { leak: 'Lộ / rò rỉ dữ liệu cá nhân', attack: 'Hệ thống bị tấn công', loss: 'Mất / hỏng dữ liệu', misuse: 'Truy cập, sử dụng trái phép', other: 'Khác' };
+function fmtVn_(d) { return Utilities.formatDate(new Date(d), 'Asia/Ho_Chi_Minh', 'HH:mm dd/MM/yyyy'); }
+function incidentOut_(r) { var d = parseData_(r); return { id: r.id, at: r.at, by: r.by, kind: r.kind, kind_text: INCIDENT_KINDS[r.kind] || r.kind, severity: r.severity, status: r.status, detected_at: r.detected_at, summary: r.summary, affected: d.affected || '', deadline_a05: d.deadline_a05 || '', deadline_users: d.deadline_users || '', notified_a05_at: d.notified_a05_at || '', notified_users_at: d.notified_users_at || '', log: d.log || [], updated_at: r.updated_at }; }
+function incidentMail_(id, kind, sev, detected, summary, data) {
+  return '<p>Sự cố <b>' + esc_(id) + '</b> (' + esc_(INCIDENT_KINDS[kind]) + ', mức ' + esc_(sev) + ') phát hiện lúc <b>' + fmtVn_(detected) + '</b>.</p><p>' + esc_(summary) + '</p>' + (data.affected ? '<p>Phạm vi ảnh hưởng: ' + esc_(data.affected) + '</p>' : '')
+    + '<p><b>Việc phải làm theo quy trình thông báo vi phạm (docs/phap-ly/QUY-TRINH-NOI-BO-BVDLCN.md):</b></p><ol>'
+    + '<li><b>Ngay:</b> khoanh vùng - đổi khóa webhook, khóa bot, mật khẩu quản trị; thu hồi mọi chia sẻ Sheet/Drive; tắt công tắc bot nếu nghi ngờ; xuất sheet Log và Chain, chụp màn hình làm bằng chứng.</li>'
+    + '<li><b>Trước ' + fmtVn_(data.deadline_users) + ' (24 giờ - Luật BVQLNTD 2023 Đ.19 khoản 3, khi hệ thống bị tấn công):</b> email khách bị ảnh hưởng: dữ liệu nào, thời điểm, biện pháp đã làm, việc khách nên làm, đầu mối liên hệ.</li>'
+    + '<li><b>Trước ' + fmtVn_(data.deadline_a05) + ' (72 giờ - Luật BVDLCN 2025 Đ.23; NĐ 356/2025):</b> gửi Thông báo vi phạm quy định bảo vệ dữ liệu cá nhân tới Cục A05 Bộ Công an qua Cổng Dịch vụ công: mô tả vi phạm, thời điểm, loại dữ liệu, số chủ thể, hậu quả, biện pháp đã và sẽ làm, đầu mối.</li>'
+    + '<li>Khắc phục, lập biên bản, cập nhật trạng thái tại Quản trị → Hệ thống → Sự cố dữ liệu (đánh dấu đã thông báo A05 / khách); lưu hồ sơ 10 năm.</li></ol>';
+}
+function adminIncident_(b) {
+  var s = session_(b.token, true);
+  if (b.id) {
+    var r = find_('Incidents', 'id', str_(b.id, 20)); if (!r) throw err_('Không tìm thấy sự cố', 404);
+    var st = ['open', 'contained', 'notified', 'closed'].indexOf(b.status) >= 0 ? b.status : r.status, d = parseData_(r);
+    (d.log = d.log || []).push({ at: nowIso_(), by: s.email, status: st, note: str_(b.note, 1000) });
+    if (b.notified_a05 === true && !d.notified_a05_at) d.notified_a05_at = nowIso_(); if (b.notified_users === true && !d.notified_users_at) d.notified_users_at = nowIso_();
+    update_('Incidents', r._row, { status: st, data: JSON.stringify(d), updated_at: nowIso_() });
+    chain_('incident', r.id, { id: r.id, status: st, by: s.email, at: nowIso_(), a05: !!d.notified_a05_at, users: !!d.notified_users_at });
+    log_('incident_update', s.email, r.id + ' ' + st); return { ok: true, incident: incidentOut_(find_('Incidents', 'id', r.id)) };
+  }
+  var kind = INCIDENT_KINDS[b.kind] ? b.kind : 'other', sev = ['low', 'med', 'high'].indexOf(b.severity) >= 0 ? b.severity : 'high', summary = str_(b.summary, 2000);
+  if (summary.length < 10) throw err_('Mô tả sự cố quá ngắn (tối thiểu 10 ký tự)');
+  var detected = b.detected_at && isFinite(new Date(b.detected_at).getTime()) ? new Date(b.detected_at).toISOString() : nowIso_(), t0 = new Date(detected).getTime();
+  var id = 'SC' + Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'yyMMdd') + rnd_().slice(0, 4).toUpperCase();
+  var data = { affected: str_(b.affected, 500), deadline_a05: new Date(t0 + 72 * 3600e3).toISOString(), deadline_users: new Date(t0 + 24 * 3600e3).toISOString(), log: [{ at: nowIso_(), by: s.email, status: 'open', note: 'Mở sự cố' }] };
+  append_('Incidents', { id: id, at: nowIso_(), by: s.email, kind: kind, severity: sev, status: 'open', detected_at: detected, summary: summary, data: JSON.stringify(data), updated_at: nowIso_() });
+  chain_('incident', id, { id: id, kind: kind, severity: sev, detected_at: detected, by: s.email, at: nowIso_() });
+  log_('incident_open', s.email, id + ' ' + kind + ' ' + sev);
+  adminsMail_('🚨 SỰ CỐ DỮ LIỆU ' + id + ' - ' + INCIDENT_KINDS[kind] + ' - hạn báo A05: ' + fmtVn_(data.deadline_a05), incidentMail_(id, kind, sev, detected, summary, data));
+  return { ok: true, id: id, incident: incidentOut_(find_('Incidents', 'id', id)) };
 }
 
 /* =========================== ĐỊNH TUYẾN HTTP =========================== */
@@ -1378,6 +1588,7 @@ function doGet(e) {
     if (a === 'config') return json_(publicConfig_());
     if (a === 'health') return json_({ ok: true, version: VERSION, at: nowIso_() });
     if (a === 'approve') return approveGet_(e.parameter);
+    if (a === 'terms') return json_(termsPublic_());
     if (a === 'chainhead') { var ch = chainHead_(); return json_({ seq: ch.seq, hash: ch.hash, at: ch.at, algo: 'sha256(prev|seq|at|kind|ref|sha256(canon(payload)))' }); }
     if (a === 'reviews') return json_(reviewList_(e.parameter.sku));
     if (a === 'shipstats') return json_(shipStats_(e.parameter.key));
@@ -1390,7 +1601,8 @@ function doGet(e) {
 }
 function publicConfig_() {
   var c = company_(), b = bank_();
-  return { version: VERSION, consent_version: CONSENT_VERSION, company: c, bank_ready: b.ready, fee_table: feeTable_(), vat_rate: Number(cfg_('VAT_RATE')), return_days: Number(cfg_('RETURN_DAYS')), unpaid_hours: Number(cfg_('UNPAID_HOURS')), vouchers: VOUCHERS.map(function (v) { return { code: v.code, title: v.title }; }), voucher_fee_cap_pct: Number(cfg_('VOUCHER_FEE_CAP_PCT')) };
+  var T = termsActive_();
+  return { version: VERSION, consent_version: T.version, terms: { active: T.version, label: T.label, kind: T.kind, effective: T.effective || '', url: T.url, contract_url: T.contract_url, versions: termsList_().map(function (x) { return { version: x.version, label: x.label, effective: x.effective || '', published: x.published }; }) }, company: c, bank_ready: b.ready, fee_table: feeTable_(), vat_rate: Number(cfg_('VAT_RATE')), return_days: Number(cfg_('RETURN_DAYS')), unpaid_hours: Number(cfg_('UNPAID_HOURS')), vouchers: VOUCHERS.map(function (v) { return { code: v.code, title: v.title }; }), voucher_fee_cap_pct: Number(cfg_('VOUCHER_FEE_CAP_PCT')) };
 }
 function doPost(e) {
   var b = {}, a = (e && e.parameter && e.parameter.a) || '';
@@ -1405,6 +1617,12 @@ function doPost(e) {
       'order.get': function () { return orderGet_(b); },
       'order.paid_claim': function () { return paidClaim_(b); },
       'order.refund_account': function () { return refundAccount_(b); },
+      'order.contract': function () { return orderContract_(b); },
+      'terms': function () { return termsPublic_(); },
+      'member.marketing': function () { var s0 = session_(b.token); memberMarketing_(s0.email, b.on === true, termsActive_().version); return { ok: true, marketing: b.on === true }; },
+      'admin.incident': function () { return adminIncident_(b); },
+      'admin.incidents': function () { return adminList_(b, 'Incidents', incidentOut_); },
+      'admin.retention': function () { session_(b.token, true); return retention_(); },
       'review.submit': function () { return reviewSubmit_(b); },
       'review.list': function () { return reviewList_(b.sku); },
       'reviews.stats': function () { return reviewStats_(); },
