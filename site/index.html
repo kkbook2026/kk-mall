@@ -456,7 +456,7 @@ footer h3{font-size:14px;margin:0 0 10px;color:#fff}
 
 <footer><div class="wrap">
   <div class="cols">
-    <div><img src="./logo.svg" alt="KK-MALL" width="171" height="44" loading="lazy" style="height:44px;filter:brightness(0) invert(1);opacity:.9;margin-bottom:10px"><div id="coName" style="font-weight:700"></div><div id="coNameEn" style="opacity:.85;font-size:12.5px"></div><div id="coAddr"></div><div>Mã số doanh nghiệp (MST): <span id="coTax"></span> · Email: <span id="coEmail"></span></div></div>
+    <div><img src="./logo.svg" alt="KK-MALL" width="171" height="44" loading="lazy" style="height:44px;filter:brightness(0) invert(1);opacity:.9;margin-bottom:10px"><div id="coName" style="font-weight:700">CÔNG TY TNHH KK-MALL</div><div id="coNameEn" style="opacity:.85;font-size:12.5px">KK-MALL COMPANY LIMITED</div><div id="coAddr"></div><div>Mã số doanh nghiệp (MST): <span id="coTax">0111694057</span> · Email: <span id="coEmail"></span></div></div>
     <div><h3>Về KK-MALL</h3><a href="./phap-ly#gioi-thieu">Giới thiệu</a><a href="./phap-ly#mo-hinh">Mô hình hoạt động & giá</a><a href="./phap-ly#dieu-khoan">Điều khoản sử dụng</a></div>
     <div><h3>Hỗ trợ khách hàng</h3><a href="./?order=" onclick="event.preventDefault();openTrack()">Tra cứu đơn hàng</a><a href="./phap-ly#doi-tra">Đổi trả & bảo hành</a><a href="./phap-ly#thanh-toan">Hướng dẫn thanh toán</a><a href="./phap-ly#khieu-nai">Giải quyết khiếu nại</a></div>
     <div><h3>Minh bạch & Pháp lý</h3><a href="./phap-ly#bao-mat">Chính sách bảo vệ dữ liệu cá nhân</a><a href="./?ledger=1" onclick="event.preventDefault();openLedger()">Kiểm chứng sổ cái giá (công khai)</a><a href="./phap-ly#hoa-don">Hóa đơn điện tử</a></div>
@@ -658,7 +658,7 @@ async function init(){
   $('#syncMin').textContent=META.syncMinutes; $('#lastSync').textContent=META.lastSync?new Date(META.lastSync).toLocaleTimeString('vi-VN'):'-';
   $('#ledgerSeq').textContent=(META.ledgerHead&&META.ledgerHead.seq||0).toLocaleString('vi-VN');
   $('#totalProducts').textContent=META.totalProducts.toLocaleString('vi-VN');try{$('#vfactN').textContent=(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN');$('#q').placeholder=`Tìm tức thời trong ${(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN')}+ mặt hàng (chạy ngay trên máy bạn, 0ms)...`}catch{} $('#hotline').textContent=META.company.phone;
-  $('#coName').textContent=META.company.name;$('#coNameEn').textContent=META.company.nameEn||'';$('#coAddr').textContent=META.company.address;$('#coTax').textContent=META.company.taxCode;$('#coEmail').textContent=META.company.email||'đang cập nhật';
+  if(/^CÔNG TY/i.test(META.company.name||''))$('#coName').textContent=META.company.name;if(META.company.nameEn)$('#coNameEn').textContent=META.company.nameEn;$('#coAddr').textContent=META.company.address;if(/^\d{10}(-\d{3})?$/.test(META.company.taxCode||''))$('#coTax').textContent=META.company.taxCode;$('#coEmail').textContent=META.company.email||'đang cập nhật';
   if(META.company.moit)$('#moit').textContent='Số đăng ký Bộ Công Thương: '+META.company.moit;
   renderNav();
   $('#sidecats').innerHTML=META.categories.map(c=>`<a href="./c/${c.id}.html" onclick="event.preventDefault();setCat('${c.id}')"><span>${c.icon}</span>${esc(c.name)}<span class="n">${c.count.toLocaleString('vi-VN')}</span></a>`).join('');
@@ -1044,7 +1044,7 @@ async function aiSend(e){e.preventDefault&&e.preventDefault();const q=$('#aiIn')
   aiChips(['Rẻ hơn nữa','Cao cấp hơn','Chính sách đổi trả']);
   window._aiLast=q}
 </script>
-<script src="kk-hop-dong.js?v=2611042100" defer></script><script src="kk-backend.js?v=2611042100" defer></script>
+<script src="kk-hop-dong.js?v=2611121400" defer></script><script src="kk-backend.js?v=2611121400" defer></script>
 <script>if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{})})}</script>
 </body>
 </html>
