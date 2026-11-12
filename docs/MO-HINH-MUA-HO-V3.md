@@ -193,3 +193,10 @@
 - **Trang pháp lý**: mục 3 thêm đoạn "Văn bản giao kết theo từng đơn"; mục 7 thêm tiếp thị tách riêng, lưu trữ có thời hạn, sự cố dữ liệu, thời hạn phản hồi quyền chủ thể (tiếp nhận 02 ngày làm việc; rút đồng ý 15 ngày, xem/sửa 10 ngày, xóa 20 ngày theo NĐ 356/2025).
 - **Kiểm thử**: 91 máy chủ (thêm 16: phiên bản điều khoản, bản chốt + băm + chuỗi + email, tải về, tiếp thị, ngày áp dụng, lưu trữ 24 tháng, chia sẻ Drive, sự cố), 15 trình duyệt (thêm thư viện KKHD + 5 trang pháp lý), **9 kiểm tra đầu-cuối** `tests/browser/checkout.js` (Chromium thật + máy chủ Apps Script giả lập chạy đúng `Code.gs` trong cùng tiến trình, chặn mọi gọi `script.google.com`: mở checkout, 2 ô tích, xem trước, đặt hàng, email đính kèm, tải file, trang theo dõi đơn).
 - **Triển khai**: dán `backend/Code.gs` v1.9.0 → Deploy → New version; không cần tạo Script Property mới (sheet `Contracts`, `Incidents` tự tạo). Sau khi luật sư chốt v1.0 và có GCN ĐKDN: điền thông tin doanh nghiệp → đặt `TERMS_EFFECTIVE` (≥ 7 ngày) tại Quản trị.
+
+## THÔNG TIN PHÁP NHÂN (cập nhật 12/11/2026)
+- **Tên công ty:** CÔNG TY TNHH KK-MALL
+- **Tên tiếng Anh:** KK-MALL COMPANY LIMITED
+- **Mã số doanh nghiệp (đồng thời là mã số thuế):** 0111694057
+- **Đã cập nhật lên www.kk-mall.com:** chân trang mọi trang chủ (tên, tên tiếng Anh, MSDN/MST), trang Pháp lý & Chính sách, mẫu hợp đồng ủy thác / hợp đồng dịch vụ / điều khoản (số GCN ĐKDN, MST của Bên B), dữ liệu có cấu trúc Google (legalName, taxID, alternateName) trên trang chủ và mọi trang sản phẩm/danh mục; cấu hình máy chủ `COMPANY_JSON` (email, hóa đơn phí dịch vụ, hợp đồng điện tử dùng chung nguồn này).
+- **Còn chờ bổ sung** (Admin → Hệ thống → Cấu hình vận hành): địa chỉ trụ sở, hotline, email CSKH, nơi cấp + ngày cấp GCN ĐKDN, người đại diện theo pháp luật, số đăng ký/thông báo Bộ Công Thương.
