@@ -462,7 +462,7 @@ footer h3{font-size:14px;margin:0 0 10px;color:#fff}
     <div><h3>Minh bạch & Pháp lý</h3><a href="./phap-ly#bao-mat">Chính sách bảo vệ dữ liệu cá nhân</a><a href="./?ledger=1" onclick="event.preventDefault();openLedger()">Kiểm chứng sổ cái giá (công khai)</a><a href="./phap-ly#hoa-don">Hóa đơn điện tử</a></div>
   </div>
   <nav class="seolinks" id="seoLinks" aria-label="Danh mục ngành hàng"><b>Danh mục:</b> <a href="./c/dien-thoai-may-tinh-bang.html">Điện thoại &amp; Máy tính bảng</a> · <a href="./c/laptop-may-tinh.html">Laptop &amp; Máy tính</a> · <a href="./c/thiet-bi-am-thanh-deo.html">Âm thanh &amp; Thiết bị đeo</a> · <a href="./c/tivi-giai-tri.html">Tivi &amp; Thiết bị giải trí</a> · <a href="./c/dien-lanh.html">Điện lạnh</a> · <a href="./c/gia-dung.html">Gia dụng &amp; Nhà bếp</a> · <a href="./c/noi-that-trang-tri.html">Nhà cửa &amp; Đời sống</a> · <a href="./c/thoi-trang.html">Thời trang</a> · <a href="./c/suc-khoe-lam-dep.html">Sức khỏe &amp; Làm đẹp</a> · <a href="./c/me-be.html">Mẹ &amp; Bé</a> · <a href="./c/bach-hoa.html">Bách hóa &amp; Thực phẩm</a> · <a href="./c/the-thao-du-lich.html">Thể thao &amp; Du lịch</a> · <a href="./c/o-to-xe-may.html">Ô tô, Xe máy &amp; Phụ kiện</a> · <a href="./c/sach-van-phong-pham.html">Sách, Văn phòng phẩm &amp; Quà tặng</a> · <a href="./c/voucher-dich-vu.html">Voucher, Dịch vụ &amp; Thẻ nạp</a></nav>
-  <div class="legal">© 2026 KK-MALL - Bản quyền thuộc Nguyễn Duy Điển. <span id="moit">Website đang trong quá trình đăng ký với Bộ Công Thương theo Luật Thương mại điện tử số 122/2025/QH15 và Nghị định 248/2026/NĐ-CP.</span> Giá hiển thị là giá cuối cùng: đã bao gồm thuế GTGT và phí giao hàng - không thu thêm phụ phí. Không áp dụng COD.</div>
+  <div class="legal">© 2026 <b>CÔNG TY TNHH KK-MALL</b> (KK-MALL COMPANY LIMITED) - Mã số doanh nghiệp/MST: 0111694057<span id="coReg"></span> - đơn vị chủ quản và vận hành website www.kk-mall.com. Bản quyền thiết kế, mã nguồn, nội dung và thương hiệu KK-MALL thuộc về tác giả Nguyễn Duy Điển. <span id="moit">Nền tảng thương mại điện tử kinh doanh trực tiếp: đang thực hiện thủ tục thông báo theo Luật Thương mại điện tử số 122/2025/QH15 và Nghị định 248/2026/NĐ-CP.</span><br>KK-MALL cung cấp <b>dịch vụ mua hộ</b>: giá hiển thị là tổng số tiền khách thanh toán (tiền hàng thu hộ để trả nhà cung cấp + phí dịch vụ KK-MALL), đã gồm thuế GTGT và phí giao hàng - không thu thêm phụ phí. Không áp dụng thanh toán khi nhận hàng (COD).</div>
 </div></footer>
 
 <div class="ov" id="ov" onclick="closeAll()"></div>
@@ -526,6 +526,8 @@ const telemetry=()=>({mm:TEL.mm,kp:TEL.kp,sc:TEL.sc,dt:Date.now()-TEL.t0,touch:T
 const fold=s=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase();
 // Bo may KK-SEARCH (kk-search.js) chay trong Worker: tu nguyen ven + trong so truong + IDF, dong nghia/viet tat,
 // sua loi go, go do, hieu gia ("duoi 5 trieu"), uu tien may chinh hon phu kien, noi long khi 0 ket qua
+// chan trang phap ly: noi/ngay cap GCN DKDN + trang thai xac nhan thong bao nen tang TMDT (ND 248/2026) tu cau hinh
+window.kkLegal=function(co){try{if(!co)return;const reg=[co.reg_by||co.regBy,co.reg_date||co.regDate];if(reg[0]||reg[1])$('#coReg').textContent=(reg[0]?', do '+reg[0]+' cấp':'')+(reg[1]?' ngày '+reg[1]:'');const m=co.moit,u=co.moit_url||co.moitUrl;if(m||u){const s=$('#moit');s.textContent='';s.append('Đã được xác nhận thông báo nền tảng thương mại điện tử kinh doanh trực tiếp'+(m?' (số/mã hồ sơ: '+m+')':'')+' ');if(u&&/^https:\/\/[^\s"'<>]+$/.test(u)){const a=document.createElement('a');a.href=u;a.target='_blank';a.rel='noopener';a.style.display='inline';a.textContent='- xem xác nhận';s.append(a)}s.append('.')}}catch(e){}};
 const KKS_URL=new URL('kk-search.js?v=2610312000',location.href).href;
 const workerSrc=`importScripts(${JSON.stringify(KKS_URL)});let ix=null,rows=[],bySku=null;
 // Goi danh muc (5MB JSON) duoc TAI, PHAN TICH va LUU (IndexedDB) ngay trong Worker: luong chinh khong con khoi JSON 5MB,
@@ -659,7 +661,7 @@ async function init(){
   $('#ledgerSeq').textContent=(META.ledgerHead&&META.ledgerHead.seq||0).toLocaleString('vi-VN');
   $('#totalProducts').textContent=META.totalProducts.toLocaleString('vi-VN');try{$('#vfactN').textContent=(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN');$('#q').placeholder=`Tìm tức thời trong ${(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN')}+ mặt hàng (chạy ngay trên máy bạn, 0ms)...`}catch{} $('#hotline').textContent=META.company.phone;
   if(/^CÔNG TY/i.test(META.company.name||''))$('#coName').textContent=META.company.name;if(META.company.nameEn)$('#coNameEn').textContent=META.company.nameEn;$('#coAddr').textContent=META.company.address;if(/^\d{10}(-\d{3})?$/.test(META.company.taxCode||''))$('#coTax').textContent=META.company.taxCode;$('#coEmail').textContent=META.company.email||'đang cập nhật';
-  if(META.company.moit)$('#moit').textContent='Số đăng ký Bộ Công Thương: '+META.company.moit;
+  kkLegal(META.company);
   renderNav();
   $('#sidecats').innerHTML=META.categories.map(c=>`<a href="./c/${c.id}.html" onclick="event.preventDefault();setCat('${c.id}')"><span>${c.icon}</span>${esc(c.name)}<span class="n">${c.count.toLocaleString('vi-VN')}</span></a>`).join('');
   const sl=document.getElementById('seoLinks');if(sl)sl.innerHTML='<b>Danh mục:</b> '+META.categories.map(c=>`<a href="./c/${c.id}.html">${esc(c.name)}</a>`).join(' · ');
@@ -1044,7 +1046,7 @@ async function aiSend(e){e.preventDefault&&e.preventDefault();const q=$('#aiIn')
   aiChips(['Rẻ hơn nữa','Cao cấp hơn','Chính sách đổi trả']);
   window._aiLast=q}
 </script>
-<script src="kk-hop-dong.js?v=2611121400" defer></script><script src="kk-backend.js?v=2611121400" defer></script>
+<script src="kk-hop-dong.js?v=2611121400" defer></script><script src="kk-backend.js?v=2611121600" defer></script>
 <script>if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{})})}</script>
 </body>
 </html>

@@ -36,7 +36,7 @@ if (KKB.on) {
       const co = c.company || {};
       if (co.name) { $('#coName').textContent = co.name; } if (co.address) $('#coAddr').textContent = co.address;
       if (co.name_en) $('#coNameEn').textContent = co.name_en; if (/^\d{10}(-\d{3})?$/.test(co.tax || '')) $('#coTax').textContent = co.tax; if (co.email) $('#coEmail').textContent = co.email; if (co.phone) $('#hotline').textContent = co.phone;
-      if (co.moit) $('#moit').textContent = 'Số đăng ký Bộ Công Thương: ' + co.moit;
+      if (typeof kkLegal === 'function') kkLegal(co);
     } catch { }
     document.querySelectorAll('#grid .card,.shelf .card').length && typeof reload === 'function';
     return c;
