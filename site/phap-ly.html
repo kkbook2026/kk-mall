@@ -8,7 +8,7 @@
 <div class="toc"><a href="#gioi-thieu">Giới thiệu</a><a href="#mo-hinh">Mô hình & phí dịch vụ</a><a href="#uy-quyen">Ủy quyền mua hộ - thanh toán hộ</a><a href="#dieu-khoan">Điều khoản sử dụng</a><a href="#thanh-toan">Thanh toán</a><a href="#doi-tra">Đổi trả & bảo hành</a><a href="#bao-mat">Bảo vệ dữ liệu cá nhân</a><a href="#hoa-don">Hóa đơn</a><a href="#khieu-nai">Khiếu nại</a><a href="/phap-ly/phien-ban.html">Phiên bản điều khoản &amp; hợp đồng</a></div>
 
 <h2 id="gioi-thieu">1. Giới thiệu</h2>
-<div class="box"><p><b>KK-MALL</b> là <b>nền tảng công nghệ tìm nguồn giá tốt nhất và mua hộ</b> do <b id="co">CÔNG TY TNHH KK-MALL</b> sở hữu và vận hành, hoạt động theo Luật Thương mại điện tử số 122/2025/QH15, Nghị định 248/2026/NĐ-CP hướng dẫn Luật Thương mại điện tử, Bộ luật Dân sự 2015 (hợp đồng ủy quyền, dịch vụ) và Luật Bảo vệ quyền lợi người tiêu dùng 2023. Website được thông báo/đăng ký với Bộ Công Thương (Cục Thương mại điện tử và Kinh tế số) trước khi vận hành chính thức.</p><p>Bản quyền toàn bộ thiết kế, mã nguồn, nội dung và thương hiệu KK-MALL thuộc về <b>Nguyễn Duy Điển</b>, được bảo hộ theo Luật Sở hữu trí tuệ Việt Nam và Công ước Berne.</p></div>
+<div class="box"><p><b>KK-MALL</b> là <b>nền tảng công nghệ tìm nguồn giá tốt nhất và mua hộ</b> do <b id="co">CÔNG TY TNHH KK-MALL</b> (tên tiếng Anh: <b id="coEn">KK-MALL COMPANY LIMITED</b>; mã số doanh nghiệp/mã số thuế: <b id="coTax">0111694057</b>) sở hữu và vận hành, hoạt động theo Luật Thương mại điện tử số 122/2025/QH15, Nghị định 248/2026/NĐ-CP hướng dẫn Luật Thương mại điện tử, Bộ luật Dân sự 2015 (hợp đồng ủy quyền, dịch vụ) và Luật Bảo vệ quyền lợi người tiêu dùng 2023. Website được thông báo/đăng ký với Bộ Công Thương (Cục Thương mại điện tử và Kinh tế số) trước khi vận hành chính thức.</p><p>Bản quyền toàn bộ thiết kế, mã nguồn, nội dung và thương hiệu KK-MALL thuộc về <b>Nguyễn Duy Điển</b>, được bảo hộ theo Luật Sở hữu trí tuệ Việt Nam và Công ước Berne.</p></div>
 
 <h2 id="mo-hinh">2. Mô hình hoạt động và phí dịch vụ</h2>
 <p>Hệ thống AI của KK-MALL theo dõi giá và tồn kho hàng chính hãng từ các siêu thị, chuỗi bán lẻ, sàn thương mại điện tử và nhà phân phối (gọi chung là <b>Nhà cung cấp</b>), cập nhật tự động 3 giờ/lần, và thay mặt khách hàng đặt mua tại Nhà cung cấp có giá tốt nhất còn hàng.</p>
@@ -59,10 +59,10 @@
 <p style="margin-top:30px;color:#6B6B80;font-size:13px">Cập nhật: 04/11/2026 (văn bản giao kết theo đơn, tiếp thị tách riêng, lưu trữ có thời hạn, sự cố dữ liệu) · <a href="/phap-ly/phien-ban.html">Phiên bản điều khoản</a> · © KK-MALL - Nguyễn Duy Điển</p>
 </div>
 <script src="/config.js"></script><script>
-fetch('/api/meta.json').then(r=>r.json()).then(m=>{document.getElementById('co').textContent=m.company.name;document.getElementById('em').textContent=m.company.email}).catch(()=>{});
+fetch('/api/meta.json').then(r=>r.json()).then(m=>{document.getElementById('co').textContent=m.company.name;if(m.company.nameEn)document.getElementById('coEn').textContent=m.company.nameEn;if(m.company.taxCode&&/^\d{10}(-\d{3})?$/.test(m.company.taxCode))document.getElementById('coTax').textContent=m.company.taxCode;document.getElementById('em').textContent=m.company.email}).catch(()=>{});
 // thong tin cong ty & bieu phi lay tu may chu (nguon chinh xac nhat)
 if(window.KK_BACKEND)fetch(window.KK_BACKEND,{method:'POST',body:JSON.stringify({a:'config'})}).then(r=>r.json()).then(c=>{const v=n=>Number(n).toLocaleString('vi-VN')+'đ';
-  if(c.company&&c.company.name)document.getElementById('co').textContent=c.company.name;if(c.company&&c.company.email)document.getElementById('em').textContent=c.company.email;
+  if(c.company&&c.company.name)document.getElementById('co').textContent=c.company.name;if(c.company&&/^\d{10}(-\d{3})?$/.test(c.company.tax||''))document.getElementById('coTax').textContent=c.company.tax;if(c.company&&c.company.name_en)document.getElementById('coEn').textContent=c.company.name_en;if(c.company&&c.company.email)document.getElementById('em').textContent=c.company.email;
   if(c.fee_table&&c.fee_table.length)document.getElementById('feeTbl').textContent=c.fee_table.map(t=>t.to==null?'trên '+v(t.from-1)+': '+v(t.fee):(t.from?'từ '+v(t.from)+' đến ':'dưới ')+(t.from?v(t.to):v(t.to+1))+': '+v(t.fee)).join(' · ')}).catch(()=>{});
 </script>
 </body></html>

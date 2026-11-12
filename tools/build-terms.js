@@ -41,7 +41,7 @@ if (bi < 0 || ei < 0 || ei < bi) throw new Error('backend/Code.gs thieu dau moc 
 const newCode = code.slice(0, bi) + block + code.slice(ei + END.length);
 
 /* ---------- 2. trang web ---------- */
-const DEF = { co_name: 'CÔNG TY TNHH KK-MALL', co_rep_title: 'Giám đốc', vat_rate: '10', voucher_cap: '50', tolerance: '5.000 đ', order_days: '5', unpaid_hours: '24', return_days: '7', terms_url: 'https://www.kk-mall.com/phap-ly.html', eta: 'theo trang theo dõi đơn hàng' };
+const DEF = { co_name: 'CÔNG TY TNHH KK-MALL', co_tax: '0111694057', co_reg_no: '0111694057', co_rep_title: 'Giám đốc', vat_rate: '10', voucher_cap: '50', tolerance: '5.000 đ', order_days: '5', unpaid_hours: '24', return_days: '7', terms_url: 'https://www.kk-mall.com/phap-ly.html', eta: 'theo trang theo dõi đơn hàng' };
 const ORDER_KEYS = ['code', 'at', 'cust_name', 'cust_phone', 'cust_email', 'cust_address', 'vat_block', 'goods', 'fee', 'discount_note', 'total', 'marketing'];
 function toPage(tpl, v) {
   const t = v.meta;

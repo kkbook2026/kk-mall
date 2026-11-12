@@ -36,7 +36,7 @@ var KKHD = (function () {
       code: or(o.code, '[cấp khi đặt hàng]'), at: o.created_at ? vnTime(o.created_at) : '[thời điểm đặt hàng]',
       terms_label: or(t.label, ''), terms_date: vnDate(t.effective) || '[ngày áp dụng]', terms_published: vnDate(t.published) || '', terms_url: or(t.url, 'https://www.kk-mall.com/phap-ly.html'),
       cust_name: or(cu.name, ''), cust_phone: or(cu.phone, ''), cust_email: or(cu.email, ''), cust_address: or(cu.address, ''), vat_block: vatBlock,
-      co_name: or(co.name, 'CÔNG TY TNHH KK-MALL'), co_tax: or(co.tax, NA), co_reg_no: or(co.reg_no, NA), co_reg_by: or(co.reg_by, NA), co_reg_date: or(co.reg_date, NA),
+      co_name: or(co.name, 'CÔNG TY TNHH KK-MALL'), co_tax: or(co.tax, '0111694057'), co_reg_no: or(co.reg_no, '0111694057'), co_reg_by: or(co.reg_by, NA), co_reg_date: or(co.reg_date, NA),
       co_address: or(co.address, NA), co_phone: or(co.phone, NA), co_email: or(co.email, NA), co_rep: or(co.rep, NA), co_rep_title: or(co.rep_title, 'Giám đốc'),
       vat_rate: String(c.vat_rate === undefined || c.vat_rate === null ? 10 : c.vat_rate), voucher_cap: String(c.voucher_cap === undefined || c.voucher_cap === null ? 50 : c.voucher_cap),
       tolerance: vnd(c.tolerance === undefined ? 5000 : c.tolerance), order_days: String(c.order_days || 5), unpaid_hours: String(c.unpaid_hours || 24), return_days: String(c.return_days || 7),

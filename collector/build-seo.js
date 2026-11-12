@@ -62,7 +62,7 @@ const head = ({ title, desc, url, img, ld, type = 'website' }) => `<!doctype htm
 const foot = `</main><footer><div class="w"><p><b>KK-MALL - Đại siêu thị trực tuyến</b> · Giá hiển thị là giá cuối cùng: đã gồm thuế GTGT và giao hàng tận cửa, không phụ phí. Lịch sử giá được niêm phong SHA-256 + Merkle, tự kiểm chứng tại <a href="/?ledger=1">Sổ cái giá</a>.</p>
 <p>${cats.map(c => `<a href="/c/${c.id}.html">${esc(c.name)}</a>`).join(' · ')}</p><p><a href="/phap-ly#dieu-khoan">Điều khoản</a> · <a href="/phap-ly#bao-mat">Bảo vệ dữ liệu cá nhân</a> · <a href="/phap-ly#doi-tra">Đổi trả & bảo hành</a> · © 2026 KK-MALL - Bản quyền thuộc Nguyễn Duy Điển</p></div></footer></body></html>`;
 const footP = `</main><footer><div class="w">KK-MALL · Giá cuối cùng đã gồm giao hàng, không phụ phí · <a href="/?ledger=1">Sổ cái giá</a> · <a href="/phap-ly">Chính sách</a> · © 2026 KK-MALL - Nguyễn Duy Điển</div></footer></body></html>`;
-const ORG = { '@type': 'Organization', name: 'KK-MALL', url: ORIGIN };
+const ORG = { '@type': 'Organization', name: 'KK-MALL', legalName: 'CÔNG TY TNHH KK-MALL', alternateName: 'KK-MALL COMPANY LIMITED', taxID: '0111694057', url: ORIGIN };   // phap nhan (GCN DKDN, MSDN 0111694057)
 const crumbs = list => ({ '@type': 'BreadcrumbList', itemListElement: list.map((x, i) => ({ '@type': 'ListItem', position: i + 1, name: x[0], item: ORIGIN + x[1] })) });
 const li = r => `<li><a href="/p/${pslug(r)}.html">${esc(r.name)}</a><b>${(r.fl || 0) & 1 ? 'Đang xác minh giá' : vnd(r.kk_price)}</b><small>${r.in_stock && !((r.fl || 0) & 33) ? '✓ Còn hàng · gồm giao hàng' : 'Tạm ngừng bán'}</small></li>`;
 
