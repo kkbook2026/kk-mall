@@ -200,3 +200,28 @@
 - **Mã số doanh nghiệp (đồng thời là mã số thuế):** 0111694057
 - **Đã cập nhật lên www.kk-mall.com:** chân trang mọi trang chủ (tên, tên tiếng Anh, MSDN/MST), trang Pháp lý & Chính sách, mẫu hợp đồng ủy thác / hợp đồng dịch vụ / điều khoản (số GCN ĐKDN, MST của Bên B), dữ liệu có cấu trúc Google (legalName, taxID, alternateName) trên trang chủ và mọi trang sản phẩm/danh mục; cấu hình máy chủ `COMPANY_JSON` (email, hóa đơn phí dịch vụ, hợp đồng điện tử dùng chung nguồn này).
 - **Còn chờ bổ sung** (Admin → Hệ thống → Cấu hình vận hành): địa chỉ trụ sở, hotline, email CSKH, nơi cấp + ngày cấp GCN ĐKDN, người đại diện theo pháp luật, số đăng ký/thông báo Bộ Công Thương.
+
+## 0.1. Chân trang pháp lý & thủ tục thông báo nền tảng TMĐT (cập nhật 12/11/2026)
+
+**Dòng chân trang đang chạy trên www.kk-mall.com:**
+
+> © 2026 CÔNG TY TNHH KK-MALL (KK-MALL COMPANY LIMITED) - Mã số doanh nghiệp/MST: 0111694057 - đơn vị chủ quản và vận hành website www.kk-mall.com. Bản quyền thiết kế, mã nguồn, nội dung và thương hiệu KK-MALL thuộc về tác giả Nguyễn Duy Điển. Nền tảng thương mại điện tử kinh doanh trực tiếp: đang thực hiện thủ tục thông báo theo Luật Thương mại điện tử số 122/2025/QH15 và Nghị định 248/2026/NĐ-CP.
+> KK-MALL cung cấp dịch vụ mua hộ: giá hiển thị là tổng số tiền khách thanh toán (tiền hàng thu hộ để trả nhà cung cấp + phí dịch vụ KK-MALL), đã gồm thuế GTGT và phí giao hàng - không thu thêm phụ phí. Không áp dụng thanh toán khi nhận hàng (COD).
+
+**Tự chuyển trạng thái:** khi nhập "Số/mã hồ sơ xác nhận thông báo" + "Đường dẫn trang xác nhận" (https) tại Admin → Hệ thống → Công ty, câu "đang thực hiện thủ tục" tự đổi thành "Đã được xác nhận thông báo nền tảng thương mại điện tử kinh doanh trực tiếp (số/mã hồ sơ: ...) - xem xác nhận". Ngày cấp/nơi cấp GCN ĐKDN (reg_date, reg_by) cũng tự hiện sau MST.
+
+**Thủ tục (Luật 122/2025/QH15 + NĐ 248/2026/NĐ-CP, hiệu lực 01/7/2026):**
+
+| Bước | Nội dung |
+|---|---|
+| Loại hình | Nền tảng TMĐT kinh doanh trực tiếp có chức năng đặt hàng trực tuyến (website riêng bán hàng/dịch vụ của chính công ty) |
+| Thời điểm | Phải được xác nhận thông báo TRƯỚC khi hoạt động |
+| Nơi nộp | Cổng Dịch vụ công quốc gia - cơ quan tiếp nhận: UBND TP Hà Nội (Điều 51 k1 NĐ 248) |
+| Hồ sơ | Mẫu số 01 kèm thông tin doanh nghiệp, tên miền, chủ sở hữu |
+| Thời hạn | Khoảng 3 ngày làm việc |
+| Kết quả | Biểu tượng xác nhận điện tử liên kết về hệ thống quản lý TMĐT, gắn ở chân trang |
+| Công khai bắt buộc (Điều 4, Điều 17 k1) | Tên, địa chỉ trụ sở, người đại diện theo pháp luật, số/ngày/nơi cấp GCN ĐKDN, MST, hotline, email - hiển thị nổi bật trên trang chủ |
+
+**Còn thiếu (nhập tại Admin → Hệ thống):** địa chỉ trụ sở, người đại diện theo pháp luật, ngày + nơi cấp GCN ĐKDN, hotline, email CSKH.
+
+Nguồn: hethongphapluat.com (NĐ 248/2026), moit.gov.vn (phổ biến Luật TMĐT + NĐ 248), thuvienphapluat.vn (Luật 122/2025/QH15), tapchicongthuong.vn. Đây là tóm tắt tham khảo, không phải tư vấn pháp lý.
