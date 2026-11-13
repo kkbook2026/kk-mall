@@ -181,7 +181,8 @@ const PAIRS = [
   t(calls === c0 && f2.offers.length === 450 && f2.stat.fail.length === 0, 'da nho tuoi du lieu: lan sau khong ton han muc API, API bi gioi han van nap du feed');
   const f3 = await FEEDS.collectFeeds({ ...ENV, ACCESSTRADE_RETRIES: '1', ACCESSTRADE_DOMAINS: 'shopee.vn,dienmayxanh.com' });
   t(f3.offers.filter(o => o.src === 'shopee').length === 450 && f3.stat.per.shopee.via === 'csv', 'API tu choi + chua co thong tin nho: dung moc khoi dau trong ma de van nap duoc file tinh');
-  t(f3.stat.fail.length === 1 && /dienmayxanh.*khong tai duoc/.test(f3.stat.fail[0]), 'khong co file tinh + API tu choi -> bao LOI ro rang (lan chay se giu nguyen ban da xuat ban)');
+  t(f3.stat.fail.some(m => /dienmayxanh.*khong tai duoc/.test(m)), 'khong co file tinh + API tu choi -> bao LOI ro rang (lan chay se giu nguyen ban da xuat ban)');
+  t(f3.stat.fail.some(m => /shopee.*chi nhan 450\/12736/.test(m)), 'file tinh it hon mot nua so ban ghi da biet -> bao LOI (file bi cat cut / dang ghi do)');
   srv.close();
 
   /* ---------- 6) Tim gia theo tu khoa ---------- */
