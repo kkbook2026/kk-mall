@@ -309,16 +309,16 @@ async function accesstrade(env, stat, hint = {}) {
   stat.sources += doms.length; stat.per = stat.per || {}; stat.stale = stat.stale || []; stat.feedAge = {};
   const toRow = (d, dom) => ({ ...normRow({ name: d.name, price: d.price, sale_price: d.discount, image: d.image, link: d.url || '' /* PHUONG AN A: link goc cua san, khong dung aff_link */, category: d.cate, brand: '', id: d.sku || d.product_id }), src: AT_DOMAINS[dom], at: atTime(d.update_time) });
   const aged = c => ({ age: c.age == null ? null : +(c.age + (now - c.at) / 86400e3).toFixed(1), total: c.total || 0, cached: 1 });
-  const meta = {};
+  const meta = {}; let apiBusy = false;                                 // API dang tu choi vi qua nhanh (vd dang hoi gia tren san): khong cho tung nha ban, dung thong tin da nho
   for (const dom of doms) {                                            // tuan tu: giu dung nhip API
     const src = AT_DOMAINS[dom], c = (hint && hint[src]) || AGE_SEED[src];
-    if (c && now - c.at < AGE_TTL) { meta[dom] = aged(c); continue; }
+    if (c && (apiBusy || now - c.at < AGE_TTL)) { meta[dom] = aged(c); continue; }
     try {
       const j1 = await atPaced(`${AT_API}?domain=${encodeURIComponent(dom)}&page=1&limit=200`, key, env); const d1 = (j1 && j1.data) || [];
       const ages = d1.map(d => atTime(d.update_time)).filter(Boolean).map(t => (now - t) / 86400e3);
       meta[dom] = { age: ages.length ? +median(ages).toFixed(1) : null, total: Number(j1 && j1.total) || d1.length, d1 };
       stat.feedAge[src] = { age: meta[dom].age, total: meta[dom].total, at: now };
-    } catch (e) { meta[dom] = c ? aged(c) : { err: String(e.message || e).slice(0, 90) }; }      // API ban/loi: dung thong tin lan truoc neu co
+    } catch (e) { if (/HTTP (429|400)/.test(String(e.message || e))) apiBusy = true; meta[dom] = c ? aged(c) : { err: String(e.message || e).slice(0, 90) }; }      // API ban/loi: dung thong tin lan truoc neu co
   }
   const res = await pool(doms, CONCURRENCY, async dom => {
     const src = AT_DOMAINS[dom], m = meta[dom], info = stat.per[src] = { total: m.total || 0, n: 0, age: m.age == null ? null : m.age };
