@@ -1,0 +1,23 @@
+# THAM DO KENH DATAFEED TINH cua AccessTrade (chay tay). AccessTrade khuyen dung "link datafeed tinh" thay cho API
+# (API gioi han 30 yeu cau/phut): http://datafeed.accesstrade.me/<ten-mien-nha-ban>.csv
+# Chi in SIEU DU LIEU (ma HTTP, dung luong, ngay cap nhat, ten cot, so dong) - khong in gia.
+name: Feed probe (manual)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Tham do
+        run: |
+          for d in tiki.vn shopee.vn cellphones.com.vn thegioididong.com dienmayxanh.com fptshop.com.vn lazada.vn sendo.vn dienmaycholon.vn tiktok.com; do
+            for base in http://datafeed.accesstrade.me https://datafeed.accesstrade.me; do
+              out=$(curl -sS -m 60 -o /tmp/f.csv -w '%{http_code} %{size_download} %{content_type} %{time_total}' -L -r 0-400000 "$base/$d.csv" 2>&1 || true)
+              lm=$(curl -sS -m 30 -I -L "$base/$d.csv" 2>/dev/null | tr -d '\r' | grep -i '^\(last-modified\|content-length\|content-type\|accept-ranges\):' | tr '\n' ' ' || true)
+              echo "== $base/$d.csv -> $out | $lm"
+              if [ -s /tmp/f.csv ]; then head -c 600 /tmp/f.csv | head -1 | cut -c1-600; echo "   dong (trong 400KB dau): $(wc -l < /tmp/f.csv)"; fi
+            done
+          done
