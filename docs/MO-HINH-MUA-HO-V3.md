@@ -1,3 +1,15 @@
+## CẬP NHẬT 13/11/2026 - RÀ SOÁT GIÁ: GHÉP CHÉO NGUỒN, NẠP ĐỦ DATAFEED, HỎI GIÁ TRÊN SÀN
+
+Chi tiết đầy đủ: `docs/RA-SOAT-GIA-13-11-2026.md`. Tóm tắt các thay đổi có hiệu lực từ 13/11/2026:
+
+- **Nạp dữ liệu:** datafeed AccessTrade lấy bằng file tĩnh (`http://datafeed.accesstrade.me/<tên miền>.csv`, 1 yêu cầu/nhà bán, đủ 97.018 bản ghi còn sống thay vì 28.753); API AccessTrade (giới hạn 30 yêu cầu/phút) chỉ dùng để biết tuổi dữ liệu 1 lần/ngày và để hỏi giá TikTok Shop. Feed không cập nhật quá 45 ngày (Lazada, Sendo, Điện máy Chợ Lớn) bị bỏ.
+- **Ghép chéo nguồn (`collector/match.js`):** cùng một mặt hàng ở nhiều nguồn được so giá với nhau theo mã model, thương hiệu, thông số, biến thể, màu, tình trạng. Offer ghép theo tên được đánh dấu trong quản trị và không cho bot tự đặt.
+- **Chọn giá:** dải giá theo độ tin cậy; offer rẻ bất thường chờ duyệt tay; lịch sử niêm phong so với giá thực trả; giá mới lệch trên 50% được tự xác nhận sau 3 lần chạy trong 20 giờ (đặt lại mốc tham chiếu, không sửa lịch sử).
+- **An toàn vận hành:** mất dữ liệu nguồn lớn thì DỪNG, giữ nguyên bản đã xuất bản tối đa 12 giờ; sản phẩm hết nguồn chỉ bị gỡ sau 8 lần chạy khỏe; trần 36.000 sản phẩm.
+- **Hỏi giá trên sàn (`collector/search.js`, `search-crawl.yml`):** TikTok Shop qua API AccessTrade 25 truy vấn/phút; Shopee Affiliate Open API tự bật khi có `SHOPEE_APP_ID` + `SHOPEE_APP_SECRET`.
+- **Bù lịch:** `retail-crawl.yml` và `search-crawl.yml` tự gọi `collect.yml` khi quá 3 giờ chưa chạy (lịch hẹn giờ của GitHub hay trễ/bỏ lượt).
+- **Khung phí không đổi:** trên 500.000đ +32.000đ; 200.000 - 500.000đ +26.000đ; dưới 200.000đ +18.000đ.
+
 ## CẬP NHẬT 23/10/2026 - MÔ HÌNH MUA HỘ (v3, đang chạy live)
 
 **Máy chủ đơn hàng:** Google Apps Script "KK-MALL Backend" (tài khoản nguyenduydien75@gmail.com), Web app chạy dưới quyền chủ sở hữu, truy cập Anyone. URL `/exec` khai báo trong `site/config.js`. Mã nguồn: `backend/Code.gs` (repo), hướng dẫn: `backend/README.md`. Cập nhật mã: dán Code.gs mới → Lưu → Deploy → Manage deployments → ✏️ → New version (URL giữ nguyên).
