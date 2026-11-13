@@ -275,6 +275,12 @@ const AT_CSV = process.env.ACCESSTRADE_CSV_BASE || 'http://datafeed.accesstrade.
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 /* API AccessTrade gioi han 30 yeu cau/phut cho moi tai khoan (thong bao chinh thuc cua AccessTrade). Moi yeu cau API cua bo thu thap di qua
  * 1 hang doi chung, cach nhau >= ACCESSTRADE_GAP_MS; bi tu choi vi qua nhanh (HTTP 429/400) thi cho 65 giay roi moi thu lai. */
+/* Moc khoi dau (lan do thanh cong cuoi cung qua API, 12:35 UTC 13/11/2026): dung khi chua co thong tin nho trong feed-index.json va API dang tu choi.
+ * Tuoi tu tang theo thoi gian troi qua; lan do API thanh cong ke tiep se thay the. */
+const SEED_AT = Date.parse('2026-11-13T12:35:00Z');
+const AGE_SEED = { tiki: { age: 0.6, total: 45184, at: SEED_AT }, shopee: { age: 0.8, total: 12736, at: SEED_AT }, lazada: { age: 1885.1, total: 1055719, at: SEED_AT }, sendo: { age: 1553.7, total: 9045191, at: SEED_AT },
+  tiktok: { age: null, total: 0, at: SEED_AT }, thegioididong: { age: 11.6, total: 10912, at: SEED_AT }, dienmayxanh: { age: 11.6, total: 17835, at: SEED_AT }, fptshop: { age: null, total: 0, at: SEED_AT },
+  cellphones: { age: 0.6, total: 10351, at: SEED_AT }, dienmaycholon: { age: 1166.6, total: 753, at: SEED_AT } };
 let atNext = 0;
 async function atPaced(url, key, env) {
   const gap = parseInt(env.ACCESSTRADE_GAP_MS || '2300', 10), tries = parseInt(env.ACCESSTRADE_RETRIES || '2', 10), wait = parseInt(env.ACCESSTRADE_RL_WAIT_MS || '65000', 10);
@@ -305,7 +311,7 @@ async function accesstrade(env, stat, hint = {}) {
   const aged = c => ({ age: c.age == null ? null : +(c.age + (now - c.at) / 86400e3).toFixed(1), total: c.total || 0, cached: 1 });
   const meta = {};
   for (const dom of doms) {                                            // tuan tu: giu dung nhip API
-    const src = AT_DOMAINS[dom], c = hint && hint[src];
+    const src = AT_DOMAINS[dom], c = (hint && hint[src]) || AGE_SEED[src];
     if (c && now - c.at < AGE_TTL) { meta[dom] = aged(c); continue; }
     try {
       const j1 = await atPaced(`${AT_API}?domain=${encodeURIComponent(dom)}&page=1&limit=200`, key, env); const d1 = (j1 && j1.data) || [];

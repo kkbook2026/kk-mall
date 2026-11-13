@@ -166,7 +166,7 @@ const PAIRS = [
   process.env.ACCESSTRADE_API = 'http://127.0.0.1:' + srv.address().port + '/';
   process.env.ACCESSTRADE_CSV_BASE = 'http://127.0.0.1:' + srv.address().port + '/csv/';
   const FEEDS = require('../../collector/feeds');
-  const ENV = { ACCESSTRADE_KEY: 'k', ACCESSTRADE_GAP_MS: '1', ACCESSTRADE_RL_WAIT_MS: '5' };
+  const ENV = { ACCESSTRADE_KEY: 'k', ACCESSTRADE_GAP_MS: '1', ACCESSTRADE_RL_WAIT_MS: '5', FEED_AGE_TTL_H: '0' };   // TTL 0: luon hoi API (khong dung moc khoi dau trong ma)
   const f = await FEEDS.collectFeeds({ ...ENV, ACCESSTRADE_DOMAINS: 'tiki.vn,lazada.vn,dienmayxanh.com' });
   const bySrc = {}; for (const o of f.offers) bySrc[o.src] = (bySrc[o.src] || 0) + 1;
   t(bySrc.tiki === 450 && f.stat.per.tiki.via === 'csv' && f.offers.find(o => o.src === 'tiki').price === 90000 && /^https:\/\/tiki\.vn\//.test(f.offers.find(o => o.src === 'tiki').url), 'tai DU 450 ban ghi Tiki tu FILE DATAFEED TINH (gia khuyen mai, link goc) - duoc ' + bySrc.tiki);
@@ -177,10 +177,11 @@ const PAIRS = [
   t(f.stat.fail.length === 0 && f.stat.ok === 3, 'feed cu duoc tinh la lan chay khoe (khong phai loi)');
   // lan sau: da nho tuoi du lieu -> KHONG goi API; API dang tu choi (429) cung khong anh huong
   apiDown = true; const c0 = calls;
-  const f2 = await FEEDS.collectFeeds({ ...ENV, ACCESSTRADE_DOMAINS: 'tiki.vn' }, { feedAge: f.stat.feedAge });
+  const f2 = await FEEDS.collectFeeds({ ...ENV, FEED_AGE_TTL_H: '20', ACCESSTRADE_DOMAINS: 'tiki.vn' }, { feedAge: f.stat.feedAge });
   t(calls === c0 && f2.offers.length === 450 && f2.stat.fail.length === 0, 'da nho tuoi du lieu: lan sau khong ton han muc API, API bi gioi han van nap du feed');
-  const f3 = await FEEDS.collectFeeds({ ...ENV, ACCESSTRADE_RETRIES: '1', ACCESSTRADE_DOMAINS: 'shopee.vn' });
-  t(f3.offers.length === 0 && f3.stat.fail.length === 1 && /429/.test(f3.stat.fail[0]), 'chua biet tuoi du lieu ma API tu choi -> bao LOI (khong doan), de lan chay giu nguyen ban da xuat ban');
+  const f3 = await FEEDS.collectFeeds({ ...ENV, ACCESSTRADE_RETRIES: '1', ACCESSTRADE_DOMAINS: 'shopee.vn,dienmayxanh.com' });
+  t(f3.offers.filter(o => o.src === 'shopee').length === 450 && f3.stat.per.shopee.via === 'csv', 'API tu choi + chua co thong tin nho: dung moc khoi dau trong ma de van nap duoc file tinh');
+  t(f3.stat.fail.length === 1 && /dienmayxanh.*khong tai duoc/.test(f3.stat.fail[0]), 'khong co file tinh + API tu choi -> bao LOI ro rang (lan chay se giu nguyen ban da xuat ban)');
   srv.close();
 
   /* ---------- 6) Tim gia theo tu khoa ---------- */
