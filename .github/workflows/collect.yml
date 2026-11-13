@@ -10,6 +10,14 @@ on:
         description: 'Gui toan bo URL cho IndexNow (Bing, Yandex...)'
         required: false
         default: 'false'
+      retire_runs:
+        description: 'So lan chay khoe lien tiep khong con nguon thi go SP (mac dinh 8; 1 = go ngay)'
+        required: false
+        default: ''
+      trigger:
+        description: 'Nguon kich hoat (bu-lich = duoc goi tu dong khi lich GitHub bi tre)'
+        required: false
+        default: ''
 permissions:
   contents: write
   pages: write
@@ -36,6 +44,12 @@ jobs:
           path: collector/.retail-cache
           key: retail-${{ github.run_id }}
           restore-keys: retail-
+      - name: Nap bo nho dem gia tim theo tu khoa tren san (TikTok Shop / Shopee) - chi doc
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.search-cache
+          key: search-${{ github.run_id }}
+          restore-keys: search-
       - name: Thu thap & tinh gia (cau hinh noi bo tu Secrets)
         env:
           PRICING_TIERS: ${{ secrets.PRICING_TIERS }}     # bieu loi theo bac gia (bi mat kinh doanh)
@@ -59,6 +73,11 @@ jobs:
           FEED_URLS: ${{ secrets.FEED_URLS }}            # datafeed chinh thuc: moi dong <ma-nguon>|<url>
           FEED_MAX_TOTAL: ${{ vars.FEED_MAX_TOTAL || '80000' }}  # tran tong so SP nap tu feed
           FEED_MAX_NEW: ${{ vars.FEED_MAX_NEW || '5000' }}      # tran SP moi moi lan chay
+          FEED_HARD_MAX: ${{ vars.FEED_HARD_MAX || '36000' }}   # tran cung tong so SP: GitHub Pages gioi han 1 GB/site (~15 KB/SP gom trang SEO)
+          NEW_MIN_PRICE: ${{ vars.NEW_MIN_PRICE || '100000' }}  # chi tu them SP moi co gia nguon tu muc nay (hang gia tri thap: phi co dinh/mon lam gia doi qua cao)
+          FEED_MAX_AGE_DAYS: ${{ vars.FEED_MAX_AGE_DAYS || '45' }} # feed khong cap nhat qua so ngay nay bi bo (Lazada/Sendo/DM Cho Lon tren AccessTrade da chet 3-5 nam)
+          RETIRE_RUNS: ${{ github.event.inputs.retire_runs || vars.RETIRE_RUNS || '8' }}
+          KK_TRIGGER: ${{ github.event.inputs.trigger }}
         run: node collector/collect.js
       - name: Luu du lieu moi (giu lich su gon - amend 1 commit du lieu)
         run: |

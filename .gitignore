@@ -7,3 +7,4 @@
  node_modules/
 collector/.changed.json
 collector/.retail-cache/
+collector/.search-cache/

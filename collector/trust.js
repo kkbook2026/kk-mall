@@ -67,27 +67,36 @@ function histRef(d) {
  * Loc offer cho 1 SP. offers: [{source, price, in_stock, name?}]. offset: phan gia noi bo (de so voi gia ban niem phong).
  * Tra ve { valid, dropped:[{...offer, why}] }
  */
+const RETAIL_TRUSTED = new Set(['thegioididong', 'dienmayxanh', 'fptshop', 'cellphones', 'dienmaycholon', 'hoangha', 'phucanh', 'anphat']);
 function filterOffers(d, offers, offset) {
   const toCost = typeof offset === 'function' ? offset : (v => v - (Number.isFinite(offset) ? offset : 0));
   const H = histRef(d);                       // gia ban niem phong trung vi
   const Hsrc = H ? toCost(H) : 0;             // quy ve gia nguon (theo bieu loi tung bac)
   const live = offers.filter(o => o.in_stock && o.price > 0);
-  const M = live.length >= 2 ? median(live.map(o => o.price)) : 0;
+  // Trung vi tinh theo CHU SO HUU bang gia (The Gioi Di Dong + Dien May Xanh dung chung 1 bang gia niem yet -> chi tinh 1 lan),
+  // neu khong gia niem yet cao cua cung 1 cong ty se keo trung vi len va loai oan gia re that cua nguon khac.
+  const owner = sname => (sname === 'dienmayxanh' ? 'thegioididong' : sname);
+  const byOwner = {}; for (const o of live) { const k = owner(o.source); if (!(k in byOwner) || o.price < byOwner[k]) byOwner[k] = o.price; }
+  const ownerPrices = Object.values(byOwner);
+  const M = ownerPrices.length >= 2 ? median(ownerPrices) : 0;
   const floor = FLOOR[d.grp] && looksMain(d.name, d.grp) ? FLOOR[d.grp] : 0;
   const mainIsAcc = isAccessory(d.name);
   const valid = [], dropped = [];
   for (const o of offers) {
     let why = '';
     if (o.in_stock && o.price > 0) {
-      if (Hsrc > 0 && o.price < 0.5 * Hsrc) why = 'Thấp hơn 50% trung vị lịch sử niêm phong';
-      else if (M > 0 && o.price < 0.5 * M) why = 'Thấp hơn 50% trung vị các nguồn';
-      else if (Hsrc > 0 && o.price > 2.5 * Hsrc) why = 'Cao hơn 2,5 lần trung vị lịch sử niêm phong (nghi lấy nhầm giá niêm yết/biến thể)';
+      // Hsrc la GIA THUC TRA (niem yet + ship nguon) suy tu gia ban niem phong -> phai so voi gia thuc tra cua offer, KHONG phai gia niem yet:
+      // hang re co phi ship du phong lon hon gia hang (sach 22k + ship 30k) tung bi "thap hon 50% lich su" vinh vien -> het hang oan.
+      const lp = o.landed > 0 ? o.landed : o.price;
+      if (Hsrc > 0 && lp < 0.5 * Hsrc) why = 'Thấp hơn 50% trung vị lịch sử niêm phong';
+      else if (M > 0 && o.price < 0.5 * M && !(RETAIL_TRUSTED.has(o.source) && (!o.fz || o.fz >= 0.92))) why = 'Thấp hơn 50% trung vị các nguồn';   // chuoi ban le chinh hang khop CHINH XAC / trung day du ma hang: gia re hon han la gia that (thanh ly/khuyen mai), khong loai
+      else if (Hsrc > 0 && lp > 2.5 * Hsrc) why = 'Cao hơn 2,5 lần trung vị lịch sử niêm phong (nghi lấy nhầm giá niêm yết/biến thể)';
       else if (M > 0 && o.price > 2.5 * M) why = 'Cao hơn 2,5 lần trung vị các nguồn';
       else if (d.base_price > 0 && o.price > 2.5 * d.base_price) why = 'Cao hơn 2,5 lần giá niêm yết đã xác minh (nghi lấy nhầm giá gạch/biến thể)';
       else if (o.name && !mainIsAcc && isAccessory(o.name)) why = 'Biến thể là phụ kiện/linh kiện';
       else if (floor && o.price < floor) why = 'Dưới sàn giá máy chính của nhóm';
     }
-    (why ? dropped : valid).push(why ? { ...o, why } : o);
+    if (why) { o.why = why; dropped.push(o); } else valid.push(o);     // giu NGUYEN doi tuong offer (de co ly do loai hien dung trong goi quan tri)
   }
   return { valid, dropped };
 }

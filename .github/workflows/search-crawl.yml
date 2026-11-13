@@ -1,0 +1,65 @@
+# TIM GIA RE NHAT THEO TU KHOA TREN SAN (TikTok Shop qua AccessTrade; Shopee Affiliate Open API khi co khoa) - moi gio, toi da 110 phut.
+# CHI dung API chinh thuc, co gioi han toc do (TikTok ~30 truy van/phut, Shopee 2.000 truy van/gio) nen chay xoay vong:
+# moi lan hoi ~3.400 san pham; uu tien lam moi san pham DANG co gia tu san, roi san pham chua kiem tra, roi kiem tra lau nhat. Ket qua luu GitHub Actions cache (khong commit -
+# gia nguon la bi mat kinh doanh), bo thu thap gia 3 gio/lan doc lai va ghep bang bo ghep cheo truoc khi dung dinh gia.
+name: Marketplace price search (1h)
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: 'Ngan sach thoi gian (phut)'
+        required: false
+        default: '110'
+permissions:
+  contents: read
+  actions: write   # chi de goi chay bu bo thu thap gia (workflow_dispatch) khi lich cua GitHub bi tre
+concurrency:
+  group: search-crawl
+  cancel-in-progress: false
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 125
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Nap bo nho dem truoc
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.search-cache
+          key: search-${{ github.run_id }}
+          restore-keys: search-
+      - name: Tim gia theo tu khoa (xoay vong)
+        env:
+          ACCESSTRADE_KEY: ${{ secrets.ACCESSTRADE_KEY }}
+          SHOPEE_APP_ID: ${{ secrets.SHOPEE_APP_ID }}
+          SHOPEE_APP_SECRET: ${{ secrets.SHOPEE_APP_SECRET }}
+          SEARCH_TT_SORT: ${{ vars.SEARCH_TT_SORT || 'RECOMMENDED' }}
+        run: node collector/search.js ${{ github.event.inputs.minutes || '110' }}
+      - name: Luu bo nho dem
+        if: always()
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.search-cache
+          key: search-${{ github.run_id }}
+      - name: Bu lich - goi bo thu thap gia neu da qua 3 gio chua chay (lich hen gio cua GitHub thuong bi tre/bo luot)
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          row=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow collect.yml --limit 1 --json createdAt,status -q '.[0] | "\(.createdAt) \(.status)"')
+          created=${row%% *}; status=${row##* }
+          [ -n "$created" ] || { echo "Khong doc duoc lan chay gan nhat"; exit 0; }
+          age=$(( $(date +%s) - $(date -d "$created" +%s) ))
+          echo "Bo thu thap gia: lan gan nhat cach day $((age/60)) phut, trang thai $status"
+          if [ "$status" = "completed" ] && [ "$age" -ge 10800 ]; then
+            gh workflow run collect.yml --repo "$GITHUB_REPOSITORY" --ref main -f trigger=bu-lich && echo "Da goi chay bu."
+          fi

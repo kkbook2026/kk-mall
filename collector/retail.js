@@ -70,11 +70,12 @@ async function crawlSite(src, S, C, deadline, log) {
   const rb = await get(S.base + '/robots.txt').catch(() => ({ status: 0, text: '' }));
   const R = robots(rb.text); const delay = Math.max(S.delay, R.delay * 1000);
   if (Date.now() - st.sitemapAt > 20 * 3600e3 || !st.urls.length) {                     // lam moi sitemap moi ngay
-    const urls = new Set();
+    const urls = new Set(); let smStatus = null;
     for (const sm of S.sitemaps) {
       const queue = [S.base + sm]; let guard = 0;
       while (queue.length && guard++ < 60) {
         const r = await get(queue.shift(), 60000).catch(() => ({ status: 0, text: '' })); await sleep(delay);
+        if (smStatus == null) smStatus = r.status;
         for (const m of r.text.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)) {
           const u = m[1].replace(/&amp;/g, '&'); if (/\.xml(\.gz)?$/i.test(u)) { queue.push(u); continue; }
           let p; try { const x = new URL(u); if (x.search) continue; p = x.pathname; } catch { continue; }
@@ -83,7 +84,8 @@ async function crawlSite(src, S, C, deadline, log) {
       }
     }
     if (urls.size) { st.urls = [...urls]; st.sitemapAt = Date.now(); }
-    log(`[${src}] sitemap: ${st.urls.length} trang san pham hop le (robots.txt + crawl-delay ${delay / 1000}s)`);
+    st.http = { robots: rb.status, sitemap: smStatus, at: Date.now() };
+    log(`[${src}] sitemap: ${st.urls.length} trang san pham hop le (robots.txt + crawl-delay ${delay / 1000}s)` + (urls.size ? '' : ` - KHONG doc duoc sitemap (robots HTTP ${rb.status}, sitemap HTTP ${smStatus}): may chu tu choi truy cap tu dong -> khong thu thap, khong vuot chan`));
   }
   // uu tien: chua tung tai -> gia cu nhat
   const now = Date.now(), seen = st.urls.map(p => [p, (C.offers[src + '|' + p] || {}).at || 0]);
@@ -128,5 +130,7 @@ function rows(FEEDS, maxAgeH = 168) {
   }
   return out;
 }
-module.exports = { SITES, run, rows, parseProduct, robots, loadCache };
+/* Tinh trang tung website (so trang trong sitemap, ma HTTP lan doc sitemap gan nhat) - cho nhat ky quan tri */
+function siteStat() { const C = loadCache(), out = {}; for (const src of Object.keys(SITES)) { const st = (C.sites || {})[src] || {}; out[src] = { pages: (st.urls || []).length, http: st.http || null }; } return out; }
+module.exports = { SITES, run, rows, siteStat, parseProduct, robots, loadCache };
 if (require.main === module) run(parseFloat(process.argv[2]) || 45).then(() => process.exit(0), e => { console.error(e); process.exit(1); });

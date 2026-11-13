@@ -28,6 +28,8 @@ jobs:
         run: node tests/backend/test.js
       - name: Tien ich Chrome - ke hoach nguon, chu ky, tach dia chi
         run: node tests/extension/lib.test.js
+      - name: Bo ghep cheo nguon + bo nap feed (do tuoi, phan trang) + tim gia theo tu khoa
+        run: node tests/collector/match.test.js
       - name: Tim kiem KK-SEARCH - nDCG@10 bo kiem tra
         run: node tests/search/eval.js --test | tail -8
   browser:
