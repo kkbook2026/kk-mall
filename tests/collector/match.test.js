@@ -151,20 +151,37 @@ const PAIRS = [
     'lazada.vn': Array.from({ length: 300 }, (_, i) => ({ name: 'Hàng Lazada cũ ' + i, price: 50000, discount: 40000, image: 'https://img.example/l' + i + '.jpg', url: 'https://www.lazada.vn/p' + i + '.html', update_time: day(1800) })),
     'dienmayxanh.com': [{ name: 'Tủ Mát Sanaky VH-258KL 200L - Chỉ giao tại HCM', price: 7899000, discount: 7899000, image: 'https://img.example/t.jpg', url: 'https://www.dienmayxanh.com/t', update_time: day(11) }],
   };
-  let calls = 0;
-  const srv = http.createServer((req, res) => { calls++; const u = new URL(req.url, 'http://x'), arr = DATA[u.searchParams.get('domain')] || [], pg = +u.searchParams.get('page'), lim = +u.searchParams.get('limit');
+  let calls = 0, csvHits = 0, apiDown = false;
+  const csvQ = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const srv = http.createServer((req, res) => { const u = new URL(req.url, 'http://x');
+    const m = u.pathname.match(/^\/csv\/(.+)\.csv$/);
+    if (m) { csvHits++; const arr = m[1] === 'tiki.vn' || m[1] === 'shopee.vn' ? DATA['tiki.vn'] : null; if (!arr) { res.statusCode = 404; return res.end('nf'); }
+      // file tinh: cot name,url,price,discount,image,desc,category ; mo ta nhieu dong nam trong ngoac kep
+      res.setHeader('content-type', 'application/octet-stream');
+      return res.end('"name","url","price","discount","image","desc","category"\n' + arr.map(r => [r.name, r.url, r.price, r.discount, r.image, 'Mo ta dong 1\ndong 2, co dau phay va "ngoac kep"', 'Sách'].map(csvQ).join(',')).join('\n') + '\n'); }
+    calls++; if (apiDown) { res.statusCode = 429; return res.end('{"message":"You hit the rate limit"}'); }
+    const arr = DATA[u.searchParams.get('domain')] || [], pg = +u.searchParams.get('page'), lim = +u.searchParams.get('limit');
     res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ data: arr.slice((pg - 1) * lim, pg * lim), total: arr.length })); });
   await new Promise(r => srv.listen(0, '127.0.0.1', r));
   process.env.ACCESSTRADE_API = 'http://127.0.0.1:' + srv.address().port + '/';
+  process.env.ACCESSTRADE_CSV_BASE = 'http://127.0.0.1:' + srv.address().port + '/csv/';
   const FEEDS = require('../../collector/feeds');
-  const f = await FEEDS.collectFeeds({ ACCESSTRADE_KEY: 'k', ACCESSTRADE_DOMAINS: 'tiki.vn,lazada.vn,dienmayxanh.com' });
-  srv.close();
+  const ENV = { ACCESSTRADE_KEY: 'k', ACCESSTRADE_GAP_MS: '1', ACCESSTRADE_RL_WAIT_MS: '5' };
+  const f = await FEEDS.collectFeeds({ ...ENV, ACCESSTRADE_DOMAINS: 'tiki.vn,lazada.vn,dienmayxanh.com' });
   const bySrc = {}; for (const o of f.offers) bySrc[o.src] = (bySrc[o.src] || 0) + 1;
-  t(bySrc.tiki === 450, 'tai DU 450 ban ghi Tiki qua 3 trang (truoc day chi lay 4.000 ban ghi dau cua moi san) - duoc ' + bySrc.tiki);
-  t(!bySrc.lazada && f.stat.stale.length === 1 && /lazada/.test(f.stat.stale[0]), 'feed Lazada khong cap nhat ~5 nam bi BO ca nguon');
+  t(bySrc.tiki === 450 && f.stat.per.tiki.via === 'csv' && f.offers.find(o => o.src === 'tiki').price === 90000 && /^https:\/\/tiki\.vn\//.test(f.offers.find(o => o.src === 'tiki').url), 'tai DU 450 ban ghi Tiki tu FILE DATAFEED TINH (gia khuyen mai, link goc) - duoc ' + bySrc.tiki);
+  t(calls === 3, 'API chi dung 1 yeu cau/nha ban de biet tuoi du lieu (gioi han 30 yeu cau/phut) - da goi ' + calls);
+  t(!bySrc.lazada && f.stat.stale.length === 1 && /lazada/.test(f.stat.stale[0]), 'feed Lazada khong cap nhat ~5 nam bi BO ca nguon (khong tai file)');
   t(f.stat.per.lazada.n === 0 && f.stat.per.tiki.n === 450 && f.stat.per.tiki.age < 1, 'thong ke theo nguon: so ban ghi + do tuoi');
-  t(!bySrc.dienmayxanh && f.stat.region === 1, 'offer "Chỉ giao tại HCM" bi loai khoi viec so gia');
+  t(!bySrc.dienmayxanh && f.stat.region === 1 && f.stat.per.dienmayxanh.via === 'api', 'khong co file tinh -> du phong API; offer "Chỉ giao tại HCM" bi loai khoi viec so gia');
   t(f.stat.fail.length === 0 && f.stat.ok === 3, 'feed cu duoc tinh la lan chay khoe (khong phai loi)');
+  // lan sau: da nho tuoi du lieu -> KHONG goi API; API dang tu choi (429) cung khong anh huong
+  apiDown = true; const c0 = calls;
+  const f2 = await FEEDS.collectFeeds({ ...ENV, ACCESSTRADE_DOMAINS: 'tiki.vn' }, { feedAge: f.stat.feedAge });
+  t(calls === c0 && f2.offers.length === 450 && f2.stat.fail.length === 0, 'da nho tuoi du lieu: lan sau khong ton han muc API, API bi gioi han van nap du feed');
+  const f3 = await FEEDS.collectFeeds({ ...ENV, ACCESSTRADE_RETRIES: '1', ACCESSTRADE_DOMAINS: 'shopee.vn' });
+  t(f3.offers.length === 0 && f3.stat.fail.length === 1 && /429/.test(f3.stat.fail[0]), 'chua biet tuoi du lieu ma API tu choi -> bao LOI (khong doan), de lan chay giu nguyen ban da xuat ban');
+  srv.close();
 
   /* ---------- 6) Tim gia theo tu khoa ---------- */
   const S = require('../../collector/search');

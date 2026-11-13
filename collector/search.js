@@ -31,7 +31,7 @@ const num = v => { const n = Math.round(parseFloat(v)); return Number.isFinite(n
 const PROVIDERS = {
   tiktok: {
     enabled: env => !!String(env.ACCESSTRADE_KEY || '').trim(),
-    gap: env => parseInt(env.SEARCH_TT_GAP_MS || '1900', 10),       // ~30 truy van/phut (da do: vuot la bi HTTP 429)
+    gap: env => parseInt(env.SEARCH_TT_GAP_MS || '2400', 10),       // 25 truy van/phut - duoi gioi han chinh thuc 30 yeu cau/phut cua AccessTrade, chua lai 5 cho viec khac
     async search(env, q) {
       const base = env.ACCESSTRADE_TT_API || 'https://api.accesstrade.vn/v2/tiktokshop_product_feeds';
       const r = await http(`${base}?title_keywords=${encodeURIComponent(q)}&sort_field=${encodeURIComponent(env.SEARCH_TT_SORT || 'RECOMMENDED')}&limit=20`,

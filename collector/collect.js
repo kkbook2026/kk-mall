@@ -54,7 +54,8 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   const FIDX_FILE = path.join(__dirname, 'feed-index.json');   // ten chuan hoa -> SKU (giu on dinh SKU giua cac lan chay)
   const fidx = fs.existsSync(FIDX_FILE) ? JSON.parse(fs.readFileSync(FIDX_FILE, 'utf8')) : { map: {}, origin: {} };
   const MAX_TOTAL = parseInt(process.env.FEED_MAX_TOTAL || '30000', 10), MAX_NEW = parseInt(process.env.FEED_MAX_NEW || '5000', 10);
-  const feed = await FEEDS.collectFeeds(process.env);
+  const feed = await FEEDS.collectFeeds(process.env, { feedAge: fidx.feedAge });
+  fidx.feedAge = { ...(fidx.feedAge || {}), ...(feed.stat.feedAge || {}) };   // tuoi du lieu tung feed (hoi API 1 lan/ngay, khong ton han muc)
   /* ===== GIA BAN LE CONG KHAI: doc bo nho dem do retail.js thu (khong tai lai o day) ===== */
   const medOf = a => { const x = a.slice().sort((p, q) => p - q); return x.length ? x[x.length >> 1] : null; };
   { let n = 0, un = 0; const per = feed.stat.per = feed.stat.per || {}, ages = {}, SS = RETAIL.siteStat();
@@ -183,6 +184,14 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     const cntBySrc = {}; for (const o of feed.offers) cntBySrc[o.src] = (cntBySrc[o.src] || 0) + 1;
     const shrunk = Object.entries(fidx.srcN).filter(([src, n]) => n >= 200 && (cntBySrc[src] || 0) < 0.5 * n).map(([src, n]) => `${src} ${cntBySrc[src] || 0}/${n}`);
     if (shrunk.length) { feed.stat.shrunk = shrunk; console.log('CANH BAO: nguon tut so ban ghi qua nua so voi lan khoe gan nhat -> lan nay KHONG go san pham: ' + shrunk.join(', ')); }
+    /* GIU NGUYEN BAN DA XUAT BAN khi mat du lieu nguon lon: ngay 13/11/2026 API nguon tu choi vi goi qua nhanh, 3 feed khong tai duoc ->
+     * 17.000 san pham bi chuyen "tam het hang" oan. Gia cu vai gio van tot hon mot nua cua hang het hang. Qua SHRINK_HOLD_H gio ma nguon
+     * van mat thi moi chap nhan xuat ban thieu (san pham cua nguon do tam het hang; van khong bi go). */
+    { const HOLD_H = parseFloat(process.env.SHRINK_HOLD_H || '12'), lastOk = Date.parse(meta.lastSync || '') || 0;
+      if (shrunk.length && process.env.KK_FORCE !== '1' && lastOk && Date.now() - lastOk < HOLD_H * 3600e3) {
+        console.error(`DUNG - GIU NGUYEN BAN DA XUAT BAN (lan xuat ban gan nhat ${meta.lastSync}): mat du lieu nguon ${shrunk.join(', ')}` + (feed.stat.fail.length ? ' · LOI: ' + feed.stat.fail.join('; ') : '') + ` · se tu xuat ban thieu neu qua ${HOLD_H} gio van chua co lai du lieu.`);
+        process.exit(2);
+      } }
     const healthy = feed.offers.length > 0 && !feed.stat.fail.length && !shrunk.length, RETIRE_RUNS = Math.max(1, parseInt(process.env.RETIRE_RUNS || '8', 10)), rm = new Set();
     if (healthy) fidx.srcN = cntBySrc;
     if (healthy) for (const p of full) {
@@ -198,7 +207,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     feed.stat.retired = rm.size; feed.stat.missing = Object.keys(fidx.miss).length; }
   if (feed.stat.sources) console.log(`Feed: ${feed.stat.ok}/${feed.stat.sources} nguon · ${feed.stat.items} ban ghi · khop ${feed.stat.matched} · ghep mo ${feed.stat.fuzzyKeys} ten vao ${feed.stat.fuzzySku || 0} SP · tach ${feed.stat.split} nhom gop sai · go lien ket sai ${feed.stat.unlinked} · them moi ${feed.stat.added} · phan loai lai ${feed.stat.reclassified || 0} · go ${(feed.stat.removed || 0) + feed.stat.retired} (cho go: ${feed.stat.missing})`
     + (feed.stat.stale && feed.stat.stale.length ? ' · FEED CU BI BO: ' + feed.stat.stale.join(', ') : '') + (feed.stat.fail.length ? ' · LOI: ' + feed.stat.fail.join('; ') : ''));
-  if (feed.stat.per) console.log('Feed theo nguon: ' + Object.entries(feed.stat.per).map(([k, v]) => `${k} ${v.n}/${v.total}${v.age != null ? ' (' + v.age + ' ngay)' : ''}`).join(' · '));
+  if (feed.stat.per) console.log('Feed theo nguon: ' + Object.entries(feed.stat.per).map(([k, v]) => `${k} ${v.n}/${v.total}${v.age != null ? ' (' + v.age + ' ngay)' : ''}${v.via ? ' [' + v.via + ']' : ''}`).join(' · '));
 
   /*
    * NGUON DU LIEU:

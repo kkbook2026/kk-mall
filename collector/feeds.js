@@ -30,8 +30,8 @@ function feedList(env) {
 }
 
 /* ---------- tai song song co gioi han ---------- */
-async function fetchText(url) {
-  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), TIMEOUT_MS);
+async function fetchText(url, timeout = TIMEOUT_MS) {
+  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), timeout);
   try {
     const r = await fetch(url, { signal: ac.signal, headers: { 'user-agent': 'KK-MALL-FeedReader/1.0 (+https://www.kk-mall.com)' } });
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -271,35 +271,76 @@ const median = a => { const x = a.slice().sort((p, q) => p - q); return x.length
  *    bi BO HAN (gia cu nhieu nam khong the dung de mua ho) - ghi vao stat.stale de quan tri biet.
  *  - Cac trang con lai tai song song co gioi han, moi trang thu lai toi da 3 lan.
  */
-async function accesstrade(env, stat) {
+const AT_CSV = process.env.ACCESSTRADE_CSV_BASE || 'http://datafeed.accesstrade.me/';   // "link datafeed tinh" - kenh AccessTrade khuyen dung thay cho API
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+/* API AccessTrade gioi han 30 yeu cau/phut cho moi tai khoan (thong bao chinh thuc cua AccessTrade). Moi yeu cau API cua bo thu thap di qua
+ * 1 hang doi chung, cach nhau >= ACCESSTRADE_GAP_MS; bi tu choi vi qua nhanh (HTTP 429/400) thi cho 65 giay roi moi thu lai. */
+let atNext = 0;
+async function atPaced(url, key, env) {
+  const gap = parseInt(env.ACCESSTRADE_GAP_MS || '2300', 10), tries = parseInt(env.ACCESSTRADE_RETRIES || '2', 10), wait = parseInt(env.ACCESSTRADE_RL_WAIT_MS || '65000', 10);
+  for (let i = 0; ; i++) {
+    const now = Date.now(), at = Math.max(now, atNext); atNext = at + gap; if (at > now) await sleep(at - now);
+    try { return await atJSON(url, key); }
+    catch (e) { const msg = String(e.message || e); if (/khoa AccessTrade/.test(msg) || i >= tries) throw e; await sleep(/HTTP (429|400)/.test(msg) ? wait : 2000); }
+  }
+}
+/* link trong file tinh co the la link tiep thi boc ngoai (…?url=<link goc>) -> lay link goc (PHUONG AN A: khong dung link tiep thi de mua ho) */
+const csvUrl = u => { const s = String(u || '').trim(); const m = s.match(/[?&]url=([^&]+)/i); if (m && !/^https:\/\/(?:www\.)?(tiki\.vn|shopee\.vn|cellphones\.com\.vn|thegioididong\.com|dienmayxanh\.com)\//i.test(s)) { try { return decodeURIComponent(m[1]); } catch { } } return s; };
+/*
+ * NAP DATAFEED AccessTrade:
+ *  1) Tuoi du lieu + tong so ban ghi cua tung nha ban: 1 yeu cau API (trang 1). Ket qua duoc nho lai (hint, luu trong feed-index.json) va chi hoi lai
+ *     sau FEED_AGE_TTL_H gio -> binh thuong bo thu thap KHONG dung den han muc API (han muc do danh cho viec hoi gia tung san pham tren san).
+ *     Feed khong cap nhat qua FEED_MAX_AGE_DAYS bi BO HAN (gia cu nhieu nam khong the dung de mua ho).
+ *  2) Du lieu: tai FILE DATAFEED TINH (1 yeu cau/nha ban, du toan bo ban ghi). Truoc 13/11/2026 doc qua API phan trang: chi lay 4.000 ban ghi dau;
+ *     khi tai du (~490 trang) thi vuot gioi han 30 yeu cau/phut va bi tu choi. API phan trang chi con la phuong an du phong, co gian cach.
+ */
+async function accesstrade(env, stat, hint = {}) {
   const key = String(env.ACCESSTRADE_KEY || '').trim();
   if (!key) return [];
   const doms = String(env.ACCESSTRADE_DOMAINS || Object.keys(AT_DOMAINS).join(',')).split(/[\s,;]+/).filter(d => AT_DOMAINS[d]);
   const maxPer = parseInt(env.ACCESSTRADE_MAX_PER_DOMAIN || '60000', 10), maxAge = parseFloat(env.FEED_MAX_AGE_DAYS || '45'), now = Date.now();
-  const PAGE_CONC = parseInt(env.ACCESSTRADE_PAGE_CONCURRENCY || '2', 10);   // x 4 san song song = toi da 8 yeu cau cung luc
-  stat.sources += doms.length; stat.per = stat.per || {}; stat.stale = stat.stale || [];
-  const page = async (dom, n) => { let err; for (let i = 0; i < 3; i++) { try { return await atJSON(`${AT_API}?domain=${encodeURIComponent(dom)}&page=${n}&limit=200`, key); } catch (e) { err = e; if (/khoa AccessTrade/.test(String(e.message))) break; await new Promise(r => setTimeout(r, 1500 * (i + 1))); } } throw err; };
+  const AGE_TTL = parseFloat(env.FEED_AGE_TTL_H || '20') * 3600e3, API_FALLBACK = String(env.ACCESSTRADE_API_FALLBACK || '1') !== '0';
+  stat.sources += doms.length; stat.per = stat.per || {}; stat.stale = stat.stale || []; stat.feedAge = {};
   const toRow = (d, dom) => ({ ...normRow({ name: d.name, price: d.price, sale_price: d.discount, image: d.image, link: d.url || '' /* PHUONG AN A: link goc cua san, khong dung aff_link */, category: d.cate, brand: '', id: d.sku || d.product_id }), src: AT_DOMAINS[dom], at: atTime(d.update_time) });
-  const res = await pool(doms, CONCURRENCY, async dom => {
-    const src = AT_DOMAINS[dom], out = []; const info = stat.per[src] = { total: 0, n: 0, age: null };
+  const aged = c => ({ age: c.age == null ? null : +(c.age + (now - c.at) / 86400e3).toFixed(1), total: c.total || 0, cached: 1 });
+  const meta = {};
+  for (const dom of doms) {                                            // tuan tu: giu dung nhip API
+    const src = AT_DOMAINS[dom], c = hint && hint[src];
+    if (c && now - c.at < AGE_TTL) { meta[dom] = aged(c); continue; }
     try {
-      const j1 = await page(dom, 1); const d1 = (j1 && j1.data) || [];
-      info.total = Number(j1 && j1.total) || d1.length;
+      const j1 = await atPaced(`${AT_API}?domain=${encodeURIComponent(dom)}&page=1&limit=200`, key, env); const d1 = (j1 && j1.data) || [];
       const ages = d1.map(d => atTime(d.update_time)).filter(Boolean).map(t => (now - t) / 86400e3);
-      info.age = ages.length ? +median(ages).toFixed(1) : null;
-      if (info.age != null && info.age > maxAge) { stat.stale.push(src + ' (' + Math.round(info.age) + ' ngay)'); stat.ok++; return out; }   // feed chet: bo ca nguon
-      for (const d of d1) out.push(toRow(d, dom));
-      const pages = Math.ceil(Math.min(info.total, maxPer) / 200); let failed = 0;
-      if (d1.length >= 200 && pages > 1) {
-        const rest = await pool(Array.from({ length: pages - 1 }, (_, i) => i + 2), PAGE_CONC, async n => { try { const j = await page(dom, n); return (j && j.data) || []; } catch (e) { failed++; return []; } });
-        for (const data of rest) for (const d of data) out.push(toRow(d, dom));
-      }
-      const expect = Math.min(info.total, maxPer);
-      if (failed) stat.fail.push('AccessTrade ' + dom + ': thieu ' + failed + '/' + pages + ' trang');
-      else if (expect >= 400 && out.length < 0.9 * expect) stat.fail.push('AccessTrade ' + dom + ': chi nhan ' + out.length + '/' + expect + ' ban ghi');   // HTTP 200 nhung trang rong/thieu
-      else stat.ok++;
-    } catch (e) { stat.fail.push('AccessTrade ' + dom + ': ' + String(e.message || e).slice(0, 90)); }
-    // ban ghi rieng le qua cu trong 1 feed con song cung bi bo
+      meta[dom] = { age: ages.length ? +median(ages).toFixed(1) : null, total: Number(j1 && j1.total) || d1.length, d1 };
+      stat.feedAge[src] = { age: meta[dom].age, total: meta[dom].total, at: now };
+    } catch (e) { meta[dom] = c ? aged(c) : { err: String(e.message || e).slice(0, 90) }; }      // API ban/loi: dung thong tin lan truoc neu co
+  }
+  const res = await pool(doms, CONCURRENCY, async dom => {
+    const src = AT_DOMAINS[dom], m = meta[dom], info = stat.per[src] = { total: m.total || 0, n: 0, age: m.age == null ? null : m.age };
+    if (m.err) { stat.fail.push('AccessTrade ' + dom + ': ' + m.err); return []; }
+    if (m.age != null && m.age > maxAge) { stat.stale.push(src + ' (' + Math.round(m.age) + ' ngay)'); stat.ok++; return []; }   // feed chet: bo ca nguon
+    if (!m.total) { stat.ok++; return []; }                            // nha ban khong co datafeed
+    let out = null, failed = 0, pages = 0;
+    try {
+      const { text } = await fetchText(AT_CSV + dom + '.csv', parseInt(env.ACCESSTRADE_CSV_TIMEOUT_MS || '300000', 10));
+      const rows = parseCSV(text); if (!rows.length) throw new Error('file rong');
+      out = rows.slice(0, maxPer).map(r => ({ ...normRow({ name: r.name, price: r.price, sale_price: r.discount, image: r.image, link: csvUrl(r.url), category: r.category }), src }));
+      info.via = 'csv'; if (m.cached) info.total = Math.max(info.total, rows.length);
+    } catch (e) { info.csvErr = String(e.message || e).slice(0, 60); }
+    if (!out && API_FALLBACK) {
+      try {
+        out = []; info.via = 'api';
+        const d1 = m.d1 || ((await atPaced(`${AT_API}?domain=${encodeURIComponent(dom)}&page=1&limit=200`, key, env)) || {}).data || [];
+        for (const d of d1) out.push(toRow(d, dom));
+        pages = Math.ceil(Math.min(m.total, maxPer) / 200);
+        for (let n = 2; n <= pages && d1.length >= 200; n++) { try { const j = await atPaced(`${AT_API}?domain=${encodeURIComponent(dom)}&page=${n}&limit=200`, key, env); for (const d of (j && j.data) || []) out.push(toRow(d, dom)); } catch (e) { failed++; if (failed >= 3) break; } }
+      } catch (e) { out = null; info.apiErr = String(e.message || e).slice(0, 60); }
+    }
+    const expect = Math.min(m.total, maxPer);
+    if (!out) { stat.fail.push('AccessTrade ' + dom + ': khong tai duoc (file tinh: ' + (info.csvErr || '-') + '; API: ' + (info.apiErr || 'tat') + ')'); return []; }
+    if (failed) stat.fail.push('AccessTrade ' + dom + ': thieu ' + failed + '/' + pages + ' trang');
+    else if (expect >= 400 && out.length < (info.via === 'csv' ? 0.5 : 0.9) * expect) stat.fail.push('AccessTrade ' + dom + ': chi nhan ' + out.length + '/' + expect + ' ban ghi');   // file/trang rong hoac thieu
+    else stat.ok++;
+    // ban ghi rieng le qua cu trong 1 feed con song cung bi bo (chi API moi co thoi diem cap nhat tung ban ghi)
     const fresh = out.filter(r => !r.at || (now - r.at) / 86400e3 <= maxAge);
     info.n = fresh.length; if (fresh.length < out.length) info.old = out.length - fresh.length;
     return fresh;
@@ -308,7 +349,7 @@ async function accesstrade(env, stat) {
 }
 
 /* ---------- chay toan bo ---------- */
-async function collectFeeds(env) {
+async function collectFeeds(env, hint = {}) {
   const list = feedList(env);
   const stat = { sources: list.length, ok: 0, fail: [], items: 0, valid: 0, unclassified: 0, bad: 0 };
   const [urlRows, atRows] = await Promise.all([          // feed URL va AccessTrade chay SONG SONG
@@ -316,7 +357,7 @@ async function collectFeeds(env) {
       try { const { text, type } = await fetchText(f.url); const rows = parseAny(text, type); stat.ok++; return rows.map(r => ({ ...normRow(r), src: f.src })); }
       catch (e) { stat.fail.push(f.src + ': ' + String(e.message || e).slice(0, 80)); return []; }
     }),
-    accesstrade(env, stat),
+    accesstrade(env, stat, hint.feedAge || {}),
   ]);
   const offers = [], dropKeys = new Set(), sample = [];  // sample: mau ban ghi chua phan loai (chi luu trong goi quan tri ma hoa)
   for (const r of [...urlRows.flat(), ...atRows]) {

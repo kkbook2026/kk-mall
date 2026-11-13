@@ -18,6 +18,10 @@ on:
         description: 'Nguon kich hoat (bu-lich = duoc goi tu dong khi lich GitHub bi tre)'
         required: false
         default: ''
+      force:
+        description: '1 = van xuat ban du co nguon mat du lieu (mac dinh: giu nguyen ban cu toi da 12 gio)'
+        required: false
+        default: ''
 permissions:
   contents: write
   pages: write
@@ -78,6 +82,8 @@ jobs:
           FEED_MAX_AGE_DAYS: ${{ vars.FEED_MAX_AGE_DAYS || '45' }} # feed khong cap nhat qua so ngay nay bi bo (Lazada/Sendo/DM Cho Lon tren AccessTrade da chet 3-5 nam)
           RETIRE_RUNS: ${{ github.event.inputs.retire_runs || vars.RETIRE_RUNS || '8' }}
           KK_TRIGGER: ${{ github.event.inputs.trigger }}
+          KK_FORCE: ${{ github.event.inputs.force }}
+          SHRINK_HOLD_H: ${{ vars.SHRINK_HOLD_H || '12' }}
         run: node collector/collect.js
       - name: Luu du lieu moi (giu lich su gon - amend 1 commit du lieu)
         run: |
