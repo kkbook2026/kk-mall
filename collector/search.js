@@ -90,14 +90,17 @@ async function run(minutes = 110, env = process.env, log = console.log) {
   const pool = cat.filter(p => eligible(IDX.features(p.sku)));
   const res = {};
   await Promise.all(provs.map(async prov => {
-    const P = PROVIDERS[prov], st = res[prov] = { n: 0, hit: 0, offers: 0, e429: 0, err: 0, eligible: pool.length };
+    const P = PROVIDERS[prov], st = res[prov] = { n: 0, got: 0, items: 0, priced: 0, hit: 0, offers: 0, e429: 0, err: 0, eligible: pool.length };
     const ent = p => (C.items[p.sku] || {})[prov], last = p => (ent(p) || {}).at || 0, t00 = Date.now();
     /* Thu tu hoi (lich cua GitHub hay bi tre/bo nen moi lan chay phai dung ngan sach vao cho co gia tri nhat):
      *  0 - SP DANG CO offer khop (dang tham gia dinh gia) va da qua SEARCH_REFRESH_H gio -> lam moi truoc, de gia dung khong bi cu
      *  1 - SP chua tung hoi (gia tri cao truoc)        2 - con lai, lau nhat truoc */
     const REFRESH = parseFloat(env.SEARCH_REFRESH_H || '8') * 3600e3;
     const pri = p => { const e = ent(p); if (!e) return 1; return e.offers && e.offers.length && t00 - e.at >= REFRESH ? 0 : 2; };
-    const queue = pool.slice().sort((a, b) => (pri(a) - pri(b)) || (last(a) - last(b)) || ((b.kk_price || 0) - (a.kk_price || 0)));
+    // SP chua tung hoi: thu tu gia ngau nhien co dinh theo ma SP (trai deu moi nhom hang, moi tam gia) - xep theo gia giam dan thi cac lan dau chi hoi
+    // toan hang tram trieu dong, loai hang gan nhu khong co tren san
+    const mix = sku => parseInt(crypto.createHash('md5').update(prov + sku).digest('hex').slice(0, 8), 16);
+    const queue = pool.slice().sort((a, b) => (pri(a) - pri(b)) || (last(a) - last(b)) || (mix(a.sku) - mix(b.sku)));
     let gap = P.gap(env), fails = 0, c429 = 0;
     for (const p of queue) {
       if (Date.now() > deadline) break;
@@ -107,11 +110,12 @@ async function run(minutes = 110, env = process.env, log = console.log) {
         if (++c429 >= 25) { log(`[${prov}] dung som: bi gioi han toc do keo dai (HTTP 429 x${c429})`); break; } await sleep(15000); continue; }
       c429 = 0;
       if (r.status !== 200) { st.err++; if (++fails >= 12) { log(`[${prov}] dung som: loi lien tiep (HTTP ${r.status}${r.err ? ' ' + r.err : ''})`); break; } await sleep(3000); continue; }
-      fails = 0; st.n++;
+      fails = 0; st.n++; if (r.items.length) st.got++; st.items += r.items.length;
       const offers = [];
       for (const it of r.items) {
         if (!it.inv || !it.n || !/^https:\/\//.test(it.u)) continue;
         const price = priceOf(it); if (!price) continue;
+        st.priced++;
         // loc so bo bang rang buoc cung cua bo ghep (chua co ngu lieu offer day du) - bo thu thap gia se xac nhan lai lan nua truoc khi dung
         const sc = MATCH.score(f, MATCH.features(it.n)); if (!(sc >= 0.6)) continue;
         offers.push({ n: it.n.slice(0, 160), p: price, u: it.u, i: it.i, shop: it.shop.slice(0, 60), sc });
@@ -122,7 +126,7 @@ async function run(minutes = 110, env = process.env, log = console.log) {
       if (st.n % 200 === 0) { C.savedAt = Date.now(); saveCache(C); }
       await sleep(Math.max(0, gap - (Date.now() - t0)));
     }
-    log(`[${prov}] hoi ${st.n} SP · co offer khop ${st.hit} · 429: ${st.e429} · loi: ${st.err} · nhip ${gap}ms · SP du dieu kien ${st.eligible}`);
+    log(`[${prov}] hoi ${st.n} SP · san tra ket qua cho ${st.got} SP (${st.items} tin, ${st.priced} tin con hang co 1 muc gia) · co offer KHOP ${st.hit} SP · 429: ${st.e429} · loi: ${st.err} · nhip ${gap}ms · SP du dieu kien ${st.eligible}`);
   }));
   C.savedAt = Date.now(); C.stat = { at: C.savedAt, res }; saveCache(C);
   let tot = 0, withOffer = 0; for (const v of Object.values(C.items)) for (const e of Object.values(v)) { tot++; if (e.offers && e.offers.length) withOffer++; }

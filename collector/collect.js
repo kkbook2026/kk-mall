@@ -406,6 +406,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
 
   // ---- XUAT BAN CONG KHAI (catalog, nganh, pack, SDUI, meta + Merkle root, nhat ky root) ----
   meta.syncMinutes = CYCLE_MIN;
+  { const live = new Set(feed.offers.filter(o => o.stock).map(o => o.src).concat(SROWS.map(r => r.src))); if (live.size) meta.sourceCount = live.size; }   // so nguon THUC SU co du lieu lan nay (khong tinh feed da chet)
   const PUBR = publish({ API, pub, meta, now, seq, mk, recent: recent.sort((a, b) => b.seq - a.seq), chain: CHAIN });
   // danh sach trang SP vua doi gia/ton kho -> IndexNow (chay sau deploy)
   const pubSet = new Set(PUBR.pub.map(r => r.slug));
