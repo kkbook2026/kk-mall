@@ -194,6 +194,11 @@ const PAIRS = [
     t(book.valid.length === 1 && !book.dropped.length, 'hang re co ship du phong > gia hang KHONG con bi loai oan vi "thap hon 50% lich su"');
     const drop = TR.filterOffers({ name: 'Sách thiếu nhi A', grp: 'Sách', base_price: 30000, d90: d90(170000) }, [{ source: 'tiki', price: 20000, ship: 30000, landed: 50000, in_stock: 1 }], toCost);
     t(drop.dropped.length === 1 && /50%/.test(drop.dropped[0].why), 'gia thuc tra sut that > 50% so voi lich su van bi giu lai de kiem tra');
+    // dat lai moc tham chieu (muc gia moi da duoc xac nhan lap lai): chi doi chieu voi lich su tu moc do, lich su cu van nguyen
+    { const dd = { name: 'Loa thanh Y', grp: 'Loa', base_price: 0, d90: d90(14752000) }; const off = [{ source: 'cellphones', price: 6990000, landed: 6990000, in_stock: 1 }];
+      const before = TR.filterOffers(dd, off.map(o => ({ ...o })), toCost).dropped.length;
+      dd.href = TR.dayOf(new Date(Date.UTC(2026, 9, 20)).toISOString()); dd.href_at = new Date(Date.UTC(2026, 9, 20)).toISOString();
+      t(before === 1 && TR.histRef(dd) === 0 && TR.filterOffers(dd, off.map(o => ({ ...o })), toCost).valid.length === 1 && dd.d90.length === 5, 'gia moi lech > 50% lich su: bi giu; sau khi dat lai moc tham chieu thi duoc nhan, lich su niem phong khong bi sua'); }
     const both = TR.filterOffers({ name: 'Tai nghe X', grp: 'Tai nghe', base_price: 0 }, [{ source: 'thegioididong', price: 1000000, landed: 1000000, in_stock: 1 }, { source: 'dienmayxanh', price: 1000000, landed: 1000000, in_stock: 1 }, { source: 'hoangha', price: 450000, landed: 450000, in_stock: 1 }], toCost);
     t(both.valid.some(o => o.source === 'hoangha'), '2 chuoi dung chung 1 bang gia chi tinh 1 lan; chuoi ban le chinh hang khop chinh xac re hon han khong bi loai');
     const mk = TR.filterOffers({ name: 'Tai nghe X', grp: 'Tai nghe', base_price: 0 }, [{ source: 'tiki', price: 1000000, landed: 1000000, in_stock: 1 }, { source: 'cellphones', price: 990000, landed: 990000, in_stock: 1 }, { source: 'shopee', price: 300000, landed: 300000, in_stock: 1 }], toCost);

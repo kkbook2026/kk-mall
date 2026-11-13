@@ -32,6 +32,7 @@ const BAD_IMG_HOST = /^https:\/\/(vn-test-\d+\.slatic\.net|lzd-staging[^/]*|[^/]
 const goodImg = u => typeof u === 'string' && /^https:\/\//.test(u) && !BAD_IMG_HOST.test(u);
 const { isFreeship } = require('./match');   // 'Freeship' trong ten chi duoc tinh khi KHONG kem dieu kien (khu vuc, gia tri don, chuong trinh co tran)
 const FS_RE = { test: n => isFreeship(n) };
+const HIST_RUNS = Math.max(1, parseInt(process.env.HIST_OVERRIDE_RUNS || '3', 10)), HIST_HOURS = Math.max(0, parseFloat(process.env.HIST_OVERRIDE_HOURS || '20'));
 
 // PRNG deterministic theo chu ky - gia nguon dao dong nhu thi truong that
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -256,7 +257,21 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       offerState.push({ source: src, price, in_stock: inStock, fetched_at: now, ship: 0, landed: price });
     }
     /* ===== BO LOC TIN CAY: loai offer ngoai lai truoc khi chon gia ===== */
-    const flt = TRUST.filterOffers(d, offerState, PRICING.ok ? PRICING.toCost : 0);
+    let flt = TRUST.filterOffers(d, offerState, PRICING.ok ? PRICING.toCost : 0);
+    /* TU CHUA LICH SU SAI: offer bi loai CHI vi lech > 50% / > 2,5 lan so voi lich su niem phong, nhung den tu CHUOI BAN LE chinh hang
+     * (khop chinh xac hoac trung day du ma hang) va LAP LAI cung muc gia qua >= HIST_OVERRIDE_RUNS lan chay trong >= HIST_OVERRIDE_HOURS gio
+     * => lich su cu sai (tung lay nham gia) hoac gia thi truong da doi that -> dat lai moc tham chieu (d.href), khong sua lich su niem phong.
+     * Truoc day cac san pham nay bi giu gia cu / het hang VINH VIEN vi gia bi giu thi lich su khong bao gio cap nhat. */
+    if (exOffers.length || fzOffers.length) { const hk = fidx.hist = fidx.hist || {};
+      const cand = flt.dropped.filter(o => o.in_stock && /lịch sử niêm phong/.test(o.why || '') && MATCH.SINGLE_SELLER.has(o.source) && (!o.fz || o.fz >= 0.92)).sort((a, b) => a.landed - b.landed)[0];
+      if (cand) { const e = hk[p.sku], same = e && Math.abs(cand.price - e.p) <= 0.1 * e.p, cur = same ? { p: e.p, n: e.n + 1, t: e.t } : { p: cand.price, n: 1, t: Date.now() };
+        hk[p.sku] = cur; trustStat.histWait = (trustStat.histWait || 0) + 1;
+        if (cur.n >= HIST_RUNS && Date.now() - cur.t >= HIST_HOURS * 3600e3) {
+          d.href = TRUST.dayOf(now); d.href_at = now; delete hk[p.sku]; trustStat.healed = (trustStat.healed || 0) + 1; trustStat.histWait--;
+          for (const o of offerState) delete o.why;
+          flt = TRUST.filterOffers(d, offerState, PRICING.ok ? PRICING.toCost : 0);
+        }
+      } else if (hk[p.sku]) delete hk[p.sku]; }
     const hadLive = offerState.some(o => o.in_stock);
     best = null; bestSrc = null; let bestListed = null, bestShip = 0, bestFz = 0;   // best = GIA THUC TRA (da gom ship nguon)
     for (const o of flt.valid) if (o.in_stock && (!best || o.landed < best)) { best = o.landed; bestListed = o.price; bestShip = o.ship; bestSrc = o.source; bestFz = o.fz || 0; }
@@ -321,7 +336,8 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   const mk = TRUST.merkle(leaves);
   for (const [sku, { f, d }] of docs) { d.mp = mk.proofs[sku]; d.mr = mk.root; d.mat = now; fs.writeFileSync(f, JSON.stringify(d)); }
   docs.clear();
-  console.log(`Bo loc tin cay: loai ${trustStat.dropped} offer ngoai lai · tam giu ${trustStat.hold} SP · Merkle root ${mk.root.slice(0, 16)}… (${mk.n} la)`);
+  feed.stat.trust = { dropped: trustStat.dropped, hold: trustStat.hold, low: trustStat.low || 0, histWait: trustStat.histWait || 0, healed: trustStat.healed || 0 };
+  console.log(`Bo loc tin cay: loai ${trustStat.dropped} offer ngoai lai · tam giu ${trustStat.hold} SP · cho xac nhan muc gia moi ${trustStat.histWait || 0} SP · da dat lai moc lich su ${trustStat.healed || 0} SP · Merkle root ${mk.root.slice(0, 16)}… (${mk.n} la)`);
   /* ===== KIEM TRA ANH THAT (xoay vong ~300 anh/lan) + thay anh hong bang anh nguon khac ===== */
   fidx.broken = fidx.broken || {};
   const imgList = full.filter(p => /^https:\/\//.test(p.image || ''));
@@ -335,10 +351,14 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     try { const r = await fetch(u, { headers: { range: 'bytes=0-0', 'user-agent': 'KK-MALL-ImageCheck/1.0' }, signal: ac.signal }); return r.status < 400 && /image|octet/.test(r.headers.get('content-type') || 'image'); } catch { return null; } finally { clearTimeout(t); } };
   const imgStat = { checked: 0, broken: 0, swapped: 0, unreach: 0 };
   if (process.env.IMG_CHECK !== '0') {
-    let i = 0;
-    await Promise.all(Array.from({ length: 12 }, async () => { while (i < batch.length) { const p = batch[i++];
+    /* May chu anh khong phan hoi (vd CDN cua san da ngung): moi anh cho het 8 giay -> 900 anh lam ca lan chay cham them 10 phut.
+     * Cau dao: 1 host loi lien tiep 15 lan thi bo qua phan con lai cua host do trong lan nay; toan bo buoc kiem anh toi da IMG_CHECK_BUDGET_S giay. */
+    let i = 0; const hostFail = {}, hostOf = u => { try { return new URL(u).host; } catch { return ''; } }, tImg = Date.now(), IMG_BUDGET = parseInt(process.env.IMG_CHECK_BUDGET_S || '150', 10) * 1000;
+    await Promise.all(Array.from({ length: 12 }, async () => { while (i < batch.length) { const p = batch[i++], h = hostOf(p.image);
+      if (Date.now() - tImg > IMG_BUDGET || (hostFail[h] || 0) >= 15) { imgStat.skipped = (imgStat.skipped || 0) + 1; continue; }
       const ok = goodImg(p.image) ? await okImg(p.image) : false; imgStat.checked++;
-      if (ok === null) { imgStat.unreach++; continue; }          // mang loi: khong ket luan
+      if (ok === null) { imgStat.unreach++; hostFail[h] = (hostFail[h] || 0) + 1; continue; }          // mang loi: khong ket luan
+      hostFail[h] = 0;
       if (ok) { delete fidx.broken[p.sku]; continue; }
       imgStat.broken++;
       const alt = (exBySku.get(p.sku) || []).map(o => o.image).find(u => u && u !== p.image && goodImg(u));
@@ -347,7 +367,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
         const pf = path.join(API, 'products', p.sku + '.json'); const pd = JSON.parse(fs.readFileSync(pf, 'utf8')); pd.image = alt; fs.writeFileSync(pf, JSON.stringify(pd));
       } else fidx.broken[p.sku] = now;
     } }));
-    console.log(`Kiem anh: ${imgStat.checked} anh · hong ${imgStat.broken} · da thay ${imgStat.swapped} · khong ket noi ${imgStat.unreach} · tong dang hong ${Object.keys(fidx.broken).length}`);
+    console.log(`Kiem anh: ${imgStat.checked} anh · hong ${imgStat.broken} · da thay ${imgStat.swapped} · khong ket noi ${imgStat.unreach} · bo qua ${imgStat.skipped || 0} · tong dang hong ${Object.keys(fidx.broken).length}`);
   }
 
   /* ===== DANH MUC CONG KHAI: chi SP co anh that khi nhom da du hang that ===== */

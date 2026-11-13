@@ -56,8 +56,11 @@ const median = a => { if (!a.length) return 0; const s = a.slice().sort((x, y) =
 
 /* Gia tham chieu tu lich su niem phong (chi tinh khi du du lieu): trung vi gia so cai/ngay */
 function histRef(d) {
-  const L = (d.ledger || []).filter(e => e && e.kk_price > 0);
-  const D = (d.d90 || []).map(x => x[1]).filter(v => v > 0);
+  // d.href = ngay "dat lai moc tham chieu": muc gia moi da duoc XAC NHAN LAP LAI tai chuoi ban le chinh hang (collect.js) -> chi doi chieu voi lich su
+  // tu ngay do tro di. Lich su niem phong (so cai, d90) KHONG bi sua - chi doi cua so dung de phat hien bat thuong.
+  const from = d.href || 0, fromMs = from ? Date.parse(String(d.href_at || '')) || 0 : 0;
+  const L = (d.ledger || []).filter(e => e && e.kk_price > 0 && (!fromMs || Date.parse(e.at) >= fromMs));
+  const D = (d.d90 || []).filter(x => !from || x[0] >= from).map(x => x[1]).filter(v => v > 0);
   if (D.length >= 3) return median(D);
   if (L.length >= 3) { const span = Date.parse(L[L.length - 1].at) - Date.parse(L[0].at); if (span >= 6 * 3600e3) return median(L.map(e => e.kk_price)); }
   return 0;
