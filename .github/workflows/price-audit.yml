@@ -1,0 +1,45 @@
+# KIEM TOAN GIA (chay tay) - thu du lieu that de ra soat gia re nhat; ket qua MA HOA bang khoa cong khai cua phien kiem toan,
+# luu artifact 1 ngay. Log cong khai chi co so dem.
+name: Price audit (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      pubkey:
+        description: 'Khoa cong khai RSA (PEM, base64) de ma hoa ket qua'
+        required: true
+      max:
+        description: 'Tran so SP tai moi san'
+        required: false
+        default: '30000'
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Nap bo nho dem gia ban le - chi doc
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.retail-cache
+          key: retail-${{ github.run_id }}
+          restore-keys: retail-
+      - name: Kiem toan
+        env:
+          AUDIT_PUBKEY: ${{ inputs.pubkey }}
+          AUDIT_MAX: ${{ inputs.max }}
+          ACCESSTRADE_KEY: ${{ secrets.ACCESSTRADE_KEY }}
+          ADMIN_PORTAL_KEY: ${{ secrets.ADMIN_PORTAL_KEY }}
+          PRICING_TIERS: ${{ secrets.PRICING_TIERS }}
+        run: node tools/price-audit.js audit.enc.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: price-audit
+          path: audit.enc.json
+          retention-days: 1
