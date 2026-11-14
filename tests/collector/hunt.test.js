@@ -204,6 +204,18 @@ function serve() {
     for (let i = 5; i < 20; i++) off['shope|/sp/hang-' + i] = { p: 900000, s: 1, at: now }; HUNT.saveCache({ v: 1, sites: { shope: { t: tt, tAt: now } }, offers: off }, envE);
     const L4 = HUNT.liveRows(envE); t(L4.rows.length === 50 && L4.rows.filter(r => !r.stock).length === 5 && !L4.suspect.length, 'ty le binh thuong (10%): trang da go duoc danh dau het hang');
     E.srv.close(); }
+  // --- che do 'map': trang LAN DAU doc ma khong co gia la binh thuong (bai viet trung ma) ; trang TUNG CO GIA nay dong loat mat gia moi la bat thuong ---
+  { const F = await serve(), fu = []; for (let i = 0; i < 10; i++) fu.push('/sp/may-loc-nuoc-karofi-kaq-x26-ban-' + i);
+    F.routes['/robots.txt'] = 'User-agent: *\nAllow: /\n'; F.routes['/sitemap.xml'] = `<urlset>${fu.map(u => `<url><loc>${F.base}${u}</loc></url>`).join('')}</urlset>`;
+    for (const u of fu) F.routes[u] = '<html><body>Bai viet danh gia</body></html>';
+    const envF = { HUNT_SITES_JSON: JSON.stringify({ shopf: { name: 'Shop F', base: F.base, mode: 'map', delay: 2500, reach: 'vn' } }), HUNT_CACHE_FILE: path.join(tmp, 'f.gz'), HUNT_CATALOG_FILE: catF, HUNT_DELAY_MS: '5', HUNT_ODD_MAX: '4' };
+    await HUNT.run(0.5, () => { }, envF); let CF = HUNT.loadCache(envF);
+    t(F.log.filter(x => x.p.startsWith('/sp/')).length === 10 && !CF.sites.shopf.fail && Object.values(CF.offers).every(o => o.e === 'nodata'), "che do 'map': 10 trang lan dau khong co du lieu san pham -> van doc het, khong coi la bi chan");
+    for (const k of Object.keys(CF.offers)) CF.offers[k] = { n: 'Máy lọc nước Karofi KAQ-X26', p: 6000000, s: 1, i: '', at: Date.now() - 30 * 3600e3 }; HUNT.saveCache(CF, envF);
+    const n1 = F.log.length; await HUNT.run(0.5, () => { }, envF); CF = HUNT.loadCache(envF);
+    t(F.log.filter(x => x.p.startsWith('/sp/')).length - 10 === 4 && /nghi may chu/.test(CF.sites.shopf.fail || '') && Object.values(CF.offers).filter(o => o.p > 0).length === 10 && F.log.length - n1 === 5,
+      "che do 'map': 4 trang tung co gia nay lien tiep mat gia -> dung, GIU gia cu (khong xoa oan), khong tim cach vuot");
+    F.srv.close(); }
   // --- vung chay: website khai zone 'vn' chi do tram Viet Nam thu thap; bo thu thap gia doc gop ca hai bo nho dem ---
   { const Z = await serve(); Z.routes['/robots.txt'] = 'User-agent: *\nAllow: /\n'; Z.routes['/sitemap.xml'] = `<urlset><url><loc>${Z.base}/sp/may-loc-nuoc-karofi-kaq-x26</loc></url></urlset>`;
     Z.routes['/sp/may-loc-nuoc-karofi-kaq-x26'] = ld('Máy lọc nước Karofi KAQ-X26 10 lõi', 6200000);

@@ -225,13 +225,13 @@ async function crawlSite(src, S, C, idx, deadline, env, log, KICK, save) {
   if (S.mode === 'feed') await feedTargets(src, S, st, idx, env, log);
   else { const done = await mapTargets(src, S, st, R, idx, delay, deadline, log); if (done && st.m) for (const k of Object.keys(C.offers)) if (k.startsWith(src + '|') && !st.m[k.slice(src.length + 1)]) delete C.offers[k]; }
   const due = dueList(src, S, st, C, R, Date.now());
-  let n = 0, ok = 0, got = 0, errs = 0, denied = 0, odd = 0, lastSave = Date.now();
+  let n = 0, ok = 0, got = 0, errs = 0, denied = 0, odd = 0, lastSave = Date.now(); const undo = [];
   const ODD_MAX = parseInt(env.HUNT_ODD_MAX || '20', 10);
   for (const [p] of due) {
     if (Date.now() + delay > deadline) break;
     if (KICK) await KICK.tick();
     const t0 = Date.now(); n++;
-    const r = await get(S.base + p), k = src + '|' + p, at = Date.now();
+    const r = await get(S.base + p), k = src + '|' + p, at = Date.now(), prev = C.offers[k], prevM = S.mode !== 'feed' && st.m ? st.m[p] : null;
     if (r.status === 401 || r.status === 403) { if (++denied >= 3) { st.fail = 'HTTP ' + r.status; log(`[${src}] DUNG: may chu tu choi truy cap tu dong (HTTP ${r.status}) ${denied} lan lien tiep -> khong thu thap, khong vuot chan`); break; } await sleep(delay * 4); continue; }
     if (r.status === 429 || r.status >= 500 || r.status === 0) { if (++errs >= 6) { log(`[${src}] dung som: may chu bao ban/loi (HTTP ${r.status})`); break; } await sleep(delay * 4); continue; }
     errs = 0; denied = 0; ok++; delete st.fail;
@@ -248,11 +248,15 @@ async function crawlSite(src, S, C, idx, deadline, env, log, KICK, save) {
     else { const d = r.status === 200 ? parsePage(r.text, S) : null;
       if (d && d.name && d.price >= 1000 && d.price <= 2e9) { C.offers[k] = { n: d.name, p: d.price, s: d.stock ? 1 : 0, i: d.image || '', at }; got++; }
       else C.offers[k] = { e: d && d.contact ? 'contact' : 'nodata', at }; }
-    /* CHAN MEM: nhieu trang LIEN TIEP khong co gia (da go / chuyen huong / khong co du lieu san pham) la bat thuong - co the may chu dang tra trang khac cho bot.
-     * Khong vuot chan: dung luot nay, va bo cac ket qua "khong con ban" vua ghi trong chuoi do de khong danh dau het hang oan. */
-    { const o = C.offers[k]; if (o && o.p > 0) odd = 0; else if (++odd >= ODD_MAX) { st.fail = 'nhieu trang lien tiep khong co gia - nghi may chu tra trang khac cho bot'; st.oddAt = at;
-        for (const q of due.slice(Math.max(0, n - odd), n)) { const kk = src + '|' + q[0], x = C.offers[kk]; if (x && (x.g || x.e) && x.at >= t0 - odd * (delay + 60000)) delete C.offers[kk]; }
-        log(`[${src}] DUNG: ${odd} trang lien tiep khong co gia - nghi may chu tra trang khac cho bot -> bo ket qua cua chuoi nay, khong vuot chan`); break; } }
+    /* CHAN MEM: nhieu trang LIEN TIEP mat gia (da go / chuyen huong / khong co du lieu san pham) la bat thuong - co the may chu dang tra trang khac cho bot.
+     * Khong vuot chan: dung luot nay va TRA LAI trang thai truoc do cua ca chuoi (khong danh dau het hang oan, khong xoa gia cu).
+     * Che do 'map': trang LAN DAU doc ma khong co gia thuong chi la trang khong phai san pham (ma trung trong ten bai viet) - khong tinh. */
+    { const o = C.offers[k];
+      if (o && o.p > 0) { odd = 0; undo.length = 0; }
+      else if (S.mode === 'feed' || (prev && prev.p > 0)) { undo.push([k, prev, p, prevM]);
+        if (++odd >= ODD_MAX) { st.fail = 'nhieu trang lien tiep khong co gia - nghi may chu tra trang khac cho bot'; st.oddAt = at;
+          for (const [kk, pv, pp, pm] of undo) { if (pv) C.offers[kk] = pv; else delete C.offers[kk]; if (pm && st.m) st.m[pp] = pm; }
+          log(`[${src}] DUNG: ${odd} trang lien tiep khong co gia - nghi may chu tra trang khac cho bot -> tra lai trang thai truoc do cua chuoi nay, khong vuot chan`); break; } } }
     if (Date.now() - lastSave > 10 * 60e3) { try { (save || (() => saveCache(C, env)))(); } catch { } lastSave = Date.now(); }     // luu dinh ky: lan chay bi cat ngang van giu ket qua
     await sleep(Math.max(0, delay - (Date.now() - t0)));
   }

@@ -99,6 +99,35 @@ const PAIRS = [
   ['Combo 2 hộp sữa Vinamilk 180ml', 'Sữa tươi Vinamilk 180ml', 0],
   ['Viên uống Vitamin C 100 viên', 'Viên uống Vitamin C 60 viên', 0],
   ['Kính Bơi Cho Trẻ Em View V730J - Xanh Lá', 'Kính Bơi VIEW V730J Cho Trẻ Em Từ 4-9 Tuổi - Xanh dương nhạt', 0],
+  // --- ra soat 15/11/2026 (bo san gia theo ma model, du lieu that tu website ban le): ma CPU khong phai ma san pham; dung luong TB <> GB; lop wifi viet lien don vi;
+  //     ten thuong hieu co chu so; tam panel la phu kien; thuong hieu la chua co trong danh sach ---
+  ['Laptop Fujitsu UH-X-9U13A2 4ZR1G97610 (Core i7-1165G7 | 16GB | 1TB | Intel Iris Xe)', 'Laptop ASUS Vivobook 15 (Intel Core i7-1165G7, 8GB | 512GB, 15.6, FHD)', 0],
+  ['Laptop Lenovo LOQ 15IRX9 83DV000MVN (Intel Core i5-13450HX | 16GB | 512GB | RTX 4050)', 'Laptop Lenovo LOQ 15 (Intel Core i5-13450HX, 12GB | 512GB, 15.6, FHD, 144Hz)', 0],
+  ['PC KIT INTEL NUC L6 BNUC11TNKI70000 ( I7-1165G7/ M.2 SSD / Wi-Fi 6 / Sodimm DDR4)', 'Laptop ASUS Vivobook 15 (Intel Core i7-1165G7, 8GB | 512GB, 15.6, FHD)', 0],
+  ['Laptop ASUS TUF Gaming A15 FA506NCG-HN390W (AMD Ryzen 7 155 | RTX 3050 4GB GDDR6 | 15.6 inch)', 'Laptop ASUS TUF Gaming A15 FA506NCG-HN390W | R7-155, 16GB DDR5, SSD 512GB NVMe', 1],
+  ['Laptop Lenovo LOQ 15IRH11E 83Y9003YVN (Intel Core 7 230H | RTX 3050 6GB | 15.3 inch)', 'Laptop Gaming Lenovo LOQ Essential 15IRH11E 83Y9003YVN (Core 7 230H | RTX 3050)', 1],
+  ['Ổ cứng SSD 4TB Kingston Portable XS2000', 'Ổ cứng di động SSD 500GB Kingston XS2000 2000MB/s SXS2000/500G', 0],
+  ['Ổ cứng SSD 2TB Kingston Portable XS2000', 'Ổ cứng di động SSD 2TB Kingston XS2000 2000MB/s SXS2000/2000G', 1],
+  ['Ổ cứng SSD Samsung 990 PRO 1TB MZ-V9P1T0BW', 'Ổ cứng SSD Samsung 990 PRO 1TB PCIe NVMe 4.0x4 MZ-V9P1T0BW', 1],
+  ['Bộ phát wifi TP-Link Mesh Deco M4 2-Pack AC1200Mbps', 'Bộ phát wifi TP-Link Archer C54 tốc độ AC1200Mbps', 0],
+  ['NGUỒN MÁY TÍNH FIRST PLAYER (1STPLAYER) DKPM-BRZ-700 700W ĐEN (80 PLUS BRONZE)', 'Case máy tính 1STPLAYER V4 Black V4-BK-4F1', 0],
+  ['Máy rửa bát độc lập Samsung Bespoke 14 bộ 2024 (DW60CB750FAPSV)', 'Tấm panel DW-S24PEU39 máy rửa bát DW60CB750FAPSV', 0],
+  ['Tản Nhiệt Khí Deepcool AK400 DIGITAL (Màu Đen, Màn Hình Hiển Thị)', 'Tản nhiệt khí CPU Redmoon AK400 Fan RGB', 0],
+  ['Bếp từ đôi âm BlueStone ICB-6833 4000W', 'Bếp từ đôi lắp âm Bluestone ICB-6833', 1],
+  ['PCAP MSI RTX 5060 8GB RED DRAGON (i7 14700F - 16GB RAM- 500GB SSD)', 'PCAP MSI RTX 5060 8GB RED DRAGON (i5 14400F - 16GB RAM- 500GB SSD)', 0],   // may bo cung ten, khac CPU
+  ['PCAP MSI RTX 5060 8GB RED DRAGON (i7 14700F - 16GB RAM- 500GB SSD)', 'PCAP MSI RTX 5060 8GB RED DRAGON', 0],                                      // 1 ben khong ghi cau hinh: khong du can cu
+  ['Bàn phím cơ E-DRA EK375WA White Jixian Sleeve switch', 'Bàn phím cơ không dây EDRA EK375WA', 1],                                                    // "E-DRA" = EDRA, tu bien the chi o 1 ben
+  ['CPU Intel Pentium Gold G6405', 'CPU Intel Pentium G6405 QSD | 4.10GHz, 2 Cores 4 Threads', 0],                                                    // "QSD" = qua su dung (hang cu) - gia re hon 40-50%
+  ['Mainboard Asus PRIME H610M-K D4', 'Mainboard Asus Prime H610M-K D4 (QSD)', 0],
+  ['Tủ lạnh Hitachi Inverter 569 lít Multi Door R-WB640PGV1 GCK', 'Tủ lạnh Hitachi Inverter 569 lít R-WB640PGV1(GMG) - Màu xám khói, mặt kính', 0],   // 2 ma mau khac nhau, 1 ben viet dinh lien ma
+  ['Tủ lạnh Hitachi Inverter 569 lít Multi Door R-WB640PGV1 GCK', 'Tủ lạnh Hitachi Inverter 569 lít R-WB640PGV1(GCK)', 1],
+  ['Tủ lạnh Hitachi Inverter 569 lít Multi Door R-WB640PGV1 GCK', 'Tủ lạnh Hitachi 569 lít R-WB640PGV1', 1],
+  ['Router WiFi 6 AX1500 Merrcusys MR60X Gigabit', 'Router Wifi Chuẩn Wifi 6 AX1500 Mercusys MR60X', 1],        // thuong hieu viet sai 1 ky tu van la cung hang
+  ['Tản nhiệt khí CPU Jonbo CR-3000E ARGB WHITE', 'Tản nhiệt khí CPU Jonsbo CR-3000E ARGB White', 1],
+  ['Laptop Lenovo IdeaPad Slim 3 15IAH8 83ER000FVN (Intel Core i5-12450H | 16GB | 1TB | Intel UHD | 15.6 inch FHD | Win 11 | Xám)', 'Laptop Lenovo IdeaPad Slim 3 15IAH8 83ER000BVN (Intel Core i5-12450H | 8GB | 512GB | Intel UHD | 15.6 inch FHD | Win 11 | Xám)', 0],   // cung CPU, khac ma cau hinh: tung bi ghep nham qua ma CPU
+  ['Máy lọc nước RO Karofi KAQ-X26 10 lõi', 'Máy lọc nước Karofi KAQ-X26', 1],
+  ['Đồng hồ Citizen 34 mm Nữ EM0418-81X', 'Citizen Nữ EM0418-81X', 1],
+  ['Máy giặt Toshiba cửa trên 13kg 2023 (AW-DUM1400LV(MK))', 'Máy Giặt Toshiba Inverter 13 Kg AW-DUM1400LV (MK)', 1],
 ];
 { // chi muc gom toan bo ten san pham; offer la ngu lieu. Ngu lieu nho -> hau het tu deu "hiem" (che do khat khe nhat)
   const idx = M.createIndex(); PAIRS.forEach((p, i) => idx.add('P' + i, p[0], 'G')); PAIRS.forEach(p => idx.addCorpus(p[1], 'G'));

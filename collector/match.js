@@ -23,7 +23,7 @@ const COLOR_VI = new RegExp(B0 + '(xanh (?:lá cây|lá|dương|da trời|ngọc
 const STOP_VI = new RegExp(B0 + '(và|với|cho|của|các|những|loại|kiểu|dáng|màu|sản phẩm|dành riêng|dành|phiên bản|chiếc|cái|bộ|thương hiệu|hiệu|chuẩn|size|the|and|with|for|of|by|new|version|model)' + B1, 'gu');
 /* chat lieu / thuoc tinh bien the (day da <> day thep, da bo <> da PU...): phai trung khop khi ghep theo ten (duong W) */
 const ATTR_VI = new RegExp(B0 + '(da bò|da pu|da thật|da cá sấu|da lộn|da|thép không gỉ|thép|inox|nhôm|cao su|silicone|silicon|vải|nylon|nhựa|kính|gỗ|tre|gốm|sứ|thủy tinh|cotton|len|lụa|kaki|jean|nỉ|lưới|carbon|milanese|alpine|ocean|trail|sport band|sport loop|bàn phím|bút)' + B1, 'gu');
-const COND_VI = /cũ đẹp|cũ trầy|cũ xước|hàng cũ|máy cũ|đã qua sử dụng|qua sử dụng|like ?new|đổi bảo hành|trả bảo hành|trưng bày|tân trang|refurbish|đã kích hoạt|kích hoạt bảo hành|open ?box|(?<![a-z])cpo(?![a-z])|(?<![a-z])used(?![a-z])|9[5-9] ?%|(?<![\p{L}])(?<!thu )cũ(?![\p{L}])|da qua su dung|doi bao hanh|trung bay|tan trang/u;
+const COND_VI = /(?<![a-z0-9])qsd(?![a-z0-9])|second ?hand|(?<![a-z0-9])2nd(?![a-z0-9])|hàng lướt|máy lướt|cũ đẹp|cũ trầy|cũ xước|hàng cũ|máy cũ|đã qua sử dụng|qua sử dụng|like ?new|đổi bảo hành|trả bảo hành|trưng bày|tân trang|refurbish|đã kích hoạt|kích hoạt bảo hành|open ?box|(?<![a-z])cpo(?![a-z])|(?<![a-z])used(?![a-z])|9[5-9] ?%|(?<![\p{L}])(?<!thu )cũ(?![\p{L}])|da qua su dung|doi bao hanh|trung bay|tan trang/u;
 const BUNDLE_VI = /combo|\s\+\s|kèm(?! theo)|bộ đôi/;
 
 /* ---- xu ly tren chuoi KHONG DAU ---- */
@@ -34,7 +34,7 @@ const SYN = { gaming: 'game', tv: 'tivi', smartphone: 'dienthoai', notebook: 'la
 const DESC = new Set('gigabit bluetooth game rgb argb led usb mesh router smart inverter digital hd speaker headphone headset earphone earbuds mouse keyboard mechanical switch receiver dongle stereo bass mic microphone tws true series official type mode multi device portable electric auto automatic tivi laptop pc monitor camera ip cam home box khongday coday tp link band low profile hot swap mu mimo mumimo gigibit projector lightsync bot'.split(' '));
 /* tu chi BIEN THE: phai trung khop tuyet doi */
 const VARIANT = new Set('pro max plus ultra mini lite air se fe neo prime note edge slim cellular lte net3g net4g net5g wifi nano tkl xl xxl xs 2xl 3xl ti super xt oc ii iii omni turbo classic music solar eco signature live active elite premium limited special crossover tactical superlight tenkeyless dual tray nobox'.split(' '));
-const ACC_RE = /\b(op lung|bao da|bao dung|mieng dan|cuong luc|dan man hinh|day sac|cap sac|cu sac|cot sac|adapter|remote|dieu khien tu xa|gia do|gia treo|ke treo|chan de|de tan nhiet|khay|gioang|ron cua|loi loc|bo loc|mang loc|coc loc|phu kien|linh kien|ao trum|tam che|bao trum|vo boc|tui chong soc|tui dung|nap dau|ong xa|ong thoat|day cap|day nguon|day dong ho|day deo|pin thay|but cam ung|skin|sticker|kinh cuong luc|ban di|motor thay|bo mach|board mach|mieng lot|tham lot|hop muc|muc in|drum|gat muc|tui loc|giay loc|luoi dao|dau cao thay|toner|ribbon|cartridge|bang muc|binh muc|lo muc|cum trong|trong muc|dau kim|dau in)\b|\b(?:dung|danh|thay the|su dung|tuong thich|thay) (?:cho|voi) (?:cac )?(?:dong )?(?:may|dien thoai|laptop|macbook|iphone|ipad|galaxy|tivi|tu lanh|may giat|may loc|robot)\b|\bmuc\b[^,|]{0,24}\bcho may in\b/;
+const ACC_RE = /\b(tam panel|op lung|bao da|bao dung|mieng dan|cuong luc|dan man hinh|day sac|cap sac|cu sac|cot sac|adapter|remote|dieu khien tu xa|gia do|gia treo|ke treo|chan de|de tan nhiet|khay|gioang|ron cua|loi loc|bo loc|mang loc|coc loc|phu kien|linh kien|ao trum|tam che|bao trum|vo boc|tui chong soc|tui dung|nap dau|ong xa|ong thoat|day cap|day nguon|day dong ho|day deo|pin thay|but cam ung|skin|sticker|kinh cuong luc|ban di|motor thay|bo mach|board mach|mieng lot|tham lot|hop muc|muc in|drum|gat muc|tui loc|giay loc|luoi dao|dau cao thay|toner|ribbon|cartridge|bang muc|binh muc|lo muc|cum trong|trong muc|dau kim|dau in)\b|\b(?:dung|danh|thay the|su dung|tuong thich|thay) (?:cho|voi) (?:cac )?(?:dong )?(?:may|dien thoai|laptop|macbook|iphone|ipad|galaxy|tivi|tu lanh|may giat|may loc|robot)\b|\bmuc\b[^,|]{0,24}\bcho may in\b/;
 /* LOAI phu kien (gom cac cach goi cung loai): 2 phu kien khac loai cho cung 1 dong may ("Cường lực Samsung A35" <> "Ốp lưng Samsung Galaxy A35") khong bao gio la 1 san pham */
 const ACC_KIND = { 'op lung': 'case', 'bao da': 'case', 'vo boc': 'case', 'bao dung': 'case', 'tui chong soc': 'case', 'tui dung': 'case', skin: 'case', sticker: 'case',
   'mieng dan': 'film', 'cuong luc': 'film', 'kinh cuong luc': 'film', 'dan man hinh': 'film',
@@ -62,7 +62,8 @@ const BRANDS = new Set(('apple samsung xiaomi oppo vivo realme nokia huawei hono
   'viewsonic benq aoc koorui hkc deepcool xigmatek jonsbo thermaltake nzxt antec segotep thermalright noctua cougar montech ' +
   'dove sunsilk lifebuoy omo nivea vaseline loreal maybelline garnier cerave cetaphil bioderma vichy eucerin neutrogena innisfree laneige dhc shiseido senka rohto acnes cocoon thorakao olay pantene rejoice downy ariel colgate oralb sensodyne closeup listerine gillette durex kotex diana bobby huggies pampers merries moony goon molfix ' +
   'vinamilk nutifood abbott nestle milo ensure pediasure similac enfamil friso dielac aptamil meiji morinaga glico blackmores swisse kirkland centrum orihiro kobayashi fancl ' +
-  'lego mattel hasbro barbie nerf funko bandai tamiya').split(/\s+/).filter(Boolean));
+  'lego mattel hasbro barbie nerf funko bandai tamiya ' +
+  '1stplayer 8bitdo 1more 70mai').split(/\s+/).filter(Boolean));   // thuong hieu co chu so: la TEN HANG, khong phai ma model ("1STPLAYER" tung bi coi la ma hang dai -> vo case ghep nham voi nguon cung hang)
 function brandsOf(base) {
   const out = new Set();
   const t = base.replace(/tp-?link/g, ' tplink ').replace(/d-?link/g, ' dlink ').replace(/oral-?b/g, ' oralb ').replace(/western digital|\bwd\b/g, ' western ').replace(/l'?oreal/g, ' loreal ').replace(/g\.?skill/g, ' gskill ');
@@ -102,10 +103,14 @@ function resOf(spec, cids) {
   if (spec.k) for (const v of spec.k) if (RES_K[+v]) add(RES_K[+v]);
   return out && out.length ? out : null;                                // khong ghi / ghi mau thuan -> khong ket luan
 }
-const CLASS_RE = /^((ac|ax|be|n)\d{3,5}|ddr\d|usb\d+|wifi\d[a-z]?|type-?c|rj45|ip\d{2}|hdmi\d*|sata\d?|led\d*|rgb|argb|2k|4k|8k|\d{3,4}p|\d{2,3}hz|fhd|qhd|uhd|mp3|mp4|cd|dvd|g?ddr\d|lpddr\d[a-z]?|hdr\d*|bt\d+|dp\d*|cat\d[a-z]?|\d{1,2}bit|a[3-6]|i[3579]|r[3579]|m[1-5]|gen\d+|\d+in\d+|\d+w)$/;
+const CLASS_RE = /^((ac|ax|be|n)\d{3,5}(?:mbps|m)?|ddr\d|usb\d+|wifi\d[a-z]?|type-?c|rj45|ip\d{2}|hdmi\d*|sata\d?|led\d*|rgb|argb|2k|4k|8k|\d{3,4}p|\d{2,3}hz|fhd|qhd|uhd|mp3|mp4|cd|dvd|g?ddr\d|lpddr\d[a-z]?|hdr\d*|bt\d+|dp\d*|cat\d[a-z]?|\d{1,2}bit|a[3-6]|i[3579]|r[3579]|m[1-5]|gen\d+|\d+in\d+|\d+w)$/;
 /* KICH THUOC ("160x200x5cm", "120x40x180", "60x90cm", "1m6x2m") va DINH LUONG ("70gsm", "100pcs") KHONG phai ma model: nem/tham/ke cua cac hang khac nhau
  * co chung kich thuoc tung bi coi la "trung ma hang dai" -> gop gia cua 2 san pham khac hang. Chung van la dinh danh phu (ma yeu): hai ten phai cung kich thuoc. */
 const DIM_RE = /^\d{1,4}(?:m\d)?(?:x\d{1,4}(?:m\d)?){1,3}(?:cm|mm|dm|m|in|inch|f|t)?$/, MEASURE_RE = /^\d+(?:gsm|pcs|pc|m2|m3|ply)$/;
+/* MA BO XU LY khong dinh danh san pham: "i7-1165G7", "R7-8845HS" (co tien to dong) va - khi ten la may tinh - ca so model tran "13450HX", "1165G7", "7600XT".
+ * Ra soat 15/11/2026: "i71165g7" dai 8 ky tu tung duoc coi la MA HANG DAI cua nha san xuat -> hai laptop khac hang, khac doi chung CPU bi coi la 1 san pham.
+ * Nay chung la ma CAU HINH (cids "cpu..."): hai ben cung ghi thi phai trung, khong con la can cu nhan dang. */
+const CPU_RE = /^(?:i[3579]|r[3579]|u[579])\d{3,5}[a-z]{0,2}\d?[a-z]{0,2}$/, CPU_BARE = /^\d{4,5}(?:hx|hk|hs|hq|h|u|p|g\d|kf|ks|k|f|t|y|xt|x3d|x|qm|m)$/;
 const isStrong = c => !CLASS_RE.test(c.full) && !DIM_RE.test(c.full) && !MEASURE_RE.test(c.full) && ((c.core.length >= 5 && /[a-z]/.test(c.core) && /\d/.test(c.core)) || (/^\d+$/.test(c.core) && c.core.length >= 6));
 /* 2 ma bang nhau: trung full; hoac cung goc va it nhat 1 ben khong ghi hau to; hoac 1 ben la duoi cua ben kia (CU/CS-PU9AKH-8 ~ PU9AKH-8) */
 function codeEq(a, b) {
@@ -131,18 +136,21 @@ function features(name) {
   const s = clean(base);
   { const m = s.match(PACK_UNIT); if (m && +m[1] > 1) pack = Math.max(pack, +m[1]); }
   // ma model: tach theo khoang trang, giu dau noi trong tu
-  const strong = [], weak = new Set(), skip = new Set();     // skip: cac manh cua ma manh ("tl", "wn823n" cua TL-WN823N) - khong tinh la tu khoa/ma yeu
+  const strong = [], weak = new Set(), skip = new Set(), cpu = new Set(), pc = PC_CUE.test(base);     // skip: cac manh cua ma manh ("tl", "wn823n" cua TL-WN823N) - khong tinh la tu khoa/ma yeu
   const rawToks = s.replace(/[|_\\,;:!?*#+\[\]{}"'“”‘’–—]/g, ' ').replace(/\s[-/]\s/g, ' ').split(/\s+/).filter(Boolean);
   // "2K/IPS/180Hz/1ms", "8GB/128GB" la DANH SACH THONG SO (tach rieng tung muc); "RF48A4010B4/SV", "CU/CS-PU9AKH-8" la 1 ma model (giu nguyen)
   const toks2 = []; for (const rt of rawToks) { const segs = rt.split('/').filter(Boolean); if (segs.length > 1 && segs.some(x => SPEC_TOK.test(x) || CLASS_RE.test(x))) toks2.push(...segs); else toks2.push(rt); }
   for (const rt of toks2) {
     const t = rt.replace(/^[(\-/.]+|[)\-/.]+$/g, ''); if (!t || /^net[345]g$/.test(t) || /^clr/.test(t)) continue;
     const c = codeOf(t);
+    if (c && BRANDS.has(c.full)) continue;                                // ten thuong hieu co chu so (1STPLAYER, 8BitDo...) khong phai ma model
+    if (c && (CPU_RE.test(c.full) || (pc && CPU_BARE.test(c.full)))) { cpu.add(c.full.replace(/^(?:i[3579]|r[3579]|u[579])(?=\d{3})/, '')); for (const part of t.split(/[-/.()]+/)) if (part) skip.add(part); continue; }
     if (c) { if (isStrong(c)) { strong.push(c); for (const part of t.split(/[-/.()]+/)) if (part) skip.add(part); } else weak.add(c.full); }
   }
   // thong so co don vi
   const spec = {};
-  s.replace(/[|_/\\,;:!?*#+()\[\]{}"'“”‘’–—]/g, ' ').replace(NOISE_W, ' ').replace(UNIT_RE, (m, v, u) => { const k = UNIT[u] || u; const val = String(parseFloat(v.replace(',', '.'))); (spec[k] = spec[k] || new Set()).add(val); return ' '; });
+  s.replace(/[|_/\\,;:!?*#+()\[\]{}"'“”‘’–—]/g, ' ').replace(NOISE_W, ' ').replace(UNIT_RE, (m, v, u) => { let k = UNIT[u] || u, n = parseFloat(v.replace(',', '.')); if (k === 'tb') { k = 'gb'; n = n * 1000; } else if (k === 'gb' && n >= 1024 && n % 1024 === 0) n = n / 1024 * 1000;   // dung luong: TB quy ve GB de "500GB" <> "4TB" lo ra la 2 ban khac nhau
+    (spec[k] = spec[k] || new Set()).add(String(n)); return ' '; });
   // tu khoa: bo tu dung (co dau) roi moi bo dau; phan DAU ten (truoc dau ngan dau tien) dung rieng cho do trung tu khoa cua ten dai dong
   const stopped = marked.replace(STOP_VI, ' ');
   const cut = stopped.search(/\s[-–—]\s|,|\||\(/);
@@ -169,11 +177,24 @@ function features(name) {
   // hau to mau/phien ban viet HOA ngay sau ma model ("R-FVX480PGV9 GBK" / "... MIR"): la dinh danh bien the, khong phai tu thuong
   { const raw = String(name || ''); if (raw !== raw.toUpperCase()) for (const m of raw.matchAll(/[A-Z0-9][A-Z0-9\-\/.()]{4,}\)?\s+\(?([A-Z]{2,3})(?=[\s),]|$)/g)) { const t = m[1].toLowerCase(); if (!UNIT[t] && !VARIANT.has(t) && !BRANDS.has(t)) { ids.add('§' + t); words.delete(t); hwords.delete(t); } } }
   for (const w of weak) if (!skip.has(w)) (CLASS_RE.test(w) ? cids : ids).add(w);
+  for (const x of cpu) cids.add('cpu' + x);
+  // HAU TO mau / khu vuc cua ma model: viet DINH LIEN ma ("R-WB640PGV1(GMG)", "RF48A4010B4/SV") hoac viet roi ("R-WB640PGV1 GCK") -> gom ve 1 tap de so (GCK <> GMG = 2 mau khac nhau)
+  const sfx = new Set(); for (const c of strong) if (c.full !== c.core) { const x = c.full.slice(c.core.length); if (/^[a-z]{2,3}$/.test(x)) sfx.add(x); }
+  for (const t of ids) if (/^§[a-z]{2,3}$/.test(t)) sfx.add(t.slice(1));
+  // hau to mau / khu vuc viet DINH LIEN ma ("R-WB640PGV1(GMG)", "RF48A4010B4/SV"): ghi nhan nhu hau to viet roi ("R-WB640PGV1 GCK") de 2 ma mau khac nhau khong bi coi la 1 san pham
   // tu viet CO DAU trong ten goc: la tu mo ta thong thuong, khong phai ten dong may (ten dong may luon viet khong dau)
   const viet = new Set(); for (const m of lower.matchAll(/[\p{L}\p{N}]+/gu)) { const n = nd(m[0]); if (n !== m[0]) viet.add(n); }
-  return { spec, pack, strong, variant, color, cond, acc, bundle, attr, words, hwords, bwords, ids, cids, nums, viet, brands: brandsOf(base), res: resOf(spec, cids), kind: acc ? kindOf(base) : null };
+  return { spec, pack, strong, variant, color, cond, acc, bundle, attr, words, hwords, bwords, ids, cids, nums, viet, sfx, brands: brandsOf(base), res: resOf(spec, cids), kind: acc ? kindOf(base) : null };
 }
 
+/* hai tu gan nhu la mot (viet sai 1-2 ky tu / thieu dau noi): khoang cach sua doi <= 1 (tu ngan) hoac <= 2 (tu tu 8 ky tu), hoac tu nay nam tron trong tu kia (>= 3 ky tu) */
+function nearWord(a, b) {
+  if (a === b) return true; if (a.length >= 3 && b.length >= 3 && (a.includes(b) || b.includes(a))) return true;
+  const la = a.length, lb = b.length, lim = Math.max(la, lb) >= 8 ? 2 : 1; if (Math.abs(la - lb) > lim) return false;
+  let prev = Array.from({ length: lb + 1 }, (_, i) => i);
+  for (let i = 1; i <= la; i++) { const cur = [i]; for (let j = 1; j <= lb; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
+  return prev[lb] <= lim;
+}
 const setEq = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
 const overlap = (a, b) => { for (const x of a) if (b.has(x)) return true; return false; };
 const subset = (a, b) => [...a].every(x => b.has(x));
@@ -193,6 +214,7 @@ function score(A, B, W = () => 1, rare = t => /\d/.test(t)) {   // khong co ngu 
     const diff = [...A.variant].filter(t => !B.variant.has(t)).concat([...B.variant].filter(t => !A.variant.has(t)));
     if (!(diff.every(t => t === 'wifi') && A.strong.some(c => c.core.length >= 6 && B.strong.some(d => d.full === c.full)))) return 0;
   }
+  if (A.sfx && B.sfx && A.sfx.size && B.sfx.size && ![...A.sfx].some(x => B.sfx.has(x))) return 0;   // hai hau to mau / khu vuc khac nhau, du viet dinh lien ma hay viet roi (GCK <> GMG)
   const colorClash = A.color.size && B.color.size && !setEq(A.color, B.color);   // ca hai deu ghi mau: phai cung bo mau (Pink White <> Trang Xanh)
   const sfxOnly = (X, Y) => [...X.ids].some(t => t.startsWith('§') && !Y.ids.has(t));   // hau to mau/chu don (GBK <> MIR, X <> S)
   /* ---- SKU: 2 ten trung DAY DU 1 ma hang dai (>= 8 ky tu) cua nha san xuat (LS27CG552EEXXV, 21QA006LVN, WW14BB944DGHSV...) = danh tinh chac chan.
@@ -234,11 +256,17 @@ function score(A, B, W = () => 1, rare = t => /\d/.test(t)) {   // khong co ngu 
     if (plain(A).length !== plain(B).length || plain(A).some(t => !B.ids.has(t))) return 0;   // ma phu / ky hieu phien ban (E20, X24...) phai trung nhau
     if (sfxOnly(A, B) && sfxOnly(B, A)) return 0;                     // hau to mau/chu don lech o CA HAI ben; 1 ben khong ghi -> chap nhan
     if (identOnly(A, B).length && identOnly(B, A).length) return 0;   // CA HAI ben deu thua tu dinh danh -> 2 phien ban khac nhau (chu de/switch...)
+    // 1 ben ghi thuong hieu da biet, ben kia KHONG ghi thuong hieu nao ma lai co tu dinh danh la (thuong la mot hang khac dat cung ten model: "Redmoon AK400" <> "Deepcool AK400")
+    //   Ngoai le: tu la do chi la cach viet khac / viet sai chinh thuong hieu ben kia ("Merrcusys" ~ Mercusys, "Jonbo" ~ Jonsbo, "E-Dra" ~ EDRA) -> van la cung hang.
+    if (!A.brands.size !== !B.brands.size) { const [N, K] = A.brands.size ? [B, A] : [A, B], kb = [...K.brands]; if (identOnly(N, K).length && ![...N.words].some(w => kb.some(x => nearWord(w, x)))) return 0; }
     // PHU KIEN: ma trong ten la cua MAY TUONG THICH (Flip6, S26 Ultra...), khong phai cua chinh phu kien -> trung ma chua noi len gi;
     // moi tu hiem lech o bat ky ben nao (Flipsuit Neon <> op trong; Silicone Magnet <> kem guong) = phu kien khac.
     if (A.acc && (rareOnly(A, B).length || rareOnly(B, A).length)) return 0;
     return +(0.9 + 0.1 * wj(A.hwords, B.hwords)).toFixed(3);
   }
+  /* Khong con ma san pham chung o ca 2 ben: ma CPU (cau hinh) phai TRUNG NHAU ca hai phia - 1 ben ghi CPU, ben kia khong ghi la khong du can cu
+   * (may bo "PCAP ... (i7 14700F - 16GB)" <> ban khong ghi cau hinh / ban i5). Truoc 15/11/2026 ma CPU la ma manh nen da chat nhu vay. */
+  { const ca = [...A.cids].filter(t => t.startsWith('cpu')), cb = [...B.cids].filter(t => t.startsWith('cpu')); if (ca.length !== cb.length || ca.some(t => !B.cids.has(t))) return 0; }
   if (sa.length || sb.length) {
     // 1 ben viet lien "RT-AX52" (ma manh), ben kia viet roi "RT AX52" (ma yeu "ax52" + tu "rt"): coi la trung ma
     const [S, O] = sa.length ? [A, B] : [B, A];
@@ -294,7 +322,7 @@ function linkValid(fa, fb, sameKey) {
 /* CHU KY BIEN THE cua 1 ten: ma model manh + bien the + tinh trang + so luong goi + mau + ma phu.
  * Hai offer cung khoa ten (normKey bo noi dung trong ngoac) ma khac chu ky = 2 san pham khac nhau (Tray <> Box, RF48A4000B4 <> RF48A4010M9, Đen <> Trắng). */
 function signature(f) {
-  return [f.strong.map(c => c.full).sort().join('+'), [...f.variant].sort().join('.'), f.cond, f.pack, [...f.color].sort().join('.'), [...f.ids].sort().join('.')].join('|');
+  return [f.strong.map(c => c.full).concat([...f.cids].filter(t => t.startsWith('cpu'))).sort().join('+'), [...f.variant].sort().join('.'), f.cond, f.pack, [...f.color].sort().join('.'), [...f.ids].sort().join('.')].join('|');   // ma CPU van la mot phan chu ky bien the (2 cau hinh cung ten, khac CPU = 2 san pham)
 }
 
 /* Chi muc tang dan: add(id, name, grp) ; find(name, grp, min) -> [{id, score}] giam dan.

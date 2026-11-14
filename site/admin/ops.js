@@ -29,6 +29,7 @@ const srcName = s => (SRC[s] || [s])[0];
   main.insertAdjacentHTML('beforeend', `
   <section class="sec" id="t-appr"><h2>Duyệt giá - offer rẻ bất thường đang được giữ lại <span style="font-weight:600;font-size:12px;color:var(--muted)" id="apprCount"></span></h2>
     <div class="note">Bộ lọc tin cậy và dải giá ghép chéo <b>giữ lại</b> các offer rẻ hơn hẳn mức bình thường (có thể là hàng khác mẫu, hàng cũ, giá ảo - hoặc là <b>giá khuyến mãi thật</b>). Nếu bạn kiểm tra trang nguồn thấy đúng sản phẩm, bấm <b>Duyệt</b>: lần thu thập kế tiếp sẽ dùng offer đó để định giá (giá KK-MALL giảm theo). Bấm <b>Từ chối</b> để loại hẳn offer khỏi sản phẩm này.<br>
+    Danh sách còn gồm offer <b>săn theo mã model</b> từ nguồn <b>chỉ giao theo vùng</b>, nguồn chưa xác minh phạm vi giao hàng hoặc nguồn mới đang kiểm định (cột "Lý do giữ" ghi rõ). Giá KK-MALL là giá toàn quốc: chỉ duyệt loại offer này khi bạn chấp nhận mua tại nguồn đó cho mọi đơn của sản phẩm, kể cả khách ở ngoài vùng giao của nguồn.<br>
     Mỗi nút mở một trang GitHub đã điền sẵn - bạn chỉ cần bấm <b>Submit new issue</b> (đang đăng nhập tài khoản chủ kho mã). Nội dung gửi đi chỉ gồm mã sản phẩm và một mã băm một chiều, <b>không</b> chứa tên nguồn hay giá nguồn. Quyết định gắn với đúng mức giá bạn đang thấy: nếu giá nguồn tụt sâu hơn 10% sau đó, offer quay lại danh sách chờ duyệt.</div>
     <div id="apprMsg"></div>
     <div class="card" style="padding:0;max-height:70vh;overflow:auto"><table class="appr" id="apprTbl"></table></div>
