@@ -316,6 +316,12 @@ const PAIRS = [
     const saved = JSON.parse(require('fs').readFileSync(tmp, 'utf8')); require('fs').unlinkSync(tmp);
     t(r1.ok && r1.changed && saved.items.KK000010[id].d === 'ok' && saved.items.KK000010[id].n === 12 && !r2.ok && !r2.changed && !r3.ok && !r4.ok && !/tiki|5000000/.test(JSON.stringify(saved)), 'approve.js: chi chu kho ma + tieu de hop le moi duoc ghi; so duyet khong chua ten nguon/gia nguon'); }
 
+  /* ---------- 10) Workflow: khong so sanh truc tiep bien kho ma (vars.X) voi chuoi trong `if:` ----------
+   * Bien chua dat la null; GitHub ep hai ve ve so (null -> 0, '0' -> 0) nen `vars.X != '0'` thanh SAI va buoc bi bo qua am tham. */
+  { const fs = require('fs'), path = require('path'), dir = path.join(__dirname, '..', '..', '.github', 'workflows'), bad = [];
+    for (const f of fs.readdirSync(dir)) if (/\.ya?ml$/.test(f)) fs.readFileSync(path.join(dir, f), 'utf8').split('\n').forEach((ln, i) => { if (/^\s*if:/.test(ln) && /vars\.[A-Za-z0-9_]+\s*(!=|==)\s*'/.test(ln)) bad.push(f + ':' + (i + 1)); });
+    t(!bad.length, 'workflow: khong co `if:` so sanh truc tiep vars.X voi chuoi (bien chua dat se bi ep kieu sai) ' + bad.join(', ')); }
+
   console.log(`\nBo ghep cheo & bo nap feed: ${pass}/${pass + fail} dat`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

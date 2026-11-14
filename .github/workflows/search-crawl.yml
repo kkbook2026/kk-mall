@@ -71,12 +71,16 @@ jobs:
             gh workflow run collect.yml --repo "$GITHUB_REPOSITORY" --ref main -f trigger=bu-lich && echo "Da goi chay bu."
           fi
       - name: Noi chuoi - goi luot tim gia ke tiep (chi khi luot nay chay du >= 30 phut va chua co luot nao dang cho)
-        if: success() && vars.SEARCH_CHAIN != '0'
+        # KHONG so sanh truc tiep `vars.X != '0'` trong `if:`: bien chua dat la null, GitHub ep ca hai ve so (null -> 0, '0' -> 0) nen dieu kien thanh SAI
+        # va buoc nay bi bo qua (da xay ra o luot dau 14/11/2026). Dua bien qua env roi kiem tra trong shell.
+        if: success()
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          CHAIN: ${{ vars.SEARCH_CHAIN }}
         run: |
           set -e
+          if [ "$CHAIN" = "0" ]; then echo "Noi chuoi dang tat (bien SEARCH_CHAIN=0)."; exit 0; fi
           ran=$(( $(date +%s) - $(cat "$RUNNER_TEMP/kk-start" 2>/dev/null || date +%s) ))
           if [ "$ran" -lt 1800 ]; then echo "Luot nay chi chay $((ran/60)) phut (dung som) - khong noi chuoi, cho lich hen gio."; exit 0; fi
           wait=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow search-crawl.yml --limit 10 --json status -q '[.[] | select(.status=="queued" or .status=="pending" or .status=="waiting" or .status=="requested")] | length')
