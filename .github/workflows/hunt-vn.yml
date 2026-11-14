@@ -1,0 +1,66 @@
+# SAN GIA - TRAM DAT TAI VIET NAM (may chay rieng cua KK-MALL, "self-hosted runner" nhan kk-vn).
+# Vi sao can: mot so chuoi ban le lon chi mo ket noi cho dia chi mang trong nuoc - tu may chu GitHub (o nuoc ngoai) ket noi bi het gio ngay o tang mang
+# (do ngay 15/11/2026: `node collector/hunt.js net ...`). Cac website do khai zone 'vn' trong collector/hunt-sites.js va CHI tram nay thu thap,
+# van dung nguyen tac: robots.txt, Crawl-delay, tu nhan dien KK-MALL-PriceBot, may chu tu choi thi dung. Khong dung proxy, khong gia lam trinh duyet.
+#
+# BAT: Settings -> Secrets and variables -> Actions -> Variables: tao bien HUNT_VN_RUNNER = 1 SAU KHI da cai may chay co nhan kk-vn.
+#      Chua co bien nay thi viec bi bo qua (khong xep hang cho may, khong bao loi).
+# AN TOAN (kho ma cong khai): workflow nay chi chay theo lich / chay tay tu nhanh chinh, khong dung Secrets, quyen chi doc. May chay nen la may RIENG
+#      (khong phai may lam viec ca nhan) va bat "Require approval for all outside collaborators" trong Settings -> Actions -> General.
+name: Price hunt - Vietnam station (1h)
+on:
+  schedule:
+    - cron: '47 * * * *'
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: 'Chi DO KY THUAT tu tram Viet Nam: ma website cach nhau dau phay; "net:ma1,ma2" de chan doan ket noi mang'
+        required: false
+        default: ''
+      minutes:
+        description: 'Ngan sach thoi gian thu thap (phut)'
+        required: false
+        default: '150'
+permissions:
+  contents: read
+concurrency:
+  group: hunt-vn
+  cancel-in-progress: false
+jobs:
+  hunt:
+    if: ${{ vars.HUNT_VN_RUNNER }}
+    runs-on: [self-hosted, kk-vn]
+    timeout-minutes: 170
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Nap bo nho dem truoc
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.hunt-cache-vn
+          key: huntvn-${{ github.run_id }}
+          restore-keys: huntvn-
+      - name: San gia tu tram Viet Nam (hoac do ky thuat khi chay tay voi o "probe")
+        shell: bash
+        env:
+          HUNT_ZONE: vn
+          PROBE: ${{ inputs.probe }}
+          MINUTES: ${{ inputs.minutes }}
+        run: |
+          if [ "${PROBE#net:}" != "$PROBE" ]; then
+            node collector/hunt.js net "${PROBE#net:}"
+          elif [ -n "$PROBE" ]; then
+            node collector/hunt.js probe "$PROBE"
+          else
+            node collector/hunt.js "${MINUTES:-150}"
+          fi
+      - name: Luu bo nho dem
+        if: always() && hashFiles('collector/.hunt-cache-vn/*') != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.hunt-cache-vn
+          key: huntvn-${{ github.run_id }}

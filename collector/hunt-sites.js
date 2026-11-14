@@ -16,13 +16,50 @@
  * trusted : 1 = chuoi ban le chinh hang quy mo lon (gia re hon han trung vi van duoc coi la gia that khi trung ma hang) ; mac dinh 0.
  * delay   : khoang cach toi thieu giua 2 yeu cau (ms); luon lay muc LON HON giua so nay va Crawl-delay trong robots.txt cua website.
  * every   : [gio] chu ky lam tuoi theo muc uu tien 1-2-3 (mode 'feed') hoac [gio] cho trang da khop ma (mode 'map').
- * ship    : luat du phong phi giao hang cua nguon (cung dang voi collector/landed.js); khong khai -> luat mac dinh cua nguon chua biet.
+ * ship    : luat du phong phi giao hang cua nguon (cung dang voi collector/landed.js); khong khai -> luat mac dinh cua nguon chua biet (25k, cong kenh 60k).
+ * hold    : 1 = nguon moi dua vao danh ba, DANG KIEM DINH do khop ma -> tam thoi chi liet ke cho quan tri (bo co nay sau khi ra soat mau khop).
+ * zone    : 'vn' = chi thu thap duoc tu TRAM DAT TAI VIET NAM (may chu chi mo ket noi cho dia chi mang trong nuoc) ; khong khai = may chu GitHub.
+ *
+ * Pham vi giao hang va phi giao hang duoi day lay tu CHINH SACH GIAO HANG CONG BO tren chinh website do (doc ngay 15/11/2026); website chua doc duoc
+ * chinh sach thi de 'check'. Ket qua do ky thuat (robots.txt, sitemap, du lieu schema.org) cung ngay: lenh `node collector/hunt.js probe`.
  *
  * Nguyen tac phap ly: chi doc trang CONG KHAI ma robots.txt cho phep, tu nhan dien KK-MALL-PriceBot, may chu tu choi thi DUNG (khong vuot chan,
  * khong vuot CAPTCHA). Khong dua san thuong mai dien tu vao day (san chi dung API / datafeed chinh thuc).
  * (c) 2026 Nguyen Duy Dien. All rights reserved.
  */
 module.exports = {
-  dienmayxanh: { name: 'Điện Máy Xanh', color: '#2e7d32', base: 'https://www.dienmayxanh.com', mode: 'feed', feed: 'dienmayxanh.com', delay: 2500, every: [8, 24, 96], reach: 'vn', trusted: 1 },
-  thegioididong: { name: 'Thế Giới Di Động', color: '#f9a825', base: 'https://www.thegioididong.com', mode: 'feed', feed: 'thegioididong.com', delay: 5000, every: [8, 24, 96], reach: 'vn', trusted: 1 },
+  /* ===== Che do 'feed': gia dang ban tai chinh trang nguon cua datafeed. Tu may chu GitHub KHONG ket noi duoc (het gio o tang mang) -> can tram Viet Nam ===== */
+  dienmayxanh: { name: 'Điện Máy Xanh', color: '#2e7d32', base: 'https://www.dienmayxanh.com', mode: 'feed', feed: 'dienmayxanh.com', zone: 'vn', delay: 2500, every: [8, 24, 96], reach: 'vn', trusted: 1 },
+  thegioididong: { name: 'Thế Giới Di Động', color: '#f9a825', base: 'https://www.thegioididong.com', mode: 'feed', feed: 'thegioididong.com', zone: 'vn', delay: 5000, every: [8, 24, 96], reach: 'vn', trusted: 1 },
+
+  /* ===== Che do 'map' - GIAO TOAN QUOC: duoc dung cho gia cong khai ===== */
+  hacom: { hold: 1, name: 'HACOM', color: '#c62828', base: 'https://hacom.vn', mode: 'map', delay: 2500, reach: 'vn', trusted: 1,
+    ship: { tiers: [[300000, 0], [0, 15000]], bulky: 60000, note: 'Miễn phí giao hàng toàn quốc cho đơn từ 300.000đ; dưới 300.000đ phí 15.000đ' } },
+  gearvn: { hold: 1, name: 'GearVN', color: '#e53935', base: 'https://gearvn.com', mode: 'map', delay: 2500, reach: 'vn', trusted: 1,
+    ship: { tiers: [[5000000, 0], [0, 40000]], bulky: 60000, note: 'Giao hàng toàn quốc: đơn dưới 5 triệu 40.000đ, từ 5 triệu miễn phí' } },
+  memoryzone: { hold: 1, name: 'MemoryZone', color: '#1565c0', base: 'https://memoryzone.com.vn', mode: 'map', delay: 2500, reach: 'vn',
+    ship: { tiers: [[300000, 0], [0, 10000]], bulky: 60000, note: 'Giao hàng toàn quốc cho đơn từ 100.000đ; miễn phí từ 300.000đ, dưới mức đó 10.000đ' } },
+  karofi: { hold: 1, name: 'Karofi', color: '#00838f', base: 'https://karofi.com', mode: 'map', delay: 2500, reach: 'vn', trusted: 1 },   // cua hang chinh hang, giao + lap toan quoc (tinh: 2-5 ngay); phi khong cong bo -> luat du phong mac dinh
+
+  /* ===== GIAO TOAN QUOC voi hang nho; hang nang / cong kenh tinh phi rieng theo tung don -> hang cong kenh chi liet ke cho quan tri ===== */
+  meta: { hold: 1, name: 'META', color: '#ef6c00', base: 'https://meta.vn', mode: 'map', delay: 2500, reach: 'vn-small', trusted: 1,
+    ship: { tiers: [[0, 40000]], bulky: 60000, note: 'Bán và thu tiền tại nhà trên toàn quốc; miễn phí nội thành HN/HCM cho đơn từ 500.000đ; tỉnh xa qua chuyển phát - dự phòng 40.000đ' } },
+
+  /* ===== CHI GIAO THEO VUNG: khong dung cho gia toan quoc, liet ke de quan tri duyet tay ===== */
+  dienmaycholon: { name: 'Điện Máy Chợ Lớn', color: '#0066b3', base: 'https://dienmaycholon.com', mode: 'map', delay: 2500, reach: 'region', region: 'trong tỉnh/thành phố có chi nhánh Điện Máy Chợ Lớn', trusted: 1 },
+  mediamart: { name: 'MediaMart', color: '#d32f2f', base: 'https://mediamart.vn', mode: 'map', delay: 2500, reach: 'region', region: 'miền Bắc và miền Trung, theo bán kính từ siêu thị MediaMart gần nhất', trusted: 1 },
+  pico: { name: 'Pico', color: '#6a1b9a', base: 'https://pico.vn', mode: 'map', delay: 2500, reach: 'region', region: 'miền Bắc, trong bán kính 100 km từ siêu thị Pico gần nhất', trusted: 1 },
+  viettelstore: { name: 'Viettel Store', color: '#00897b', base: 'https://viettelstore.vn', mode: 'map', delay: 2500, reach: 'region', region: 'tại tỉnh/thành có siêu thị Viettel Store', trusted: 1 },
+
+  /* ===== CHUA XAC MINH pham vi giao hang (dat ky thuat): chi liet ke de quan tri duyet tay cho den khi doc duoc chinh sach cong bo ===== */
+  tnc: { name: 'TNC Store', color: '#455a64', base: 'https://www.tnc.com.vn', mode: 'map', delay: 2500, reach: 'check' },
+  ngoisao: { name: 'Tin học Ngôi Sao', color: '#455a64', base: 'https://tinhocngoisao.com', mode: 'map', delay: 2500, reach: 'check' },
+  xgear: { name: 'Xgear', color: '#455a64', base: 'https://xgear.net', mode: 'map', delay: 2500, reach: 'check' },
+  maihoang: { name: 'Mai Hoàng', color: '#455a64', base: 'https://maihoang.com.vn', mode: 'map', delay: 2500, reach: 'check' },
+  minhtuan: { name: 'Minh Tuấn Mobile', color: '#455a64', base: 'https://minhtuanmobile.com', mode: 'map', delay: 2500, reach: 'check' },
+  h24store: { name: '24hStore', color: '#455a64', base: 'https://24hstore.vn', mode: 'map', delay: 2500, reach: 'check' },
+  didongviet: { name: 'Di Động Việt', color: '#455a64', base: 'https://didongviet.vn', mode: 'map', delay: 2500, reach: 'check' },
+  clickbuy: { name: 'Clickbuy', color: '#455a64', base: 'https://clickbuy.com.vn', mode: 'map', delay: 2500, reach: 'check' },
+  watchstore: { name: 'WatchStore', color: '#455a64', base: 'https://www.watchstore.vn', mode: 'map', delay: 2500, reach: 'check' },
+  dangquang: { name: 'Đăng Quang Watch', color: '#455a64', base: 'https://www.dangquangwatch.vn', mode: 'map', delay: 2500, reach: 'check' },
 };

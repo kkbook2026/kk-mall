@@ -1,0 +1,45 @@
+# KIEM DINH BO SAN GIA (chay tay, tam thoi): xuat bo nho dem san gia da MA HOA bang khoa cong khai cua phien kiem dinh de ra soat do khop ma
+# truoc khi cho nguon moi tham gia dinh gia. Nhat ky cong khai chi co so dem; goi ma hoa day len nhanh tam audit-tmp (nguoi ngoai khong giai ma duoc).
+name: Hunt audit (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      pubkey:
+        description: 'Khoa cong khai RSA (PEM, base64) de ma hoa ket qua'
+        required: true
+permissions:
+  contents: write
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Nap bo nho dem san gia - chi doc
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.hunt-cache
+          key: hunt-${{ github.run_id }}
+          restore-keys: hunt-
+      - name: Nap bo nho dem san gia cua tram Viet Nam - chi doc
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.hunt-cache-vn
+          key: huntvn-${{ github.run_id }}
+          restore-keys: huntvn-
+      - name: Xuat goi kiem dinh (ma hoa)
+        env:
+          AUDIT_PUBKEY: ${{ inputs.pubkey }}
+        run: node tools/hunt-audit.js /tmp/hunt-audit.enc.json
+      - name: Day goi DA MA HOA len nhanh tam audit-tmp
+        run: |
+          git config user.name "kk-mall-bot"; git config user.email "bot@kk-mall.com"
+          git checkout -q --orphan audit-tmp
+          git rm -rq --cached .
+          cp /tmp/hunt-audit.enc.json hunt-audit.enc.json
+          git add -f hunt-audit.enc.json
+          git commit -qm "kiem dinh san gia (ma hoa RSA-OAEP + AES-256-GCM)"
+          git push -f origin audit-tmp

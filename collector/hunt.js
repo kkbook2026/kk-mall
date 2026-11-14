@@ -38,9 +38,19 @@ const nd = MATCH.nd;
 
 /* ---------- danh ba + bo nho dem ---------- */
 function sitesOf(env = process.env) { if (env.HUNT_SITES_JSON) { try { return JSON.parse(env.HUNT_SITES_JSON); } catch { } } return require('./hunt-sites'); }
-const cacheFile = env => env.HUNT_CACHE_FILE || path.join(__dirname, '.hunt-cache', 'hunt.json.gz');
-function loadCache(env = process.env) { try { const c = JSON.parse(zlib.gunzipSync(fs.readFileSync(cacheFile(env))).toString('utf8')); if (c && c.v === 1 && c.sites && c.offers) return c; } catch { } return { v: 1, sites: {}, offers: {} }; }
-function saveCache(c, env = process.env) { const f = cacheFile(env); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f + '.tmp', zlib.gzipSync(JSON.stringify(c))); fs.renameSync(f + '.tmp', f); }
+/* VUNG CHAY (zone): 'gh' = may chu cua GitHub (mac dinh) ; 'vn' = TRAM DAT TAI VIET NAM (may chay rieng cua KK-MALL). Mot so chuoi lon chi mo ket noi cho
+ * dia chi mang trong nuoc (tu may chu GitHub: het gio ket noi o tang mang, do ngay 15/11/2026) -> cac website do khai zone 'vn' va chi tram VN thu thap.
+ * Moi vung co bo nho dem rieng; bo thu thap gia doc gop ca hai. */
+const zoneOf = S => (S && S.zone) || 'gh';
+const cacheFile = (env, zone = 'gh') => zone === 'vn' ? (env.HUNT_CACHE_FILE_VN || path.join(__dirname, '.hunt-cache-vn', 'hunt.json.gz')) : (env.HUNT_CACHE_FILE || path.join(__dirname, '.hunt-cache', 'hunt.json.gz'));
+function loadCache(env = process.env, zone = 'gh') { try { const c = JSON.parse(zlib.gunzipSync(fs.readFileSync(cacheFile(env, zone))).toString('utf8')); if (c && c.v === 1 && c.sites && c.offers) return c; } catch { } return { v: 1, sites: {}, offers: {} }; }
+function saveCache(c, env = process.env, zone = 'gh') { const f = cacheFile(env, zone); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f + '.tmp', zlib.gzipSync(JSON.stringify(c))); fs.renameSync(f + '.tmp', f); }
+/* doc gop bo nho dem cua moi vung; moi website chi lay du lieu tu bo nho dem cua DUNG vung no dang khai */
+function loadAll(env = process.env) { const SITES = sitesOf(env), out = { v: 1, sites: {}, offers: {}, savedAt: {} };
+  for (const zone of ['gh', 'vn']) { const c = loadCache(env, zone); out.savedAt[zone] = c.savedAt || 0;
+    for (const [id, st] of Object.entries(c.sites)) if (SITES[id] && zoneOf(SITES[id]) === zone) out.sites[id] = st;
+    for (const [k, o] of Object.entries(c.offers)) { const id = k.slice(0, k.indexOf('|')); if (SITES[id] && zoneOf(SITES[id]) === zone) out.offers[k] = o; } }
+  return out; }
 const hostOf = u => { try { return new URL(u).host.replace(/^www\./, '').toLowerCase(); } catch { return ''; } };
 /* khoa dia chi trang: ten mien (bo www) + duong dan, khong tham so - dung de khop ban ghi datafeed voi trang da doc */
 const urlKey = u => { try { const x = new URL(u); return x.host.replace(/^www\./, '').toLowerCase() + x.pathname.replace(/\/+$/, ''); } catch { return ''; } };
@@ -205,7 +215,7 @@ function dueList(src, S, st, C, R, now) {
 }
 
 /* ---------- thu thap 1 website: tuan tu, cach nhau `delay`; may chu tu choi thi dung ---------- */
-async function crawlSite(src, S, C, idx, deadline, env, log, KICK) {
+async function crawlSite(src, S, C, idx, deadline, env, log, KICK, save) {
   const st = C.sites[src] = C.sites[src] || {};
   const rb = await get(S.base + '/robots.txt');
   st.http = { robots: rb.status, at: Date.now() };
@@ -243,7 +253,7 @@ async function crawlSite(src, S, C, idx, deadline, env, log, KICK) {
     { const o = C.offers[k]; if (o && o.p > 0) odd = 0; else if (++odd >= ODD_MAX) { st.fail = 'nhieu trang lien tiep khong co gia - nghi may chu tra trang khac cho bot'; st.oddAt = at;
         for (const q of due.slice(Math.max(0, n - odd), n)) { const kk = src + '|' + q[0], x = C.offers[kk]; if (x && (x.g || x.e) && x.at >= t0 - odd * (delay + 60000)) delete C.offers[kk]; }
         log(`[${src}] DUNG: ${odd} trang lien tiep khong co gia - nghi may chu tra trang khac cho bot -> bo ket qua cua chuoi nay, khong vuot chan`); break; } }
-    if (Date.now() - lastSave > 10 * 60e3) { try { saveCache(C, env); } catch { } lastSave = Date.now(); }     // luu dinh ky: lan chay bi cat ngang van giu ket qua
+    if (Date.now() - lastSave > 10 * 60e3) { try { (save || (() => saveCache(C, env)))(); } catch { } lastSave = Date.now(); }     // luu dinh ky: lan chay bi cat ngang van giu ket qua
     await sleep(Math.max(0, delay - (Date.now() - t0)));
   }
   st.run = { at: Date.now(), due: due.length, n, ok, got };
@@ -253,14 +263,15 @@ async function crawlSite(src, S, C, idx, deadline, env, log, KICK) {
 
 /* ---------- chay trong ngan sach thoi gian: cac website song song, moi website tuan tu ---------- */
 async function run(minutes = 45, log = console.log, env = process.env) {
-  const SITES = sitesOf(env), C = loadCache(env), deadline = Date.now() + minutes * 60e3;
+  const zone = env.HUNT_ZONE === 'vn' ? 'vn' : 'gh';
+  const SITES = Object.fromEntries(Object.entries(sitesOf(env)).filter(([, S]) => zoneOf(S) === zone)), C = loadCache(env, zone), deadline = Date.now() + minutes * 60e3;
   const idx = buildIndex(loadCatalog(env));
-  log(`Chi muc ma model cua danh muc: ${idx.byCode.size} ma · ${idx.keys.size} ten san pham`);
-  for (const src of Object.keys(C.sites)) if (!SITES[src]) { delete C.sites[src]; for (const k of Object.keys(C.offers)) if (k.startsWith(src + '|')) delete C.offers[k]; }   // website da bo khoi danh ba
-  const KICK = require('./kick').make(env, log);
-  const res = await Promise.all(Object.entries(SITES).map(([src, S]) => crawlSite(src, S, C, idx, deadline, env, log, KICK).catch(e => (log(`[${src}] loi: ${String(e && e.message || e).slice(0, 120)}`), null))));
-  C.savedAt = Date.now(); saveCache(C, env);
-  const S2 = siteStat(env, C);
+  log(`Vung chay: ${zone === 'vn' ? 'tram Viet Nam' : 'may chu GitHub'} · ${Object.keys(SITES).length} website · chi muc ma model cua danh muc: ${idx.byCode.size} ma · ${idx.keys.size} ten san pham`);
+  for (const src of Object.keys(C.sites)) if (!SITES[src]) { delete C.sites[src]; for (const k of Object.keys(C.offers)) if (k.startsWith(src + '|')) delete C.offers[k]; }   // website da bo khoi danh ba / chuyen sang vung khac
+  const KICK = require('./kick').make(env, log), save = () => saveCache(C, env, zone);
+  const res = await Promise.all(Object.entries(SITES).map(([src, S]) => crawlSite(src, S, C, idx, deadline, env, log, KICK, save).catch(e => (log(`[${src}] loi: ${String(e && e.message || e).slice(0, 120)}`), null))));
+  C.savedAt = Date.now(); save();
+  const S2 = Object.fromEntries(Object.entries(siteStat(env, C)).filter(([k]) => SITES[k]));
   log('Bo nho dem san gia: ' + Object.entries(S2).map(([k, v]) => `${k} ${v.fresh}/${v.targets}${v.gone ? ' (ngung ban ' + v.gone + ')' : ''}`).join(' · '));
   return res;
 }
@@ -269,7 +280,7 @@ async function run(minutes = 45, log = console.log, env = process.env) {
 /* Che do 'feed': ban ghi THAY THE ban ghi datafeed cung dia chi trang (ten/anh/nhom giu cua datafeed, gia + ton kho la cua trang that).
  * Trang da go / lien he -> stock 0. Tra ve { rows, src: Set(ma nguon) }. Du lieu cu hon maxAgeH bi bo (khi do ban ghi datafeed goc duoc dung lai). */
 function liveRows(env = process.env, maxAgeH = 168) {
-  const SITES = sitesOf(env), C = loadCache(env), now = Date.now(), rows = [], src = new Set(), suspect = [];
+  const SITES = sitesOf(env), C = loadAll(env), now = Date.now(), rows = [], src = new Set(), suspect = [];
   const GONE_MAX = parseFloat(env.HUNT_GONE_MAX || '0.25');
   for (const [id, S] of Object.entries(SITES)) { if (S.mode !== 'feed') continue; const st = C.sites[id]; if (!st || !st.t) continue;
     /* CHOT AN TOAN: ty le trang "khong con ban" cao bat thuong (> 25% so trang da doc) -> khong tin trang thai do (giu ban ghi datafeed goc cho cac trang nay) */
@@ -283,28 +294,29 @@ function liveRows(env = process.env, maxAgeH = 168) {
 }
 /* Che do 'map': offer da gan san cho SKU (bo thu thap gia xac nhan lai bang bo ghep roi moi dung). */
 function huntRows(env = process.env, maxAgeH = 120) {
-  const SITES = sitesOf(env), C = loadCache(env), now = Date.now(), out = [];
+  const SITES = sitesOf(env), C = loadAll(env), now = Date.now(), out = [];
   for (const [id, S] of Object.entries(SITES)) { if (S.mode === 'feed') continue; const st = C.sites[id]; if (!st || !st.m) continue;
     for (const [p, skus] of Object.entries(st.m)) { const o = C.offers[id + '|' + p]; if (!o || o.e || !(o.p > 0) || now - o.at > maxAgeH * H) continue;
       const ageH = Math.round((now - o.at) / H);
-      for (const sku of skus) out.push({ sku, src: id, name: o.n, price: o.p, stock: o.s ? 1 : 0, url: S.base + p, image: o.i || '', reach: S.reach || 'check', region: S.region || '', stale: ageH > 48 ? 1 : 0, ageH }); } }
+      for (const sku of skus) out.push({ sku, src: id, name: o.n, price: o.p, stock: o.s ? 1 : 0, url: S.base + p, image: o.i || '', reach: S.hold ? 'hold' : (S.reach || 'check'), region: S.region || '', stale: ageH > 48 ? 1 : 0, ageH }); } }
   return out;
 }
 /* Pham vi giao hang cua 1 offer san duoc: '' = dung duoc cho gia cong khai ; khac rong = ly do chi liet ke cho quan tri */
 function reachNote(reach, region, bulky) {
   if (reach === 'vn' || (reach === 'vn-small' && !bulky)) return '';
+  if (reach === 'hold') return 'mới đưa vào danh bạ - đang kiểm định độ khớp mã';
   if (reach === 'region') return 'chỉ giao ' + (region || 'theo vùng');
   if (reach === 'vn-small') return 'hàng cồng kềnh chỉ giao theo vùng' + (region ? ' (' + region + ')' : '');
   return 'chưa xác minh phạm vi giao hàng';
 }
 /* Tinh trang tung website cho nhat ky quan tri */
 function siteStat(env = process.env, C0) {
-  const SITES = sitesOf(env), C = C0 || loadCache(env), now = Date.now(), out = {};
+  const SITES = sitesOf(env), C = C0 || loadAll(env), now = Date.now(), out = {};
   for (const [id, S] of Object.entries(SITES)) { const st = C.sites[id] || {}, paths = Object.keys((S.mode === 'feed' ? st.t : st.m) || {});
     let fresh = 0, gone = 0, miss = 0; const ages = [];
     for (const p of paths) { const o = C.offers[id + '|' + p]; if (!o) continue; if (o.e) { miss++; continue; } if (now - o.at > 168 * H) continue; fresh++; if (o.g) gone++; ages.push((now - o.at) / H); }
     ages.sort((a, b) => a - b);
-    out[id] = { name: S.name, mode: S.mode, reach: S.reach || 'check', targets: paths.length, fresh, gone, miss, ageH: ages.length ? Math.round(ages[ages.length >> 1]) : null, fail: st.fail || '', http: st.http || null, map: st.map || null, dir: st.dir || null, run: st.run || null }; }
+    out[id] = { name: S.name, mode: S.mode, zone: zoneOf(S), reach: S.reach || 'check', targets: paths.length, fresh, gone, miss, ageH: ages.length ? Math.round(ages[ages.length >> 1]) : null, fail: st.fail || '', http: st.http || null, map: st.map || null, dir: st.dir || null, run: st.run || null }; }
   return out;
 }
 
@@ -344,7 +356,7 @@ async function netDiag(ids, log = console.log, env = process.env) {
     log(`${id.padEnd(14)} ${o.join(' · ')}`); }
 }
 
-module.exports = { run, liveRows, huntRows, siteStat, reachNote, probe, urlKey, hostOf, buildIndex, slugSkus, parsePage, sameItem, robotsOf, delayOf, cleanTitle, sitesOf, loadCache, saveCache, get, dueList, UA };
+module.exports = { run, liveRows, huntRows, siteStat, reachNote, probe, netDiag, loadAll, zoneOf, urlKey, hostOf, buildIndex, slugSkus, parsePage, sameItem, robotsOf, delayOf, cleanTitle, sitesOf, loadCache, saveCache, get, dueList, UA };
 if (require.main === module) {
   const a = process.argv[2];
   const done = p => p.then(() => process.exit(0), e => { console.error(e); process.exit(1); });

@@ -61,7 +61,7 @@ function serve() {
   t(!HUNT.sameItem('Máy lọc nước RO Karofi KAQ-X26 10 lõi', 'Máy lọc nước RO Karofi KAQ-U95 10 lõi') && !HUNT.sameItem('Quạt đứng Toshiba 5 cánh F-LSA20(H)VN 60W', 'Bếp từ đôi Sunhouse SHD6149') && !HUNT.sameItem('Loa Bluetooth JBL Charge 6', 'Loa Bluetooth JBL Charge 6 - Hàng cũ đã qua sử dụng'),
     'cung dia chi trang: khac ma model / khac mat hang / khac tinh trang -> khong dung');
   t(!HUNT.sameItem('iPad A16 WiFi 128GB', 'Máy tính bảng iPad A16 WiFi 128GB chính hãng VN/A', true) || HUNT.sameItem('Máy lọc nước RO Karofi KAQ-X26 10 lõi', 'Máy lọc nước RO Karofi KAQ-X26 10 lõi', true), 'trang bi chuyen huong: chi nhan khi ten trung hoan toan / trung ma');
-  t(HUNT.reachNote('vn', '', true) === '' && HUNT.reachNote('vn-small', '', false) === '' && /cồng kềnh/.test(HUNT.reachNote('vn-small', '', true)) && /TP\.HCM/.test(HUNT.reachNote('region', 'TP.HCM và các tỉnh lân cận', false)) && /chưa xác minh/.test(HUNT.reachNote('check', '', false)) && /chưa xác minh/.test(HUNT.reachNote(undefined, '', false)),
+  t(HUNT.reachNote('vn', '', true) === '' && HUNT.reachNote('vn-small', '', false) === '' && /cồng kềnh/.test(HUNT.reachNote('vn-small', '', true)) && /TP\.HCM/.test(HUNT.reachNote('region', 'TP.HCM và các tỉnh lân cận', false)) && /chưa xác minh/.test(HUNT.reachNote('check', '', false)) && /chưa xác minh/.test(HUNT.reachNote(undefined, '', false)) && /kiểm định/.test(HUNT.reachNote('hold', '', false)),
     'pham vi giao hang: chi nguon giao toan quoc moi duoc dung cho gia cong khai');
   t(HUNT.urlKey('https://www.DienMayXanh.com/may-loc-nuoc/abc/?utm=1#x') === 'dienmayxanh.com/may-loc-nuoc/abc' && HUNT.urlKey('khong phai url') === '', 'khoa dia chi trang: bo www, tham so, dau / cuoi');
 
@@ -136,7 +136,7 @@ function serve() {
     shopc: { name: 'Shop C', base: C.base, mode: 'map', delay: 2500, reach: 'vn' },
     shopd: { name: 'Shop D', base: D.base, mode: 'map', delay: 2500, reach: 'vn' },
   };
-  const env = { HUNT_SITES_JSON: JSON.stringify(SITES), HUNT_CACHE_FILE: cacheF, HUNT_CATALOG_FILE: catF, HUNT_DELAY_MS: '40', ACCESSTRADE_CSV_BASE: A.base + '/_csv/' };
+  const env = { HUNT_SITES_JSON: JSON.stringify(SITES), HUNT_CACHE_FILE: cacheF, HUNT_CATALOG_FILE: catF, HUNT_DELAY_MS: '60', ACCESSTRADE_CSV_BASE: A.base + '/_csv/' };
   const logs = []; await HUNT.run(0.5, m => logs.push(String(m)), env);
   const pg = S => S.log.filter(x => !/robots\.txt|sitemap|_csv/.test(x.p));
   t([A, B, C, D].every(S => S.log.length && S.log[0].p === '/robots.txt'), 'moi website: doc robots.txt TRUOC moi yeu cau khac');
@@ -145,7 +145,7 @@ function serve() {
   t(!A.log.some(x => x.p === '/null' || x.p.startsWith('/dong-ho/')), "che do 'feed': dia chi hong (/null) va dia chi dung chung cho nhieu mat hang khac ten -> khong lam tuoi (giu ban ghi goc)");
   t(pg(A).filter(x => x.p !== '/danh-muc/may-giat').length === 21 && new Set(pg(A).map(x => x.p)).size === pg(A).length, "che do 'feed': moi trang trong danh ba duoc phep tai dung 1 lan (21 trang, khong tinh buoc chuyen huong)");
   { const gaps = [], a = pg(A).filter(x => x.p !== '/danh-muc/may-giat'); for (let i = 1; i < a.length; i++) gaps.push(a[i].t - a[i - 1].t);
-    t(Math.min(...gaps) >= 35, 'cac yeu cau toi cung 1 website di TUAN TU, cach nhau it nhat bang khoang cach da dat (nho nhat ' + Math.min(...gaps) + ' ms)'); }
+    t(Math.min(...gaps) >= 40, 'cac yeu cau toi cung 1 website di TUAN TU, cach nhau it nhat bang khoang cach da dat (nho nhat ' + Math.min(...gaps) + ' ms)'); }
   t(!B.log.some(x => /sitemap-news|sitemap-danh-muc|tin-tuc|danh-muc/.test(x.p)), "che do 'map': bo qua sitemap tin tuc / danh muc");
   { const got = pg(B).map(x => x.p).sort().join('|'), want = ['/san-pham/may-loc-nuoc-karofi-kaq-x26-10-loi.html', '/san-pham/dieu-hoa-panasonic-1-chieu-inverter-9000btu-pu9akh-8.html', '/san-pham/noi-com-dien-sharp-ks-183tjv.html', '/san-pham/tivi-lg-55ut8050psb.html', '/san-pham/may-giat-lg-fv1409s4w.html'].sort().join('|');
     t(got === want, "che do 'map': CHI tai nhung trang co ma model trung voi danh muc (khong tai trang khac ma, trang co tham so, ten mien khac) " + got); }
@@ -204,6 +204,18 @@ function serve() {
     for (let i = 5; i < 20; i++) off['shope|/sp/hang-' + i] = { p: 900000, s: 1, at: now }; HUNT.saveCache({ v: 1, sites: { shope: { t: tt, tAt: now } }, offers: off }, envE);
     const L4 = HUNT.liveRows(envE); t(L4.rows.length === 50 && L4.rows.filter(r => !r.stock).length === 5 && !L4.suspect.length, 'ty le binh thuong (10%): trang da go duoc danh dau het hang');
     E.srv.close(); }
+  // --- vung chay: website khai zone 'vn' chi do tram Viet Nam thu thap; bo thu thap gia doc gop ca hai bo nho dem ---
+  { const Z = await serve(); Z.routes['/robots.txt'] = 'User-agent: *\nAllow: /\n'; Z.routes['/sitemap.xml'] = `<urlset><url><loc>${Z.base}/sp/may-loc-nuoc-karofi-kaq-x26</loc></url></urlset>`;
+    Z.routes['/sp/may-loc-nuoc-karofi-kaq-x26'] = ld('Máy lọc nước Karofi KAQ-X26 10 lõi', 6200000);
+    const envZ = { HUNT_SITES_JSON: JSON.stringify({ shopz: { name: 'Shop Z', base: Z.base, mode: 'map', delay: 2500, reach: 'vn', zone: 'vn' }, shopb: SITES.shopb }), HUNT_CACHE_FILE: path.join(tmp, 'z-gh.gz'), HUNT_CACHE_FILE_VN: path.join(tmp, 'z-vn.gz'), HUNT_CATALOG_FILE: catF, HUNT_DELAY_MS: '5' };
+    const b0 = B.log.length; await HUNT.run(0.5, () => { }, envZ);
+    t(Z.log.length === 0 && B.log.length > b0 && !fs.existsSync(envZ.HUNT_CACHE_FILE_VN), "vung 'gh' (may chu GitHub): khong gui yeu cau nao toi website khai zone 'vn'");
+    const b1 = B.log.length; await HUNT.run(0.5, () => { }, { ...envZ, HUNT_ZONE: 'vn' });
+    const hz = HUNT.huntRows(envZ);
+    t(Z.log.length === 3 && B.log.length === b1 && hz.some(r => r.src === 'shopz' && r.price === 6200000) && hz.some(r => r.src === 'shopb' && r.price === 6100000), "vung 'vn' (tram Viet Nam): chi thu thap website zone 'vn'; ket qua cua hai vung duoc doc gop");
+    const envH = { ...envZ, HUNT_SITES_JSON: JSON.stringify({ shopz: { name: 'Shop Z', base: Z.base, mode: 'map', delay: 2500, reach: 'vn', zone: 'vn', hold: 1 } }) };
+    t(HUNT.huntRows(envH).every(r => r.reach === 'hold') && HUNT.huntRows(envH).length === 1, 'nguon moi dang kiem dinh (hold): offer chi de quan tri xem, chua tham gia dinh gia');
+    Z.srv.close(); }
   // --- do ky thuat (probe) ---
   { const plog = [], env2 = { ...env, HUNT_CACHE_FILE: path.join(tmp, 'none.gz') }, P = await HUNT.probe(['shopb', 'shopd', 'shopa'], m => plog.push(String(m)), env2);
     t(P.shopb && P.shopb.robots === 200 && P.shopb.map && P.shopb.map.match === 5 && P.shopb.sample && P.shopb.sample.data >= 2 && P.shopd.robots === 403 && !P.shopd.sample && P.shopa.dir && P.shopa.dir.p1 === 7 && P.shopa.sample.price >= 1,

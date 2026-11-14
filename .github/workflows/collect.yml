@@ -60,6 +60,12 @@ jobs:
           path: collector/.hunt-cache
           key: hunt-${{ github.run_id }}
           restore-keys: hunt-
+      - name: Nap bo nho dem san gia cua tram Viet Nam (gia trang that cua cac chuoi chi mo ket noi trong nuoc) - chi doc
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.hunt-cache-vn
+          key: huntvn-${{ github.run_id }}
+          restore-keys: huntvn-
       - name: Thu thap & tinh gia (cau hinh noi bo tu Secrets)
         env:
           PRICING_TIERS: ${{ secrets.PRICING_TIERS }}     # bieu loi theo bac gia (bi mat kinh doanh)
