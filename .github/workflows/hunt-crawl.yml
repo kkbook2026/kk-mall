@@ -1,0 +1,75 @@
+# SAN GIA THEO MA MODEL (collector/hunt.js) - moi gio, toi da 150 phut/lan, cac lan noi tiep nhau (khong chay chong).
+#  - Che do 'feed': doc lai CHINH TRANG san pham cua cac chuoi ma datafeed chi co gia niem yet (khong khuyen mai, cu nhieu ngay) -> gia dang ban + ton kho that.
+#  - Che do 'map' : suy nguoc tu ma model cua san pham KK-MALL -> tim dung trang trong sitemap cua website ban le trong danh ba (collector/hunt-sites.js).
+# Tuan thu robots.txt + Crawl-delay, tu nhan dien KK-MALL-PriceBot, may chu tu choi thi dung (khong vuot chan). Ket qua luu GitHub Actions cache
+# (khong commit); bo thu thap gia 3 gio/lan doc lai de dinh gia. Nhat ky chi co so lieu tong hop theo website, khong co ten / gia tung san pham.
+name: Price hunt by model code (1h)
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: 'Chi DO KY THUAT (khong thu thap): ma website cach nhau dau phay, hoac "all" cho moi website trong danh ba + ung vien'
+        required: false
+        default: ''
+      minutes:
+        description: 'Ngan sach thoi gian thu thap (phut)'
+        required: false
+        default: '150'
+permissions:
+  contents: read
+  actions: write   # chi de goi chay bu bo thu thap gia (workflow_dispatch) khi lich cua GitHub bi tre
+concurrency:
+  group: hunt-crawl
+  cancel-in-progress: false
+jobs:
+  hunt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 170
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Nap bo nho dem truoc
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.hunt-cache
+          key: hunt-${{ github.run_id }}
+          restore-keys: hunt-
+      - name: San gia (hoac do ky thuat khi chay tay voi o "probe")
+        env:
+          GH_TOKEN: ${{ github.token }}   # chi de goi chay bu bo thu thap gia khi lich cua GitHub tre (collector/kick.js)
+          PROBE: ${{ inputs.probe }}
+          MINUTES: ${{ inputs.minutes }}
+        run: |
+          if [ -n "$PROBE" ]; then
+            [ "$PROBE" = "all" ] && PROBE=""
+            node collector/hunt.js probe "$PROBE"
+          else
+            node collector/hunt.js "${MINUTES:-150}"
+          fi
+      - name: Luu bo nho dem
+        if: always() && hashFiles('collector/.hunt-cache/*') != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.hunt-cache
+          key: hunt-${{ github.run_id }}
+      - name: Bu lich - goi bo thu thap gia neu da qua 3 gio chua chay (lich hen gio cua GitHub thuong bi tre/bo luot)
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          row=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow collect.yml --limit 1 --json createdAt,status -q '.[0] | "\(.createdAt) \(.status)"')
+          created=${row%% *}; status=${row##* }
+          [ -n "$created" ] || { echo "Khong doc duoc lan chay gan nhat"; exit 0; }
+          age=$(( $(date +%s) - $(date -d "$created" +%s) ))
+          echo "Bo thu thap gia: lan gan nhat cach day $((age/60)) phut, trang thai $status"
+          if [ "$status" = "completed" ] && [ "$age" -ge 10800 ]; then
+            gh workflow run collect.yml --repo "$GITHUB_REPOSITORY" --ref main -f trigger=bu-lich && echo "Da goi chay bu."
+          fi

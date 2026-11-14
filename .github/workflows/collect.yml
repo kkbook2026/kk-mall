@@ -54,6 +54,12 @@ jobs:
           path: collector/.search-cache
           key: search-${{ github.run_id }}
           restore-keys: search-
+      - name: Nap bo nho dem san gia theo ma model (gia trang that + website ban le trong danh ba) - chi doc
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: collector/.hunt-cache
+          key: hunt-${{ github.run_id }}
+          restore-keys: hunt-
       - name: Thu thap & tinh gia (cau hinh noi bo tu Secrets)
         env:
           PRICING_TIERS: ${{ secrets.PRICING_TIERS }}     # bieu loi theo bac gia (bi mat kinh doanh)

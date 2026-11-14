@@ -49,6 +49,8 @@ function parseEnvRules(env) {
 function create(env = process.env, stats = null) {
   const over = parseEnvRules(env);
   const rules = {}; for (const k of Object.keys(DEFAULT_RULES)) rules[k] = { ...DEFAULT_RULES[k], ...(over[k] || {}) };
+  /* website trong danh ba san gia (hunt-sites.js) co khai `ship`: luat rieng cua website do; khong khai -> luat mac dinh cua nguon chua biet (25k, cong kenh 60k) */
+  for (const [k, S] of Object.entries(require('./hunt-sites'))) if (S.ship && !DEFAULT_RULES[k]) rules[k] = { tiers: [[0, 25000]], bulky: 60000, ...S.ship, ...(over[k] || {}) };
   for (const k of Object.keys(over)) if (!rules[k]) rules[k] = { tiers: [[0, 0]], bulky: 0, ...over[k] };
   const safety = Number.isFinite(+env.SHIP_SAFETY_PCT) ? +env.SHIP_SAFETY_PCT : DEFAULT_SAFETY;
   const calib = {};

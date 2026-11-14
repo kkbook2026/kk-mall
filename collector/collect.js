@@ -20,6 +20,7 @@ const API = path.join(SITE, 'api');
 const PRICING = require('./pricing').create(process.env); // bieu loi theo bac gia - bi mat kinh doanh, tu GitHub Secret
 const LANDEDM = require('./landed');
 const RETAIL = require('./retail');
+const HUNT = require('./hunt');                           // bo san gia theo ma model: gia trang that cua chuoi chi co gia niem yet + website ban le khac (doc bo nho dem)
 const SEARCH = require('./search');                       // gia tim theo tu khoa tren san (TikTok Shop / Shopee) - doc bo nho dem
 const MATCH = require('./match');                         // bo ghep cheo nguon: cung 1 san pham o nhieu noi -> so gia                       // gia cong khai website ban le (Hoang Ha, Phuc Anh, An Phat)                      // gia thuc tra = gia nguon + ship uoc tinh (tu hieu chinh tu PO that)
 const CYCLE_MIN = 180;                                   // chu ky thu thap: 3 gio/lan
@@ -77,6 +78,25 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       r.key = FEEDS.normKey(r.name); feed.offers.push(r); n++; if (per[r.src]) { per[r.src].n++; ages[r.src].push(r.ageH || 0); } }
     for (const src of Object.keys(ages)) { const m = medOf(ages[src]); if (m != null) per[src].age = +(m / 24).toFixed(1); }
     feed.stat.retail = n; feed.stat.retailUnclassified = un; console.log(`Gia ban le cong khai: ${n} offer (bo ${un} chua phan loai)`); }
+  /* ===== BO SAN GIA (hunt.js) - doc bo nho dem, khong tai lai o day =====
+   * (a) GIA TRANG THAT: datafeed cua mot so chuoi chi co gia NIEM YET cu nhieu ngay -> ban ghi da duoc doc lai tai chinh trang san pham do
+   *     (cung dia chi) THAY ban ghi datafeed: gia dang ban + ton kho that; trang da go / "lien he" -> het hang.
+   * (b) OFFER SAN THEO MA MODEL tu website ban le khac: gan san cho SKU, xac nhan lai o buoc (5) ben duoi. */
+  const HSTAT = feed.stat.hunt = { live: 0, gone: 0, cheaper: 0, map: 0, used: 0, reg: 0 };
+  { const L = HUNT.liveRows(process.env), per = feed.stat.per = feed.stat.per || {}, ages = {};
+    if (L.rows.length) {
+      const keys = new Set(L.rows.map(r => HUNT.urlKey(r.url)));
+      feed.offers = feed.offers.filter(o => !(L.src.has(o.src) && keys.has(HUNT.urlKey(o.url))));
+      for (const r of L.rows) {
+        if (!r.name || r.name.length < 6 || r.price < 1000 || r.price > 2e9 || MATCH.REGION_RE.test(r.name)) continue;
+        r.grp = FEEDS.classify(r.name, r.cat); if (!r.grp) continue;
+        r.key = FEEDS.normKey(r.name); feed.offers.push(r); HSTAT.live++; if (!r.stock) HSTAT.gone++; else if (r.list) HSTAT.cheaper++;
+        (ages[r.src] = ages[r.src] || []).push(r.ageH || 0); }
+      for (const [src, a] of Object.entries(ages)) { const e = per[src] = per[src] || { total: a.length, n: a.length, age: null }; e.live = a.length; e.liveAge = +(medOf(a) / 24).toFixed(1); }
+    }
+    if (L.suspect.length) { HSTAT.suspect = L.suspect; console.log('CANH BAO san gia: ty le trang "khong con ban" cao bat thuong tai ' + L.suspect.join(', ') + ' -> khong ap dung trang thai ngung ban cua nguon nay'); }
+    console.log(`San gia - gia trang that thay gia niem yet cua datafeed: ${HSTAT.live} ban ghi (${HSTAT.cheaper} dang ban thap hon gia niem yet · ${HSTAT.gone} da ngung ban/lien he)`); }
+  const HROWS = HUNT.huntRows(process.env);
   const SHIP = LANDEDM.create(process.env, await LANDEDM.fetchStats(process.env)); console.log('Gia thuc tra: ' + SHIP.desc);
   const CHAIN = await LANDEDM.fetchChainHead(process.env); console.log('Chuoi bam may chu: ' + (CHAIN ? '#' + CHAIN.seq + ' ' + CHAIN.hash.slice(0, 12) : 'khong lay duoc'));
   const REVIEWS = await LANDEDM.fetchReviewStats(process.env); console.log('Danh gia that: ' + (REVIEWS ? Object.keys(REVIEWS).length + ' SP co danh gia' : 'khong lay duoc - giu thong ke cu'));
@@ -216,6 +236,18 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     for (const r of SROWS) { const sku = fullBySku.has(r.sku) ? r.sku : ((fidx.merged[r.sku] || {}).to || ''), p = fullBySku.get(sku); if (!p) continue;   // ket qua tim cua ma da gop -> dung cho ma chuan
       const m = IDX.find(r.name, p.grp, MIN_FZ).find(m => m.id === sku); if (!m) continue;
       pushM(fzBySku, sku, { o: { src: r.src, price: r.price, stock: 1, url: r.url, image: r.image, name: r.name, stale: r.stale }, sc: m.score }); }
+    /* (5b) Offer SAN THEO MA MODEL (hunt.js, da gan san cho SKU): chi nhan khi bo ghep xep vao muc TRUNG MA (>= 0,90) voi chinh san pham do.
+     *      Pham vi giao hang: nguon giao toan quoc moi duoc dung dinh gia; nguon theo vung / chua xac minh -> chi liet ke cho quan tri duyet tay (reg). */
+    { const by = {};
+      for (const r of HROWS) { const sku = fullBySku.has(r.sku) ? r.sku : ((fidx.merged[r.sku] || {}).to || ''), p = fullBySku.get(sku); if (!p) continue;
+        const m = IDX.find(r.name, p.grp, 0.9).find(m => m.id === sku); if (!m) continue;
+        const reg = HUNT.reachNote(r.reach, r.region, LANDEDM.isBulky(p.grp, p.name));
+        pushM(fzBySku, sku, { o: { src: r.src, price: r.price, stock: r.stock, url: r.url, image: r.image, name: r.name, stale: r.stale, hunt: 1, reg }, sc: m.score });
+        HSTAT.map++; if (reg) HSTAT.reg++; (by[r.src] = by[r.src] || []).push(r.ageH || 0); }
+      const per = feed.stat.per = feed.stat.per || {}, SS = HUNT.siteStat(process.env);
+      for (const [src, v] of Object.entries(SS)) if (v.mode !== 'feed') { const a = by[src] || []; per[src] = { total: v.targets, n: a.length, age: a.length ? +(medOf(a) / 24).toFixed(1) : null }; }
+      HSTAT.sites = Object.fromEntries(Object.entries(SS).map(([k, v]) => [k, { t: v.targets, f: v.fresh, g: v.gone, m: v.miss, a: v.ageH, x: v.fail || '' }]));
+      console.log(`San gia - offer theo ma model tu website ban le: ${HROWS.length} trang da doc · ${HSTAT.map} offer trung ma voi san pham (${HSTAT.reg} chi de quan tri duyet tay vi pham vi giao hang)`); }
     feed.stat.fuzzySku = fzBySku.size;
   }
   if (feed.dropKeys && feed.dropKeys.size) {
@@ -228,6 +260,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   }
   /* ===== GO SAN PHAM KHONG CON NGUON: khong offer nao (chinh xac lan ghep mo) trong RETIRE_RUNS lan chay khoe lien tiep =====
    * (vd hang chi co o feed da chet nhieu nam cua Lazada/Sendo/Dien May Cho Lon - gia do khong mua duoc that) */
+  const BOOK = CURATE.loadApprovals(path.join(__dirname, 'approvals.json'));   // so duyet tay cong khai (chi SKU + ma offer mot chieu + quyet dinh)
   { /* Chi go khi lan chay KHOE (tinh o tren) - neu khong se go oan hang loat san pham roi tao lai voi ma moi. */
     if (shrunk.length) { feed.stat.shrunk = shrunk; console.log('CANH BAO: nguon tut so ban ghi qua nua so voi lan khoe gan nhat -> lan nay KHONG go san pham: ' + shrunk.join(', ')); }
     /* GIU NGUYEN BAN DA XUAT BAN khi mat du lieu nguon lon: ngay 13/11/2026 API nguon tu choi vi goi qua nhanh, 3 feed khong tai duoc ->
@@ -242,7 +275,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     if (healthy) fidx.srcN = cntBySrc;
     if (healthy) for (const p of full) {
       if (!fidx.origin[p.sku]) continue;
-      if (exBySku.has(p.sku) || fzBySku.has(p.sku)) { delete fidx.miss[p.sku]; continue; }
+      if (exBySku.has(p.sku) || (fzBySku.get(p.sku) || []).some(x => !x.o.reg) || (fzBySku.has(p.sku) && BOOK.items[p.sku])) { delete fidx.miss[p.sku]; continue; }   // offer san gia chi giao theo vung (chua duyet tay) khong tinh la nguon
       const n = (fidx.miss[p.sku] || 0) + 1; fidx.miss[p.sku] = n; if (n >= RETIRE_RUNS) rm.add(p.sku);
     }
     /* hang gia tri thap: da duoi nguong LOWVAL_RUNS lan chay khoe lien tiep (dem o vong tinh gia ben duoi) -> go */
@@ -278,7 +311,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
    * goi quan tri ma hoa (so rieng apprPriv). Nap goi quan tri lan truoc 1 lan: lich su cap nhat, so rieng, va gia offer ma quan tri da nhin thay. */
   const AKEY = (process.env.ADMIN_PORTAL_KEY || '').trim(); // tu cat khoang trang/xuong dong khi dan Secret
   const ENC = path.join(SITE, 'admin', 'data.enc');
-  const APK = CURATE.apprKeys(AKEY), BOOK = CURATE.loadApprovals(path.join(__dirname, 'approvals.json'));
+  const APK = CURATE.apprKeys(AKEY);
   let prevUpdates = null; const apprPriv = {}, prevSeen = new Map(), apprStat = { ok: 0, no: 0, stale: 0, pend: 0 };
   if (AKEY) { const prev = ULOG.decryptFile(ENC, AKEY);
     if (prev) { prevUpdates = prev.updates || null;
@@ -296,10 +329,13 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     const hasDec = !!(APK && BOOK.items[p.sku]), decMemo = new Map();
     const decOf = (src, url, price) => { if (!hasDec) return ''; const id = APK.oid(p.sku, src, url), k = id + '|' + price; if (!decMemo.has(k)) decMemo.set(k, CURATE.decisionOf(BOOK, apprPriv, APK, p.sku, id, price, [prevSeen.get(p.sku + '|' + id) || 0])); return decMemo.get(k); };
     const exAll = exBySku.get(p.sku) || [], fzAll = fzBySku.get(p.sku) || [], lowOffers = [];
-    const exOffers = hasDec ? exAll.filter(o => decOf(o.src, o.url, o.price) !== 'no') : exAll, fzOffers = hasDec ? fzAll.filter(x => decOf(x.o.src, x.o.url, x.o.price) !== 'no') : fzAll;
+    /* offer san gia tu nguon chi giao theo vung / chua xac minh pham vi giao hang: KHONG dung dinh gia toan quoc cho den khi quan tri duyet tay dung offer + muc gia do */
+    const isReg = o => !!o.reg && decOf(o.src, o.url, o.price) !== 'ok';
+    const exOffers = hasDec ? exAll.filter(o => decOf(o.src, o.url, o.price) !== 'no') : exAll, fzOffers = (hasDec ? fzAll.filter(x => decOf(x.o.src, x.o.url, x.o.price) !== 'no') : fzAll).filter(x => !isReg(x.o));
+    const regOffers = fzAll.filter(x => x.o.stock && isReg(x.o) && decOf(x.o.src, x.o.url, x.o.price) !== 'no');
     if (exOffers.length || fzOffers.length || fidx.origin[p.sku]) {
       // GIA THAT tu kenh chinh thuc (san pham tu feed khong co gia mo phong; mat khoi feed => tam het hang)
-      const toState = (o, extra) => ({ source: o.src, price: o.price, in_stock: o.stock ? 1 : 0, url: o.url, image: o.image, name: o.name, fetched_at: now, fs: FS_RE.test(o.name || '') ? 1 : 0, st: o.stale ? 1 : 0, ...extra });
+      const toState = (o, extra) => ({ source: o.src, price: o.price, in_stock: o.stock ? 1 : 0, url: o.url, image: o.image, name: o.name, fetched_at: now, fs: FS_RE.test(o.name || '') ? 1 : 0, st: o.stale ? 1 : 0, ...(o.live ? { lv: 1 } : {}), ...(o.reg ? { ap: 'ok' } : {}), ...extra });   // offer co o.reg den duoc day = quan tri da duyet tay (xem isReg)
       /* Offer ghep mo phai qua 2 chot truoc khi duoc so gia:
        *  - NGUOI BAN: chuoi ban le / 1 shop chi niem yet moi SP 1 lan -> offer ghep mo tu chinh nguoi ban da co offer chinh xac la SP KHAC -> bo
        *  - DAI GIA : so voi gia neo (trung vi offer chinh xac; khong co thi gia nguon ky truoc), toi da 160% gia neo. San duoi:
@@ -314,7 +350,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       const sure = x => x.sc >= 0.92 && MATCH.SINGLE_SELLER.has(x.o.src);
       // Gia neo CHI gom gia NIEM YET tu datafeed khong co khuyen mai (2 chuoi dung chung 1 bang gia): offer cua chuoi ban le khac
       // ghep theo ma model yeu + thuong hieu (0.7..0.9) duoc nhan tu 45% gia neo thay vi 70%.
-      const exL = exOffers.filter(o => o.stock), listOnly = exL.length > 0 && exL.every(o => o.src === 'thegioididong' || o.src === 'dienmayxanh');
+      const exL = exOffers.filter(o => o.stock), listOnly = exL.length > 0 && exL.every(o => (o.src === 'thegioididong' || o.src === 'dienmayxanh') && !o.live);   // da doc gia trang that (live) thi khong con la gia niem yet
       const retailW = x => listOnly && x.sc >= 0.7 && x.sc < 0.9 && MATCH.SINGLE_SELLER.has(x.o.src);
       const bT = MATCH.band(exLive, wrap(fz.filter(sure)), 0.3, prev), bS = MATCH.band(exLive, wrap(fz.filter(x => x.sc >= 0.9 && !sure(x))), 0.5, prev),
         bR = MATCH.band(exLive, wrap(fz.filter(retailW)), 0.45, prev), bW = MATCH.band(exLive, wrap(fz.filter(x => x.sc < 0.9 && !retailW(x))), 0.7, prev);
@@ -324,8 +360,10 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       for (const y of bT.ok.concat(bS.ok, bW.ok)) consider(toState(y.x.o, { fz: y.x.sc }));
       offerState = Object.values(per);
       const lowB = bT.low.concat(bS.low, bW.low);
+      for (const y of bT.ok.concat(bS.ok, bW.ok)) if (y.x.o.hunt) HSTAT.used++;
       for (const y of lowB) if (decOf(y.x.o.src, y.x.o.url, y.x.o.price) === 'ok') { y.ap = 1; const st = toState(y.x.o, { fz: y.x.sc, ap: 'ok' }), cur = per[st.source]; if (!cur || st.price < cur.price || !cur.in_stock) { per[st.source] = st; offerState = Object.values(per); } }   // quan tri da duyet -> dung dinh gia
       for (const y of lowB) if (!y.ap) lowOffers.push({ ...toState(y.x.o, { fz: y.x.sc }), x: 'Ghép chéo: rẻ bất thường so với giá neo - chưa dùng định giá, cần duyệt tay', pend: 1 });
+      for (const x of regOffers) lowOffers.push({ ...toState(x.o, { fz: x.sc }), ap: undefined, x: 'Săn giá theo mã: nguồn ' + x.o.reg + ' - chưa dùng định giá toàn quốc, cần duyệt tay', pend: 1 });
       if (hasDec) for (const o of exAll.concat(fzAll.map(x => x.o))) if (decOf(o.src, o.url, o.price) === 'no') lowOffers.push({ ...toState(o), x: 'Quản trị đã từ chối offer này - không dùng', ap: 'no' });
       trustStat.low = (trustStat.low || 0) + lowB.filter(y => !y.ap).length;
       // offer ghep cheo DAT hon 1,6 lan gia neo: khong anh huong gia re nhat -> chi liet ke 1 dong/nguon de quan tri tham khao (neu nguon do chua co offer hop le)
@@ -417,7 +455,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       sp: Object.keys(d.specs || {}).length,
       best: best ? { s: bestSrc, p: bestListed, sh: bestShip, l: best } : null, margin: best ? d.kk_price - best : null,   // margin = lai thuc sau ship
       // u = duong dan dat hang (bot chi tu dat khi khop chinh xac hoac trung ma model >= 0.9); ghep theo ten: duong dan nam o fu de nguoi van hanh kiem tra truoc
-      offers: offerState.concat(lowOffers).map(o => { const man = o.fz && o.fz < 0.9; const r = { s: o.source, p: o.price, sh: o.ship || 0, l: o.landed || o.price, k: o.in_stock, u: man ? '' : (o.url || ''), x: o.x || '' }; if (o.fz) { r.f = o.fz; r.n = String(o.name || '').slice(0, 110); if (man) r.fu = o.url || ''; }
+      offers: offerState.concat(lowOffers).map(o => { const man = o.fz && o.fz < 0.9; const r = { s: o.source, p: o.price, sh: o.ship || 0, l: o.landed || o.price, k: o.in_stock, u: man ? '' : (o.url || ''), x: o.x || '' }; if (o.lv) r.lv = 1; if (o.fz) { r.f = o.fz; r.n = String(o.name || '').slice(0, 110); if (man) r.fu = o.url || ''; }
         if (APK && o.url && (o.pend || o.ap)) r.id = APK.oid(p.sku, o.source, o.url);                         // ma offer (HMAC mot chieu) cho nut Duyet / Tu choi
         if (o.pend) { r.pa = 1; if (PRICING.ok) r.kq = PRICING.sell(o.landed); if (!r.n) r.n = String(o.name || '').slice(0, 110); if (!r.fu && !r.u) r.fu = o.url || ''; } if (o.ap) r.ap = o.ap; return r; }).sort((a, b) => a.l - b.l), feed: (exOffers.length || fzOffers.length) ? 1 : 0, nx: exOffers.length, bf: best && bestFz ? bestFz : 0,
       hold: d.hold ? d.hold_why : '', fl: ev.fl, disc: ev.disc });
@@ -493,6 +531,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   // Chi sinh khi co khoa (GitHub Secret ADMIN_PORTAL_KEY); nguoi ngoai khong giai ma duoc.
   if (AKEY) {
     const SRCMETA = { dienmayxanh: ['\u0110i\u1ec7n M\u00e1y Xanh', '#2e7d32'], thegioididong: ['Th\u1ebf Gi\u1edbi Di \u0110\u1ed9ng', '#f9a825'], fptshop: ['FPT Shop', '#f37021'], cellphones: ['CellphoneS', '#d70018'], dienmaycholon: ['\u0110M Ch\u1ee3 L\u1edbn', '#0066b3'], tiki: ['Tiki', '#1a94ff'], shopee: ['Shopee', '#ee4d2d'], tiktok: ['TikTok Shop', '#111'], lazada: ['Lazada', '#0f146d'], sendo: ['Sendo', '#d0021b'] , hoangha: ['Ho\u00e0ng H\u00e0 Mobile', '#c2185b'], phucanh: ['Ph\u00fac Anh', '#1565c0'], anphat: ['An Ph\u00e1t', '#d84315'] };
+    for (const [id, S] of Object.entries(HUNT.sitesOf(process.env))) if (!SRCMETA[id]) SRCMETA[id] = [S.name, S.color || '#546e7a'];   // website trong danh ba san gia
     // Lich su cap nhat: giai ma goi cu -> noi them ban ghi lan chay nay
     const FEEDK = ['ACCESSTRADE_KEY', 'FEED_URLS', 'SHOPEE_APP_ID', 'LAZADA_APP_KEY', 'TIKTOK_APP_KEY', 'TIKI_CLIENT_ID', 'SENDO_FEED_URL'].filter(k => process.env[k]);
     const entry = ULOG.finish(run, {

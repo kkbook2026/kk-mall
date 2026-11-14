@@ -378,4 +378,4 @@ async function collectFeeds(env, hint = {}) {
   return { offers, stat, dropKeys, unclassSample: sample };
 }
 
-module.exports = { collectFeeds, feedList, parsePrice, parseAny, normRow, inStockOf, classify, classifyPriority, normKey, SOURCES };
+module.exports = { collectFeeds, feedList, parsePrice, parseAny, normRow, inStockOf, classify, classifyPriority, normKey, SOURCES, csvUrl, AT_CSV };

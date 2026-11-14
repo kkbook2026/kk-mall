@@ -366,6 +366,7 @@ function band(exactPrices, fuzzy, lo = 0.7, fallback = 0, hi = 1.6) {
 
 /* Nguon 1 nguoi ban (chuoi ban le / website hang): moi SP chi niem yet 1 lan -> offer cung nguoi ban ghep mo vao SP da co offer chinh xac cua ho = SP KHAC */
 const SINGLE_SELLER = new Set(['thegioididong', 'dienmayxanh', 'fptshop', 'cellphones', 'dienmaycholon', 'hoangha', 'phucanh', 'anphat']);
+for (const id of Object.keys(require('./hunt-sites'))) SINGLE_SELLER.add(id);   // website trong danh ba san gia (hunt.js): moi website la 1 nguoi ban
 /* Nguoi ban cua 1 offer: chuoi ban le = chinh nguon do; Shopee = ma shop trong duong dan; san khac khong xac dinh duoc -> null */
 function sellerOf(src, url) {
   if (SINGLE_SELLER.has(src)) return src;

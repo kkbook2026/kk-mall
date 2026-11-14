@@ -8,3 +8,4 @@
 collector/.changed.json
 collector/.retail-cache/
 collector/.search-cache/
+collector/.hunt-cache/

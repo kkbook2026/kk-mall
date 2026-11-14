@@ -71,6 +71,7 @@ function histRef(d, today) {
  * Tra ve { valid, dropped:[{...offer, why}] }
  */
 const RETAIL_TRUSTED = new Set(['thegioididong', 'dienmayxanh', 'fptshop', 'cellphones', 'dienmaycholon', 'hoangha', 'phucanh', 'anphat']);
+for (const [id, S] of Object.entries(require('./hunt-sites'))) if (S.trusted) RETAIL_TRUSTED.add(id);   // chuoi lon trong danh ba san gia (hunt.js)
 function filterOffers(d, offers, offset, today) {
   const toCost = typeof offset === 'function' ? offset : (v => v - (Number.isFinite(offset) ? offset : 0));
   const H = histRef(d, today);                // gia ban niem phong trung vi
