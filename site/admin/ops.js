@@ -24,6 +24,17 @@ const srcName = s => (SRC[s] || [s])[0];
 (function injectTabs() {
   const nav = document.getElementById('nav'), main = document.querySelector('main');
   const addTab = (key, label, after) => { const b = document.createElement('button'); b.dataset.t = key; b.textContent = label; b.onclick = () => go(key); const ref = nav.querySelector(`[data-t="${after}"]`); ref ? ref.after(b) : nav.appendChild(b); };
+  addTab('appr', '✅ Duyệt giá', 'cmp');
+  document.head.insertAdjacentHTML('beforeend', '<style>table.appr th{position:sticky;top:0;background:#F1F5F9;z-index:2;text-align:left;padding:9px 10px;border-bottom:2px solid #CBD5E1;font-size:11px;white-space:nowrap}table.appr td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;white-space:normal;line-height:1.45}table.appr tr:hover td{background:#F8FAFF}table.appr a{color:#1E3A8A;font-weight:600}</style>');
+  main.insertAdjacentHTML('beforeend', `
+  <section class="sec" id="t-appr"><h2>Duyệt giá - offer rẻ bất thường đang được giữ lại <span style="font-weight:600;font-size:12px;color:var(--muted)" id="apprCount"></span></h2>
+    <div class="note">Bộ lọc tin cậy và dải giá ghép chéo <b>giữ lại</b> các offer rẻ hơn hẳn mức bình thường (có thể là hàng khác mẫu, hàng cũ, giá ảo - hoặc là <b>giá khuyến mãi thật</b>). Nếu bạn kiểm tra trang nguồn thấy đúng sản phẩm, bấm <b>Duyệt</b>: lần thu thập kế tiếp sẽ dùng offer đó để định giá (giá KK-MALL giảm theo). Bấm <b>Từ chối</b> để loại hẳn offer khỏi sản phẩm này.<br>
+    Mỗi nút mở một trang GitHub đã điền sẵn - bạn chỉ cần bấm <b>Submit new issue</b> (đang đăng nhập tài khoản chủ kho mã). Nội dung gửi đi chỉ gồm mã sản phẩm và một mã băm một chiều, <b>không</b> chứa tên nguồn hay giá nguồn. Quyết định gắn với đúng mức giá bạn đang thấy: nếu giá nguồn tụt sâu hơn 10% sau đó, offer quay lại danh sách chờ duyệt.</div>
+    <div id="apprMsg"></div>
+    <div class="card" style="padding:0;max-height:70vh;overflow:auto"><table class="appr" id="apprTbl"></table></div>
+    <h2 style="margin-top:18px;font-size:15px">Quyết định đang có hiệu lực</h2>
+    <div class="card" style="padding:0;max-height:40vh;overflow:auto"><table class="appr" id="apprDone"></table></div>
+  </section>`);
   addTab('po', '🛒 Lệnh mua', 'orders'); addTab('rma', '↩️ Đổi trả & BH', 'po'); addTab('ledger', '📒 Sổ kế toán', 'rev'); addTab('reviews', '⭐ Đánh giá', 'rma'); addTab('smiss', '🔎 Tìm không ra', 'reviews');
   main.insertAdjacentHTML('beforeend', `
   <section class="sec" id="t-po"><h2>Lệnh mua tại nhà cung cấp <span style="font-weight:600;font-size:12px;color:var(--muted)" id="poCount"></span></h2>
@@ -136,7 +147,8 @@ renderCust = function () {
 
 /* ---------- LỆNH MUA: tự lập kế hoạch nguồn rẻ nhất ---------- */
 function planPO(po, o) {
-  const row = DATA && DATA.rows.find(r => r.sku === po.sku);
+  const skuNow = (DATA && DATA.alias && DATA.alias[po.sku]) || po.sku;   // ma da gop ve ma chuan: lenh mua cu van tim dung nguon cua san pham chuan
+  const row = DATA && DATA.rows.find(r => r.sku === skuNow);
   const unit = Number(po.data.unit_cost) || Math.round(po.collected_cost / po.qty), needVat = !!o.vat;
   // so sanh theo GIA THUC TRA (niem yet + ship du phong cua nguon) - tien hang da thu cua khach cung la gia thuc tra
   const offers = (row ? row.offers : []).filter(x => x.k && !x.x).map(x => { const l = x.l != null ? x.l : x.p; return { ...x, l, diff: l - unit, vat: OPS.vatSrc.includes(x.s) }; }).sort((a, b) => a.l - b.l);
@@ -320,7 +332,7 @@ async function saveOpsCfg() {
 
 /* ---------- khởi động: sau khi mở khóa dữ liệu ---------- */
 const _boot = boot;
-boot = function () { _boot(); opsGate(); opsLoad(); if (OPS.on) fetch(window.KK_BACKEND + '?a=config').then(r => r.json()).then(c => { if (!FEE_TABLE) { FEE_TABLE = c.fee_table; renderCmp(); } }).catch(() => { }); };
+boot = function () { _boot(); opsGate(); opsLoad(); renderAppr(); if (OPS.on) fetch(window.KK_BACKEND + '?a=config').then(r => r.json()).then(c => { if (!FEE_TABLE) { FEE_TABLE = c.fee_table; renderCmp(); } }).catch(() => { }); };
 
 async function showShipStats() {
   const box = $('#shipStats'); box.textContent = 'Đang tải...';
@@ -450,4 +462,48 @@ async function runAudit() {
       + (r.issues.length ? `<table style="margin-top:6px">${r.issues.map(i => `<tr><td>${i.lvl === 'high' ? '🔴' : '🟠'}</td><td><b>${esc(i.code)}</b></td><td>${esc(i.msg)}</td></tr>`).join('')}</table>` : '');
     logAdmin('Tự kiểm toán: ' + r.issues.length + ' việc');
   } catch (e) { el.textContent = '⚠ ' + e.message; }
+}
+
+/* ---------- DUYET GIA: offer re bat thuong dang bi giu lai (quyet dinh gui qua issue GitHub cua chu kho ma, khong can khoa nao khac) ---------- */
+const GH_REPO = 'kkbook2026/kk-mall';
+async function apprCommit(id, price) {   // cam ket = HMAC(khoa dan xuat tu khoa quan tri, ma offer | gia dang thay) - may chu thu thap doi chieu dung muc gia da duyet
+  const kh = sessionStorage.getItem('kk_appr_key'); if (!kh) throw new Error('Thiếu khóa duyệt - bấm "Khóa lại" rồi mở khóa cổng quản trị một lần nữa.');
+  const k = await crypto.subtle.importKey('raw', Uint8Array.from(kh.match(/../g).map(x => parseInt(x, 16))), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(id + '|' + Math.round(price)));
+  return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+}
+const apprSent = () => { try { return JSON.parse(sessionStorage.getItem('kk_appr_sent') || '{}'); } catch { return {}; } };
+async function apprSend(d, sku, id, price) {
+  const msg = document.getElementById('apprMsg');
+  try {
+    if (!/^KK\d{6}$/.test(sku) || !/^[0-9a-f]{20}$/.test(id)) throw new Error('Mã không hợp lệ');
+    const c = await apprCommit(id, price), title = `KK-DUYET ${d} ${sku} ${id} ${c}`;
+    const body = (d === 'ok' ? 'Duyệt' : d === 'no' ? 'Từ chối' : 'Bỏ quyết định về') + ' một offer của sản phẩm ' + sku + ' (gửi từ Cổng quản trị KK-MALL).\n\nBấm "Submit new issue" để ghi nhận - vui lòng KHÔNG sửa tiêu đề. Hệ thống tự xử lý rồi đóng issue này; quyết định có hiệu lực ở lần thu thập giá kế tiếp.';
+    window.open('https://github.com/' + GH_REPO + '/issues/new?title=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(body), '_blank', 'noopener');
+    const sent = apprSent(); sent[sku + '|' + id] = d; sessionStorage.setItem('kk_appr_sent', JSON.stringify(sent));
+    logAdmin((d === 'ok' ? 'Duyệt' : d === 'no' ? 'Từ chối' : 'Bỏ quyết định') + ' offer cho ' + sku);
+    msg.innerHTML = '<div style="background:#ECFDF5;color:#065F46;border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:8px">Đã mở trang GitHub cho ' + esc(sku) + ' - bấm <b>Submit new issue</b> ở tab vừa mở để hoàn tất.</div>';
+    renderAppr();
+  } catch (e) { msg.innerHTML = '<div style="background:#FEE2E2;color:#991B1B;border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:8px">' + esc(e.message) + '</div>'; }
+}
+function renderAppr() {
+  const tb = document.getElementById('apprTbl'), td = document.getElementById('apprDone'); if (!tb || typeof DATA !== 'object' || !DATA) return;
+  const sent = apprSent(), pend = [], done = [];
+  for (const r of DATA.rows) for (const o of r.offers || []) { if (!o.id) continue; if (o.pa) pend.push({ r, o, save: o.kq != null && r.stock && r.kk > 0 ? r.kk - o.kq : null }); else if (o.ap) done.push({ r, o }); }
+  pend.sort((a, b) => (b.save == null ? 1e12 : b.save) - (a.save == null ? 1e12 : a.save));
+  document.getElementById('apprCount').textContent = '(' + pend.length + ' offer chờ duyệt)';
+  const link = o => { const u = o.u || o.fu || ''; return /^https:\/\//.test(u) ? ` <a href="${esc(u)}" target="_blank" rel="noopener noreferrer">Mở trang nguồn ↗</a>` : ''; };
+  const btns = (r, o) => { const s = sent[r.sku + '|' + o.id];
+    if (s) return `<span style="font-size:12px;color:var(--muted)">Đã gửi: ${s === 'ok' ? 'duyệt' : s === 'no' ? 'từ chối' : 'bỏ quyết định'} - chờ lần thu thập kế tiếp</span>`;
+    return `<button class="btn2 pri" onclick="apprSend('ok','${r.sku}','${o.id}',${o.p})">✓ Duyệt</button> <button class="btn2" onclick="apprSend('no','${r.sku}','${o.id}',${o.p})">✗ Từ chối</button>`; };
+  tb.innerHTML = '<tr><th>Sản phẩm</th><th>Đang bán</th><th>Offer đang bị giữ</th><th>Lý do giữ</th><th>Nếu duyệt</th><th></th></tr>' + (pend.length ? pend.slice(0, 300).map(({ r, o, save }) => `<tr>
+    <td style="width:24%"><b>${esc(r.name)}</b><br><span style="font-size:11.5px;color:var(--muted)">${r.sku} · ${esc(r.grp || '')}</span></td>
+    <td>${r.stock ? '<b>' + vnd(r.kk) + '</b>' : '<span style="color:#991B1B">Tạm hết / đang giữ</span>'}${r.best ? `<br><span style="font-size:11.5px;color:var(--muted)">${esc(srcName(r.best.s))}: ${vnd(r.best.l)}</span>` : ''}</td>
+    <td style="width:27%"><b>${esc(srcName(o.s))}</b>: ${vnd(o.p)}${o.sh ? ' + ship ' + vnd(o.sh) : ''} = <b>${vnd(o.l)}</b>${link(o)}${o.n ? `<br><span style="font-size:11.5px;color:var(--muted)">${o.f ? 'Ghép ' + Math.round(o.f * 100) + '% · ' : ''}${esc(o.n)}</span>` : ''}${o.ap === 'stale' ? '<br><span style="font-size:11.5px;color:#92400E">Đã duyệt trước đây nhưng giá nguồn đã tụt sâu hơn - cần duyệt lại</span>' : ''}</td>
+    <td style="font-size:12px;width:17%">${esc(o.x || '')}</td>
+    <td>${o.kq != null ? '<b>' + vnd(o.kq) + '</b>' + (save > 0 ? `<br><span class="good" style="font-size:12px">giảm ${vnd(save)} (${Math.round(save / r.kk * 100)}%)</span>` : '') : '-'}</td>
+    <td style="white-space:nowrap">${btns(r, o)}</td></tr>`).join('') : '<tr><td colspan="6" style="padding:18px;color:var(--muted)">Không có offer nào đang chờ duyệt.</td></tr>');
+  td.innerHTML = '<tr><th>Sản phẩm</th><th>Offer</th><th>Quyết định</th><th></th></tr>' + (done.length ? done.map(({ r, o }) => `<tr><td><b>${esc(r.name)}</b><br><span style="font-size:11.5px;color:var(--muted)">${r.sku}</span></td>
+    <td>${esc(srcName(o.s))}: ${vnd(o.p)} → thực trả ${vnd(o.l)}${link(o)}</td><td>${o.ap === 'ok' ? '<span class="good">Đã duyệt - đang dùng định giá</span>' : '<span style="color:#991B1B">Đã từ chối</span>'}</td>
+    <td>${sent[r.sku + '|' + o.id] ? '<span style="font-size:12px;color:var(--muted)">Đã gửi yêu cầu bỏ</span>' : `<button class="btn2" onclick="apprSend('clear','${r.sku}','${o.id}',${o.p})">Bỏ quyết định</button>`}</td></tr>`).join('') : '<tr><td colspan="4" style="padding:14px;color:var(--muted)">Chưa có quyết định nào.</td></tr>');
 }

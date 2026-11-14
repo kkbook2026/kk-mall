@@ -85,6 +85,9 @@ jobs:
           KK_TRIGGER: ${{ github.event.inputs.trigger }}
           KK_FORCE: ${{ github.event.inputs.force }}
           SHRINK_HOLD_H: ${{ vars.SHRINK_HOLD_H || '12' }}
+          SELL_MIN_SOURCE_PRICE: ${{ vars.SELL_MIN_SOURCE_PRICE || '90000' }}   # hang gia tri thap: gia niem yet re nhat tai nguon duoi muc nay thi go khoi cua hang (0 = tat)
+          LOWVAL_RUNS: ${{ vars.LOWVAL_RUNS || '3' }}                       # ... sau so lan chay khoe lien tiep nay
+          MERGE_MAX_PER_RUN: ${{ vars.MERGE_MAX_PER_RUN || '250' }}         # gop san pham trung ve 1 ma chuan: so ma toi da moi lan chay (0 = tat)
         run: node collector/collect.js
       - name: Luu du lieu moi (giu lich su gon - amend 1 commit du lieu)
         run: |

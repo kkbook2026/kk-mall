@@ -1,0 +1,85 @@
+# DUYET GIA TU CONG QUAN TRI - quan tri bam nut "Duyet / Tu choi" trong tab Duyet gia, trinh duyet mo trang tao issue da dien san tieu de
+# "KK-DUYET <ok|no|clear> <SKU> <ma offer> <cam ket>". Workflow nay CHI chay khi issue do chinh CHU KHO MA tao: ghi quyet dinh vao
+# collector/approvals.json (chi gom ma san pham + ma bam mot chieu - khong co ten nguon, gia nguon), tra loi va dong issue, roi goi bo thu thap gia.
+# Cach du phong (khong can tao issue): chu kho ma chay tay workflow nay va dan nguyen tieu de vao o "title".
+# An toan: tieu de chi di qua bien moi truong (khong noi vao lenh shell) va duoc kiem tra bang bieu thuc chinh quy chat trong collector/curate.js.
+name: Duyet gia (tu cong quan tri)
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+    inputs:
+      title:
+        description: 'Tieu de quyet dinh: KK-DUYET <ok|no|clear> <SKU> <ma offer> <cam ket>'
+        required: true
+      collect:
+        description: '1 = goi bo thu thap gia ngay sau khi ghi'
+        required: false
+        default: ''
+permissions:
+  contents: write
+  issues: write
+  actions: write
+concurrency:
+  group: approvals
+  cancel-in-progress: false
+jobs:
+  apply:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) ||
+      (github.event_name == 'issues' && startsWith(github.event.issue.title, 'KK-DUYET ') && github.event.issue.user.login == github.repository_owner)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          sparse-checkout: |
+            collector
+          sparse-checkout-cone-mode: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Ghi quyet dinh vao so duyet
+        id: apply
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title || inputs.title }}
+          ISSUE_USER: ${{ github.event.issue.user.login || github.actor }}
+          ISSUE_ASSOC: ${{ github.event.issue.author_association || 'OWNER' }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || '0' }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          KK_APPROVE_MSG: ${{ runner.temp }}/kk-approve.txt
+        run: node collector/approve.js
+      - name: Luu so duyet
+        if: steps.apply.outputs.changed == '1'
+        env:
+          REF: ${{ github.event.issue.number || github.run_id }}
+        run: |
+          git config user.name "kk-mall-bot"
+          git config user.email "bot@kk-mall.com"
+          git add collector/approvals.json
+          git commit -q -m "duyet-gia: ghi quyet dinh cua quan tri ($REF)"
+          for i in 1 2 3 4 5; do
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((i * 5)); git fetch -q origin main && git rebase -q origin/main
+          done
+          echo "Khong day duoc so duyet" >&2; exit 1
+      - name: Tra loi va dong issue
+        if: always() && github.event_name == 'issues'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          N: ${{ github.event.issue.number }}
+          JOB_OK: ${{ job.status }}
+        run: |
+          MSG="$(cat "$RUNNER_TEMP/kk-approve.txt" 2>/dev/null || echo 'Không xử lý được yêu cầu - xem nhật ký workflow.')"
+          if [ "$JOB_OK" != "success" ]; then MSG="$MSG (Lưu ý: bước lưu sổ duyệt gặp lỗi - vui lòng bấm lại nút trong Cổng quản trị.)"; fi
+          gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$N/comments" -f body="$MSG" > /dev/null
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$N" -f state=closed > /dev/null
+      - name: Goi bo thu thap gia de quyet dinh co hieu luc ngay (neu chua co lan nao dang chay/cho)
+        if: steps.apply.outputs.changed == '1' && (github.event_name == 'issues' || inputs.collect == '1')
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          busy=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow collect.yml --limit 10 --json status -q '[.[] | select(.status != "completed")] | length')
+          if [ "$busy" = "0" ]; then gh workflow run collect.yml --repo "$GITHUB_REPOSITORY" --ref main -f trigger=duyet-gia && echo "Da goi bo thu thap gia."; else echo "Da co lan thu thap dang chay/cho ($busy) - quyet dinh se duoc ap dung o lan do hoac lan ke tiep."; fi

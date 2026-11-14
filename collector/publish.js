@@ -16,6 +16,8 @@ function publish({ API, pub: pubIn, meta, now, seq, mk, recent, chain, keep, log
   let pub = pubIn;
   const wj = (f, d) => fs.writeFileSync(path.join(API, f), JSON.stringify(d));
   const rj = f => JSON.parse(fs.readFileSync(path.join(API, f), 'utf8'));
+  // file thay the cua ma da gop (products/<ma cu>.json co merged_into) khong nam trong danh muc nhung phai giu: lay tu tham so hoac api/alias.json
+  if (!keep) { try { keep = new Set(Object.keys(rj('alias.json').map || {})); } catch { keep = new Set(); } }
 
   /* ---- go han SP mo phong khong co nguon mua ho that (NO_SOURCE): khong ban duoc, so "da ban" khong xac thuc ---- */
   const dropped = pub.filter(p => (p.fl || 0) & T.FL.NO_SOURCE);

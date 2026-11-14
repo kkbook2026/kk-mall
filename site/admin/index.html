@@ -324,7 +324,8 @@ async function unlock(e){
     const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:Uint8Array.from(atob(enc.iv),c=>c.charCodeAt(0))},aes,ct);
     DATA=JSON.parse(enc.z==='gzip'?await new Response(new Blob([pt]).stream().pipeThrough(new DecompressionStream('gzip'))).text():new TextDecoder().decode(pt));   // goi moi: nen gzip truoc khi ma hoa
     sessionStorage.setItem('kk_admin_email',email);
-    try{const bk=await crypto.subtle.importKey('raw',te.encode(key),'PBKDF2',false,['deriveBits']);const h=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:te.encode('kk-stats-v2'),iterations:300000},bk,256);sessionStorage.setItem('kk_stats_key',[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join(''))}catch{}  // khoa thong ke ship (dan xuat, khong luu khoa goc)
+    try{const bk=await crypto.subtle.importKey('raw',te.encode(key),'PBKDF2',false,['deriveBits']);const h=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:te.encode('kk-stats-v2'),iterations:300000},bk,256);sessionStorage.setItem('kk_stats_key',[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join(''));
+      const h2=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:te.encode('kk-approve-v1'),iterations:300000},bk,256);sessionStorage.setItem('kk_appr_key',[...new Uint8Array(h2)].map(b=>b.toString(16).padStart(2,'0')).join(''))}catch{}  // khoa duyet gia (dan xuat, khong luu khoa goc)  // khoa thong ke ship (dan xuat, khong luu khoa goc)
     boot();
   }catch(ex){
     err.textContent='Khóa quản trị không đúng hoặc gói dữ liệu bị thay đổi. Vui lòng thử lại.';
@@ -857,6 +858,11 @@ function updDetail(e){
     (e.note?`<div style="font-size:12px;color:#334155;margin-top:8px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 9px">📝 ${esc(e.note)}</div>`:'')+
     (e.ledger&&e.ledger[1]>=e.ledger[0]?`<div style="font-size:11.5px;color:var(--muted);margin-top:8px">Sổ cái giá: niêm phong bản ghi #${n(e.ledger[0])} → #${n(e.ledger[1])}</div>`:'')+`</div>`;
   if(e.feed)h+=`<div style="grid-column:1/-1;background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:12.5px"><b style="color:var(--ink)">📥 Datafeed chính thức lần này</b><br>Nguồn tải được: <b>${e.feed.ok}/${e.feed.sources}</b> · Bản ghi đọc: <b>${n(e.feed.items)}</b> · Hợp lệ: <b>${n(e.feed.valid)}</b> · Khớp SP sẵn có: <b>${n(e.feed.matched)}</b> · <span class="good">Thêm mới: <b>${n(e.feed.added)}</b></span> · Không phân loại được: ${n(e.feed.unclassified)} · Lỗi giá/tên: ${n(e.feed.bad)}${e.feed.capped?' · Vượt trần/thiếu ảnh/giá trị thấp: '+n(e.feed.capped):''}${e.feed.fuzzySku!=null?`<br>🔗 <b>Ghép chéo nguồn:</b> <b>${n(e.feed.fuzzyKeys)}</b> tên ghép vào <b>${n(e.feed.fuzzySku)}</b> SP · tách <b>${n(e.feed.split)}</b> nhóm gộp nhầm mẫu · gỡ <b>${n(e.feed.unlinked)}</b> liên kết sai · gỡ <b>${n((e.feed.retired||0)+(e.feed.removed||0))}</b> SP hết nguồn (chờ gỡ: ${n(e.feed.missing||0)}) · offer tìm theo từ khóa trên sàn: <b>${n(e.feed.search||0)}</b>`:''}${e.feed.trust?`<br>🛡️ <b>Bộ lọc tin cậy:</b> loại <b>${n(e.feed.trust.dropped)}</b> offer ngoại lai · tạm giữ <b>${n(e.feed.trust.hold)}</b> SP · offer ghép chéo rẻ bất thường chờ duyệt: <b>${n(e.feed.trust.low)}</b> · giá mới lệch > 50% so với lịch sử đang chờ xác nhận lặp lại: <b>${n(e.feed.trust.histWait)}</b> SP · đã đặt lại mốc lịch sử lần này: <b>${n(e.feed.trust.healed)}</b> SP`:''}${e.feed.per?`<br>📊 <b>Theo nguồn</b> (bản ghi dùng / tổng · tuổi dữ liệu): ${Object.entries(e.feed.per).map(([k,v])=>`${esc((SRC[k]||[k])[0])} <b>${n(v.n)}</b>/${n(v.total)}${v.age!=null?` · ${v.age} ngày`:''}`).join(' | ')}`:''}${e.feed.stale&&e.feed.stale.length?`<br><span class="warn">⚠ Feed quá cũ đã bị BỎ (giá không còn mua được): ${e.feed.stale.map(esc).join(' · ')}</span>`:''}${e.feed.shrunk&&e.feed.shrunk.length?`<br><span class="warn">⚠ Nguồn tụt số bản ghi quá nửa so với lần khỏe gần nhất (lần này không gỡ sản phẩm): ${e.feed.shrunk.map(esc).join(' · ')}</span>`:''}${e.feed.fail&&e.feed.fail.length?`<br><span class="warn">Lỗi tải: ${e.feed.fail.map(esc).join(' · ')}</span>`:''}</div>`;
+  if(e.feed&&(e.feed.merged||e.feed.lowVal||e.feed.appr||e.feed.cap))h+=`<div style="grid-column:1/-1;background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:12.5px"><b style="color:var(--ink)">🧹 Chăm sóc danh mục lần này</b><br>`+
+    [e.feed.merged?`Gộp sản phẩm trùng: <b>${n(e.feed.merged.n)}</b> mã về mã chuẩn (đang giữ ${n(e.feed.merged.total||0)} mã cũ chuyển hướng)`:'',
+     e.feed.lowVal&&e.feed.lowVal.min?`Hàng giá trị thấp (giá nguồn dưới ${n(e.feed.lowVal.min)} đ): gỡ <b>${n(e.feed.lowVal.removed||0)}</b>, đang dưới ngưỡng ${n(e.feed.lowVal.wait||0)}`:'',
+     e.feed.appr?`Duyệt giá: chờ duyệt <b>${n(e.feed.appr.pend)}</b>, đang áp dụng ${n(e.feed.appr.ok)}, đã từ chối ${n(e.feed.appr.no)}${e.feed.appr.stale?', cần duyệt lại '+n(e.feed.appr.stale):''}`:'',
+     e.feed.cap?`Trần danh mục theo dung lượng: ${n(e.feed.cap)} SP`:''].filter(Boolean).join(' · ')+`</div>`;
   if(e.top&&e.top.length)h+=`<div style="grid-column:1/-1"><b style="font-size:12.5px;color:var(--ink)">Thay đổi giá lớn nhất lần này</b><table class="mini" style="margin-top:6px"><tr><th>SKU</th><th>Sản phẩm</th><th>Nhóm</th><th>Giá cũ</th><th>Giá mới</th><th>Chênh</th></tr>`+
     e.top.map(([sku,nm,g,o,nw])=>{const pc=(nw-o)/o*100;return `<tr><td>${esc(sku)}</td><td>${esc(nm)}</td><td>${esc(g)}</td><td>${n(o)}</td><td><b>${n(nw)}</b></td><td class="${pc>0?'up':'dn'}">${pc>0?'+':''}${pc.toFixed(1)}%</td></tr>`}).join('')+'</table></div>';
   return h+'</div>';
@@ -891,6 +897,6 @@ async function renderSys(){
 }
 </script>
 <script src="../config.js?v=2610260422"></script>
-<script src="ops.js?v=2611042100"></script>
+<script src="ops.js?v=2611141200"></script>
 </body>
 </html>

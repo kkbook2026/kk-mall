@@ -267,6 +267,55 @@ const PAIRS = [
     t(await K.make({ GITHUB_REPOSITORY: 'o/r' }, quiet).tick(T0) === null && await K.make({ ...env, GH_TOKEN: 'sai' }, quiet).tick(T0) === 'http401', 'bu lich: khong co token thi bo qua; token sai khong lam hong tien trinh');
     srv.close(); }
 
+  /* kich thuoc / dinh luong khong phai ma model (tung lam 2 tam nem khac hang cung co "160x200x5cm" bi coi la trung ma hang dai) */
+  { const sc = (a, b) => M.score(M.features(a), M.features(b));
+    t(sc('Nệm Kim Cương Gấp 3 Cao Su Bông 160x200x5cm', 'Nệm Cao Su thiên nhiên Vạn Thành UNIQUE - 160x200x5cm') === 0 && sc('Nệm Lò Xo Vạn Thành Phoenix 160x200x22cm', 'Nệm Lò Xo Vạn Thành Royal 160x200x22cm') === 0, 'kich thuoc "160x200x5cm" khong phai ma model: nem khac hang / khac dong cung kich thuoc KHONG ghep');
+    t(sc('Nệm Lò Xo Vạn Thành Phoenix 160x200x22cm', 'Nệm lò xo Vạn Thành Phoenix 160x200x22cm - Hàng chính hãng') >= 0.6 && sc('Nệm Lò Xo Vạn Thành Phoenix 160x200x22cm', 'Nệm Lò Xo Vạn Thành Phoenix 180x200x22cm') === 0 && sc('Giấy A4 Double A 70gsm', 'Giấy A4 Double A 80gsm') === 0, 'cung san pham cung kich thuoc van ghep; khac kich thuoc / khac dinh luong (70gsm <> 80gsm) thi khong');
+    t(!M.features('Kệ sắt 120x40x180').strong.length && !M.features('Thảm 1m6x2m').strong.length && M.features('Màn hình Samsung LS27B800PXEXXV').strong.length === 1 && M.features('Tai nghe JBL Live 670NC').strong.length === 1 && M.features('Chuột ThinkPad Essential Wireless Mouse_4X30M56887').strong.some(c => c.full === '4x30m56887'), 'ma model that (LS27B800PXEXXV, 670NC, ma linh kien Lenovo 4X30M56887) van la ma manh'); }
+  /* ---------- 9) Cham soc danh muc (curate.js): gop san pham trung + duyet tay offer ---------- */
+  { const C = require('../../collector/curate'), G = 'Thiết bị mạng', F = 'Tủ lạnh';
+    const full = [], add = (sku, name, grp, kk = 1000000, st = 1) => full.push({ sku, name, grp, kk_price: kk, in_stock: st });
+    for (let i = 0; i < 40; i++) add('KK9' + String(10000 + i).slice(1) + '0', `Router Wifi chuẩn băng tần kép Hãng${i} Model${i}X${i}${i} AC1200`, G);   // ngu lieu: "chuan", "bang tan kep" la tu pho bien
+    add('KK000010', 'Tủ lạnh Panasonic Inverter 306 lít NR-TV341VGMV', F); add('KK000020', 'Tủ lạnh Panasonic 306 lít 2021 (NR-TV341VGMV)', F);
+    add('KK000030', 'Balo dây kéo ANELLO AT-B2261 - Màu Xanh Navy', 'Túi xách & Ba lô'); add('KK000031', 'Balo dây kéo ANELLO AT-B2261 - Màu Xanh Denim', 'Túi xách & Ba lô');
+    add('KK000040', 'Ổ cứng SSD WD Blue SN580 1TB', 'PC & Linh kiện'); add('KK000041', 'Ổ cứng SSD WD Blue SN580', 'PC & Linh kiện');
+    add('KK000050', 'Router Wifi 6 Asus RT-AX52', G); add('KK000051', 'Router Wifi 6 chuẩn băng tần kép Asus RT-AX52', G);
+    add('KK000060', 'Router Wifi 6 Mercusys MR60X', G); add('KK000061', 'Router Wifi 6 băng tần kép Mercusys MR60X', G);
+    add('KK000070', 'Màn hình Gaming Xiaomi G34WQi 34 inch', 'Màn hình máy tính'); add('KK000071', 'Màn hình Gaming Xiaomi G34WQi 2026 34 inch', 'Màn hình máy tính');
+    add('KK000080', 'Máy trạm Workstation HP Z2 Tower G9 4N3U8AV (Core i7 14700 | 8GB | 256GB', 'PC & Linh kiện'); add('KK000081', 'Máy trạm Workstation HP Z2 Tower G9 4N3U8AV (Core i7 14700 | 8GB | 256GB', 'PC & Linh kiện'); add('KK000082', 'Máy trạm Workstation HP Z2 Tower G9 4N3U8AV (Core i7 14700 | 8GB | 256GB', 'PC & Linh kiện');
+    add('KK000090', 'Màn hình ViewSonic VX2479A-HD-PRO 240Hz 24 inch - Cũ Đẹp', 'Màn hình máy tính'); add('KK000091', 'Màn hình ViewSonic VX2479A-HD-PRO 240Hz 24 inch - Đã Kích Hoạt', 'Màn hình máy tính');
+    add('KK000100', 'Tủ lạnh LG Inverter 315 lít LTB31BLM', F, 9000000); add('KK000101', 'Tủ lạnh LG 315 lít 2024 (LTB31BLM)', F, 3000000);
+    const IDX = M.createIndex(); for (const p of full) IDX.add(p.sku, p.name, p.grp);
+    const ex = new Map([['KK000050', [{ src: 'cellphones', url: 'https://cellphones.com.vn/a.html' }]], ['KK000051', [{ src: 'cellphones', url: 'https://cellphones.com.vn/b.html' }]], ['KK000060', [{ src: 'thegioididong', url: 'https://www.thegioididong.com/a' }]], ['KK000061', [{ src: 'hoangha', url: 'https://hoanghamobile.com/b' }]]]);
+    const { plan, why } = C.planMerges({ full, IDX, MATCH: M, exBySku: ex }), pm = new Map(plan.map(x => [x.from, x.to]));
+    t(pm.get('KK000020') === 'KK000010', 'gop: trung day du ma hang dai cua nha san xuat -> gop ve ma nho hon (ten mo ta khac nhau van gop)');
+    t(!pm.has('KK000031') && !pm.has('KK000041') && !pm.has('KK000071') && !pm.has('KK000091'), 'KHONG gop: khac mau (Navy/Denim), 1 ben thieu dung luong (SN580 1TB), khac nam (G34WQi 2026), hang cu khac tinh trang (Cu dep / Da kich hoat)');
+    t(!pm.has('KK000051') && why.seller >= 1, 'KHONG gop: cung 1 chuoi ban le niem yet ca hai ten nhu hai mat hang rieng');
+    t(pm.get('KK000061') === 'KK000060', 'gop: ma model ngan, chi lech tu mo ta pho bien trong nhom ("băng tần kép"), khac nguoi ban');
+    t(pm.get('KK000081') === 'KK000080' && pm.get('KK000082') === 'KK000080', 'gop: nhieu ma trung ten hoan toan (loi tao lai san pham moi lan chay) ve 1 ma chuan');
+    t(!pm.has('KK000101') && why.price >= 1, 'KHONG gop: gia hai trang lech qua xa (min/max < 0,6)');
+    t(C.planMerges({ full, IDX, MATCH: M, exBySku: ex, max: 2 }).plan.length === 2, 'gop: ton trong tran so luong moi lan chay');
+    const st = C.aliasStub('KK000020', 'slug-cu', { sku: 'KK000010', name: 'N', brand: 'B', category_id: 'c', category_name: 'C', grp: F, image: 'https://x/y.jpg', specs: { 'Bảo hành': '24 tháng', 'Khác': 'x' }, kk_price: 5, in_stock: 1, sh: 3, trust: { fl: 4, disc: 7, why: ['a'] }, ledger: [{ hash: 'h' }], d90: [[1, 2, 'h']] }, 'T');
+    t(st.sku === 'KK000020' && st.merged_into === 'KK000010' && st.kk_price === 5 && st.sh === 3 && st.trust.fl === 4 && st.specs['Bảo hành'] === '24 tháng' && !st.ledger && !st.d90 && !st.trust.why, 'file thay the cua ma da gop: du truong cho gio hang / may chu don hang, khong co so cai');
+    // duyet tay
+    const K = C.apprKeys('khoa-thu'), id = K.oid('KK000010', 'tiki', 'https://tiki.vn/p1.html'), id2 = K.oid('KK000010', 'tiki', 'https://tiki.vn/p2.html');
+    t(/^[0-9a-f]{20}$/.test(id) && id !== id2 && id === C.apprKeys('khoa-thu').oid('KK000010', 'tiki', 'https://tiki.vn/p1.html') && id !== C.apprKeys('khoa-khac').oid('KK000010', 'tiki', 'https://tiki.vn/p1.html') && C.apprKeys('') === null, 'ma offer: HMAC on dinh theo khoa quan tri, doi khoa thi doi ma; khong co khoa -> khong co ma');
+    const title = `KK-DUYET ok KK000010 ${id} ${K.commit(id, 5000000)}`, d1 = C.parseTitle(title);
+    t(d1 && d1.d === 'ok' && d1.sku === 'KK000010' && d1.id === id && !C.parseTitle(title + ' ; rm -rf /') && !C.parseTitle('KK-DUYET ok KK1 x y') && !C.parseTitle('KK-DUYET xoa KK000010 ' + id + ' ' + K.commit(id, 1)) && !C.parseTitle(title.replace('KK-DUYET', 'kk-duyet')), 'tieu de issue: chi nhan dung dinh dang chat, tu choi moi bien the/chen lenh');
+    let book = C.applyDecision(null, d1, { at: '2026-11-14T00:00:00Z', by: 'chu', n: 7 }); const priv = {};
+    t(C.decisionOf(book, priv, K, 'KK000010', id, 5000000) === 'ok' && priv.KK000010[id].p0 === 5000000, 'duyet: cam ket khop gia hien tai -> dung offer, ghi muc gia da duyet vao so rieng');
+    t(C.decisionOf(book, priv, K, 'KK000010', id, 4600000) === 'ok' && C.decisionOf(book, priv, K, 'KK000010', id, 4400000) === 'stale' && C.decisionOf(book, priv, K, 'KK000010', id, 9000000) === 'ok', 'duyet: gia nguon tut qua 10% so voi muc da duyet -> phai duyet lai; gia tang thi van hieu luc');
+    t(C.decisionOf(book, {}, K, 'KK000010', id, 4000000) === 'stale' && C.decisionOf(book, {}, K, 'KK000010', id, 4700000, [5000000]) === 'ok' && C.decisionOf(book, {}, K, 'KK000010', id2, 5000000) === '', 'duyet: gia luc xu ly khac gia da nhin thay -> chi nhan khi khop gia trong goi quan tri lan truoc va chua tut qua 10%; offer khac khong bi anh huong');
+    book = C.applyDecision(book, C.parseTitle(`KK-DUYET no KK000010 ${id2} ${K.commit(id2, 1)}`), { at: 'x', by: 'chu', n: 8 });
+    t(C.decisionOf(book, priv, K, 'KK000010', id2, 123) === 'no', 'tu choi: offer bi loai han khoi san pham, bat ke gia');
+    book = C.applyDecision(book, C.parseTitle(`KK-DUYET clear KK000010 ${id} ${K.commit(id, 1)}`), { at: 'x', by: 'chu', n: 9 });
+    t(C.decisionOf(book, priv, K, 'KK000010', id, 5000000) === '' && book.items.KK000010[id2].d === 'no', 'bo quyet dinh: offer tro lai trang thai cho duyet, quyet dinh khac giu nguyen');
+    const tmp = require('path').join(require('os').tmpdir(), 'kk-appr-' + process.pid + '.json'), AP = require('../../collector/approve');
+    const r1 = AP.run({ ISSUE_TITLE: title, ISSUE_USER: 'Chu', REPO_OWNER: 'chu', ISSUE_ASSOC: 'OWNER', ISSUE_NUMBER: '12' }, tmp, '2026-11-14T01:00:00Z');
+    const r2 = AP.run({ ISSUE_TITLE: title, ISSUE_USER: 'nguoila', REPO_OWNER: 'chu', ISSUE_ASSOC: 'NONE' }, tmp), r3 = AP.run({ ISSUE_TITLE: 'KK-DUYET ok $(id)', ISSUE_USER: 'chu', REPO_OWNER: 'chu' }, tmp), r4 = AP.run({ ISSUE_TITLE: title, ISSUE_USER: 'chu', REPO_OWNER: 'chu', ISSUE_ASSOC: 'COLLABORATOR' }, tmp);
+    const saved = JSON.parse(require('fs').readFileSync(tmp, 'utf8')); require('fs').unlinkSync(tmp);
+    t(r1.ok && r1.changed && saved.items.KK000010[id].d === 'ok' && saved.items.KK000010[id].n === 12 && !r2.ok && !r2.changed && !r3.ok && !r4.ok && !/tiki|5000000/.test(JSON.stringify(saved)), 'approve.js: chi chu kho ma + tieu de hop le moi duoc ghi; so duyet khong chua ten nguon/gia nguon'); }
+
   console.log(`\nBo ghep cheo & bo nap feed: ${pass}/${pass + fail} dat`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

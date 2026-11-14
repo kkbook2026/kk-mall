@@ -196,7 +196,10 @@
       if ((m = path.match(/^\/api\/products\/([A-Za-z0-9-]+)$/))) {
         const d = await realFetch('api/products/' + m[1] + '.json');
         if (!d.ok) return err('Không tìm thấy sản phẩm', 404);
-        const p = fixImg(await d.json());
+        let p = await d.json();
+        // ma da duoc gop ve ma chuan (2 trang cua cung 1 mat hang): tra ve san pham chuan, kem ma cu de gio hang tu doi ma
+        if (p && /^KK\d+$/.test(p.merged_into || '')) { try { const d2 = await realFetch('api/products/' + p.merged_into + '.json'); if (d2.ok) { const q = await d2.json(); if (q && q.sku === p.merged_into && !q.merged_into) { q.merged_from = m[1]; p = q; } } } catch { } }
+        p = fixImg(p);
         // danh gia that lay truc tiep tu may chu khi mo SP (review.list); thong ke n/avg do bo thu thap gan tu may chu
         p.reviews = []; if (!p.reviewStat || !p.reviewStat.n) { p.reviewStat = { n: 0, avg: null }; p.rating = 0; }
         return jr(p);

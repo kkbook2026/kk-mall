@@ -488,7 +488,7 @@ footer h3{font-size:14px;margin:0 0 10px;color:#fff}
 </div>
 
 <script src="config.js?v=2610260348"></script>
-<script src="demo-shim.js?v=2611140900"></script>
+<script src="demo-shim.js?v=2611141200"></script>
 <script src="kk-smart.js?v=2611140900"></script>
 <script>
 /* ===== ANH SAN PHAM: 3 lop du phong - anh goc -> anh SVG noi bo -> placeholder sinh tai cho (khong bao gio trong) ===== */
@@ -874,7 +874,7 @@ async function loadReviews(sku){const box=document.getElementById('rvList');if(!
 async function sendReview(sku){try{if(typeof KKB==='undefined'||!KKB.on)throw new Error('Máy chủ chưa sẵn sàng');const r=await KKB.call('review.submit',{sku,code:$('#rvOrder').value.trim(),phone:$('#rvPhone').value.trim(),rating:+$('#rvStar').value,content:$('#rvText').value,token:KKB.token()});toast(r.note);loadReviews(sku)}catch(e){toast(e.message)}}
 function qd(d){const i=$('#pq');i.value=Math.max(1,Math.min(20,(+i.value||1)+d))}
 function packRow(sku){try{const rows=_PACKROWS;if(!rows)return null;const r=rows.find(x=>x[0]===sku);if(r)return{name:r[1],kk_price:r[6],category_id:r[3],image:phImg(r[1],r[3])}}catch{}return null}
-function fixCartItem(sku){api('/api/products/'+sku).then(p=>{const c=cart.find(x=>x.sku===sku);if(c){c.name=p.name;c.kk_price=p.kk_price;c.image=p.image;c.category_id=p.category_id;if(canBuy(p))delete c.unavailable;else c.unavailable=1;save();renderCart()}}).catch(()=>{cart=cart.filter(x=>x.sku!==sku||x.kk_price>0);save();renderCart()})}
+function fixCartItem(sku){api('/api/products/'+sku).then(p=>{let c=cart.find(x=>x.sku===sku);if(c&&p.sku&&p.sku!==sku){/* ma cu da gop ve ma chuan: doi ma, cong don neu ma chuan da co trong gio */const k=cart.find(x=>x.sku===p.sku);if(k){k.qty=Math.min(20,(k.qty||1)+(c.qty||1));cart=cart.filter(x=>x!==c);c=k}else c.sku=p.sku}if(c){c.name=p.name;c.kk_price=p.kk_price;c.image=p.image;c.category_id=p.category_id;if(canBuy(p))delete c.unavailable;else c.unavailable=1;save();renderCart()}}).catch(()=>{cart=cart.filter(x=>x.sku!==sku||x.kk_price>0);save();renderCart()})}
 function addCart(sku,qty=1){const it=cart.find(c=>c.sku===sku);
   if(it)it.qty=Math.min(20,it.qty+qty);
   else{const src=state.items.find(i=>i.sku===sku)||packRow(sku)||{name:'Đang tải...',kk_price:0,image:phImg('Đang tải...','')};
@@ -949,6 +949,9 @@ async function showTrack(code,phone){try{const d=await api(`/api/orders/${code}?
 init();renderViewed();syncCart();
 // gio hang luu tren may: cap nhat gia hien hanh, danh dau SP da go / het hang (khong giu gia cu)
 async function syncCart(){if(!cart.length)return;try{const rows=await packRows();const M=new Map(rows.map(r=>[r[0],r]));let ch=false;
+  // ma da duoc gop ve ma chuan (2 trang cua cung 1 mat hang): doi mon trong gio sang ma chuan thay vi bo khoi gio
+  for(const c of cart.filter(c=>!M.has(c.sku))){try{const r=await fetch('api/products/'+encodeURIComponent(c.sku)+'.json');if(!r.ok)continue;const d=await r.json(),to=d&&d.merged_into;if(to&&M.has(to)){const k=cart.find(x=>x.sku===to);if(k&&k!==c){k.qty=Math.min(20,(k.qty||1)+(c.qty||1));c.sku=''}else c.sku=to;ch=true}}catch{}}
+  cart=cart.filter(c=>c.sku);
   const gone=cart.filter(c=>!M.has(c.sku));if(gone.length){cart=cart.filter(c=>M.has(c.sku));ch=true;toast('Đã bỏ '+gone.length+' sản phẩm không còn kinh doanh khỏi giỏ hàng')}
   for(const c of cart){const r=M.get(c.sku);const un=!r||!r[7]||((r[11]||0)&(1|32));if(r&&(c.kk_price!==r[6]||c.name!==r[1])){c.kk_price=r[6];c.name=r[1];ch=true}if(!!c.unavailable!==!!un){c.unavailable=!!un;ch=true}}
   if(ch){save();renderCart()}}catch{}}

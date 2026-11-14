@@ -132,6 +132,18 @@ ${rel.length ? `<h2>Sản phẩm cùng nhóm ${esc(d.grp)}</h2><ul class="grid">
   nP++;
 }
 
+/* ---------- ma da gop vao ma chuan: trang cu chuyen huong ve trang chuan (cong cu tim kiem coi meta refresh 0 giay la chuyen huong vinh vien) ---------- */
+let nR = 0;
+try {
+  const alias = rj('alias.json').map || {}, rowBy = new Map(full.map(r => [r.sku, r]));
+  for (const [from, e] of Object.entries(alias)) {
+    const c = rowBy.get(e.to), old = String(e.slug || ''); if (!c || !/^[a-z0-9-]+$/.test(old)) continue;
+    const f = path.join(SITE, 'p', old + '.html'), to = `/p/${pslug(c)}.html`; if (fs.existsSync(f) || !fs.existsSync(path.join(SITE, to))) continue;
+    fs.writeFileSync(f, `<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${esc(c.name)} | KK-MALL</title><link rel="canonical" href="${ORIGIN}${to}"><meta http-equiv="refresh" content="0;url=${to}"><meta name="robots" content="noindex,follow"></head><body><p>Sản phẩm này đã được gộp về một trang duy nhất: <a href="${to}">${esc(c.name)}</a></p></body></html>`);
+    nR++;
+  }
+} catch { }
+
 /* ---------- trang nganh & nhom ---------- */
 const pages = [`<url><loc>${ORIGIN}/</loc><changefreq>hourly</changefreq><priority>1.0</priority></url>`, `<url><loc>${ORIGIN}/phap-ly</loc><changefreq>monthly</changefreq></url>`];
 let nC = 0, nN = 0;
@@ -184,7 +196,7 @@ fs.writeFileSync(IX, ix);
 
 if (DEPLOY) for (const f of NOT_PUBLIC) fs.rmSync(f, { force: true });
 const total = walk(SITE), MB = n => (n / 1048576).toFixed(0) + ' MB';
-console.log(`SEO: ${nP} trang SP · ${nC} trang nganh · ${nN} trang nhom · sitemap ${idx.length} file · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+console.log(`SEO: ${nP} trang SP${nR ? ' (+' + nR + ' trang chuyen huong cua ma da gop)' : ''} · ${nC} trang nganh · ${nN} trang nhom · sitemap ${idx.length} file · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 console.log(`Dung luong goi xuat ban: ${MB(total)} / gioi han 1.024 MB (ngan sach ${MB(SITE_MAX)}) · trang SP ${MB(pBytes)} (${nP ? Math.round(pBytes / nP) : 0} byte/trang) · du lieu & giao dien ${MB(baseBytes)} · binh quan ${full.length ? Math.round(total / full.length) : 0} byte/SP`
   + (pSkip ? ` · CANH BAO: ${pSkip} SP chua co trang SEO vi sat ngan sach dung luong` : ''));
 if (total > 1000 * 1048576) { console.error('GOI XUAT BAN VUOT 1 GB - dung de khong lam hong trang dang chay. Giam FEED_HARD_MAX hoac SIZE_BUDGET_MB.'); process.exit(1); }

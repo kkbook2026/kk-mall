@@ -1,3 +1,16 @@
+## CẬP NHẬT 14/11/2026 - GỌN DỮ LIỆU (TRẦN 80.000 SP), GỘP TRANG TRÙNG, DUYỆT GIÁ TAY, GIỮ NHỊP 3 GIỜ
+
+Chi tiết đầy đủ: `docs/NANG-CAP-14-11-2026.md`. Tóm tắt các thay đổi có hiệu lực từ 14/11/2026:
+
+- **Dung lượng:** gói xuất bản từ 15,4 KB/SP còn khoảng 8,9 KB/SP (Merkle theo khối tại `api/merkle/`, lịch sử 90 ngày nén theo đoạn, file sản phẩm chỉ ghi khi đổi, trang SEO gọn, bỏ file theo ngành, gói quản trị nén trước khi mã hóa). Trần danh mục 80.000, tự hạ theo dung lượng thực (`SIZE_BUDGET_MB`); `build-seo.js --deploy` dừng nếu gói vượt 1 GB.
+- **Gộp sản phẩm trùng (`collector/curate.js`):** hai trang của cùng một mặt hàng gộp về mã nhỏ nhất theo bộ điều kiện chặt (mã model, chữ ký biến thể, màu nguyên văn, thông số, người bán). Mã cũ để lại file thay thế `merged_into` + trang chuyển hướng trong 90 ngày; giỏ hàng tự đổi mã.
+- **Duyệt giá tay:** tab Duyệt giá trong quản trị; quyết định gửi qua issue GitHub của chủ kho mã (`approve.yml`), ghi vào `collector/approvals.json` chỉ gồm SKU + mã băm một chiều. Duyệt gắn với đúng mức giá đã thấy; giá nguồn tụt thêm quá 10% thì phải duyệt lại.
+- **Hàng giá trị thấp:** giá nguồn dưới 90.000 đ qua 3 lần chạy khỏe thì gỡ (`SELL_MIN_SOURCE_PRICE`, đặt 0 để tắt); ứng viên mới từ 100.000 đ.
+- **Nhịp 3 giờ:** `collector/kick.js` bù lịch ngay trong lúc các tiến trình thu thập nền đang chạy; `search-crawl.yml` chạy nối chuỗi ở 15 truy vấn/phút (một nửa giới hạn của đối tác).
+- **Sửa lỗi:** sản phẩm tên dài bị tạo lại mỗi lần chạy (liên kết tự gỡ do tên cắt 140 ký tự); kích thước "160x200x5cm" bị coi là mã model làm hai sản phẩm khác hãng so giá với nhau.
+- **Tiện ích bot 1.3.0:** đọc gói quản trị nén và bản đồ mã đã gộp; bản cũ tự dừng an toàn.
+- **Khung phí không đổi:** trên 500.000đ +32.000đ; 200.000 - 500.000đ +26.000đ; dưới 200.000đ +18.000đ.
+
 ## CẬP NHẬT 13/11/2026 - RÀ SOÁT GIÁ: GHÉP CHÉO NGUỒN, NẠP ĐỦ DATAFEED, HỎI GIÁ TRÊN SÀN
 
 Chi tiết đầy đủ: `docs/RA-SOAT-GIA-13-11-2026.md`. Tóm tắt các thay đổi có hiệu lực từ 13/11/2026:

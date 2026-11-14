@@ -103,7 +103,10 @@ function resOf(spec, cids) {
   return out && out.length ? out : null;                                // khong ghi / ghi mau thuan -> khong ket luan
 }
 const CLASS_RE = /^((ac|ax|be|n)\d{3,5}|ddr\d|usb\d+|wifi\d[a-z]?|type-?c|rj45|ip\d{2}|hdmi\d*|sata\d?|led\d*|rgb|argb|2k|4k|8k|\d{3,4}p|\d{2,3}hz|fhd|qhd|uhd|mp3|mp4|cd|dvd|g?ddr\d|lpddr\d[a-z]?|hdr\d*|bt\d+|dp\d*|cat\d[a-z]?|\d{1,2}bit|a[3-6]|i[3579]|r[3579]|m[1-5]|gen\d+|\d+in\d+|\d+w)$/;
-const isStrong = c => !CLASS_RE.test(c.full) && ((c.core.length >= 5 && /[a-z]/.test(c.core) && /\d/.test(c.core)) || (/^\d+$/.test(c.core) && c.core.length >= 6));
+/* KICH THUOC ("160x200x5cm", "120x40x180", "60x90cm", "1m6x2m") va DINH LUONG ("70gsm", "100pcs") KHONG phai ma model: nem/tham/ke cua cac hang khac nhau
+ * co chung kich thuoc tung bi coi la "trung ma hang dai" -> gop gia cua 2 san pham khac hang. Chung van la dinh danh phu (ma yeu): hai ten phai cung kich thuoc. */
+const DIM_RE = /^\d{1,4}(?:m\d)?(?:x\d{1,4}(?:m\d)?){1,3}(?:cm|mm|dm|m|in|inch|f|t)?$/, MEASURE_RE = /^\d+(?:gsm|pcs|pc|m2|m3|ply)$/;
+const isStrong = c => !CLASS_RE.test(c.full) && !DIM_RE.test(c.full) && !MEASURE_RE.test(c.full) && ((c.core.length >= 5 && /[a-z]/.test(c.core) && /\d/.test(c.core)) || (/^\d+$/.test(c.core) && c.core.length >= 6));
 /* 2 ma bang nhau: trung full; hoac cung goc va it nhat 1 ben khong ghi hau to; hoac 1 ben la duoi cua ben kia (CU/CS-PU9AKH-8 ~ PU9AKH-8) */
 function codeEq(a, b) {
   if (a.full === b.full) return true;
@@ -335,7 +338,9 @@ function createIndex() {
     for (const id of cand) { const sc = score(eff(id), f, W, rare); if (sc >= min) out.push({ id, score: sc }); }
     return out.sort((a, b) => b.score - a.score);
   }
-  return { add, addCorpus, find, features: id => F.get(id), size: () => F.size };
+  /* tu HIEM trong nhom (dinh danh dong san pham / phien ban), cung nguong voi find() - dung cho khau gop san pham trung */
+  const rare = grp => { const N = nC.get(grp) || 1, hv = Math.max(2, N * 0.04); return t => (dfC.get(grp + '|' + t) || 0) <= hv; };
+  return { add, addCorpus, find, rare, features: id => F.get(id), size: () => F.size };
 }
 
 /*
@@ -374,4 +379,6 @@ const REGION_RE = /ch[iỉ] giao|ch[iỉ] b[aá]n t[aạ]i|giao t[aạ]i (hcm|hn
 const FS_COND = /free ?ship[^|,;\])]{0,28}?(?:\bhn\b|\bhcm\b|ha noi|sai gon|tp\.?\s?hcm|noi thanh|khu vuc|toi da|don tu|tu \d|\d+ ?k\b|xtra|extra|\bmax\b)|(?:noi thanh|\bhn\b|\bhcm\b|ha noi)[^|,;\])]{0,12}free ?ship/;
 const isFreeship = n => { const s = nd(n); return /free ?ship/.test(s) && !FS_COND.test(s); };
 
-module.exports = { features, score, linkValid, signature, createIndex, band, codeOf, codeEq, brandsOf, sellerOf, nd, SINGLE_SELLER, REGION_RE, isFreeship };
+/* Cum mau NGUYEN VAN trong ten (khong quy ve nhom mau): "xanh navy" <> "xanh" - dung khi can chac chan 2 ten la cung mot mau (gop san pham trung) */
+const colorsRaw = name => new Set([...String(name || '').toLowerCase().normalize('NFC').matchAll(new RegExp(COLOR_VI.source, COLOR_VI.flags.includes('g') ? COLOR_VI.flags : COLOR_VI.flags + 'g'))].map(m => nd(m[0]).replace(/[^a-z]/g, '')));
+module.exports = { features, score, linkValid, signature, createIndex, band, colorsRaw, codeOf, codeEq, brandsOf, sellerOf, nd, SINGLE_SELLER, REGION_RE, isFreeship };

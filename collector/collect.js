@@ -32,6 +32,15 @@ const BAD_IMG_HOST = /^https:\/\/(vn-test-\d+\.slatic\.net|lzd-staging[^/]*|[^/]
 const goodImg = u => typeof u === 'string' && /^https:\/\//.test(u) && !BAD_IMG_HOST.test(u);
 const { isFreeship } = require('./match');   // 'Freeship' trong ten chi duoc tinh khi KHONG kem dieu kien (khu vuc, gia tri don, chuong trinh co tran)
 const FS_RE = { test: n => isFreeship(n) };
+const CURATE = require('./curate');                       // gop san pham trung ve 1 ma chuan + duyet tay offer re bat thuong
+const MERGE_MAX = Math.max(0, parseInt(process.env.MERGE_MAX_PER_RUN || '250', 10)), MERGE_MIN = parseFloat(process.env.MERGE_MIN_SCORE || '0.92'), MERGE_KEEP_MS = parseFloat(process.env.MERGE_KEEP_DAYS || '90') * 86400e3;
+/* HANG GIA TRI THAP: gia niem yet re nhat tai nguon < SELL_MIN_SOURCE_PRICE (mac dinh 90.000 d; ung vien moi phai tu NEW_MIN_PRICE = 100.000 d - chenh nhau de
+ * hang quanh nguong khong bi go/them lien tuc). Phi nen tang co dinh + ship du phong lam gia KK cua nhom nay cao gap 1,5-3 lan gia nguon -> khong the "re nhat".
+ * Qua LOWVAL_RUNS lan chay khoe lien tiep duoi nguong thi go khoi cua hang. Dat SELL_MIN_SOURCE_PRICE=0 de tat. */
+const SELL_MIN = Math.max(0, parseInt(process.env.SELL_MIN_SOURCE_PRICE || '90000', 10)), LOWVAL_RUNS = Math.max(1, parseInt(process.env.LOWVAL_RUNS || '3', 10));
+/* Ten san pham sinh tu ten offer (cat 140 ky tu). Ten dai bi cat giua ngoac -> khoa ten / dac trung cua ten SP KHAC ten offer goc, nen khau kiem tra
+ * lien ket tung coi chinh offer da sinh ra SP la "lien ket sai", go lien ket roi TAO LAI san pham do o MOI lan chay (trung ten, khac ma). */
+const prodName = n => TRUST.cleanText(TRUST.cleanText(n).replace(/\s*[-–|]\s*(hàng chính hãng|chính hãng|hàng nhập khẩu)\s*$/i, '').slice(0, 140));   // cleanText lan 2: bo khoang trang/dau cuoi sau khi cat (vong tinh gia cung lam sach ten nhu vay)
 const LEDGER_KEEP = Math.max(10, parseInt(process.env.LEDGER_KEEP || '20', 10));   // so ban ghi so cai giu trong file SP (cu hon: chuoi 90 ngay d90 van giu ma niem phong)
 const HIST_RUNS = Math.max(1, parseInt(process.env.HIST_OVERRIDE_RUNS || '3', 10)), HIST_HOURS = Math.max(0, parseFloat(process.env.HIST_OVERRIDE_HOURS || '20'));
 
@@ -54,6 +63,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   /* ===== DATAFEED CHINH THUC: tai song song moi feed, khop/tao san pham ===== */
   const FIDX_FILE = path.join(__dirname, 'feed-index.json');   // ten chuan hoa -> SKU (giu on dinh SKU giua cac lan chay)
   const fidx = fs.existsSync(FIDX_FILE) ? JSON.parse(fs.readFileSync(FIDX_FILE, 'utf8')) : { map: {}, origin: {} };
+  fidx.aka = fidx.aka || {}; fidx.merged = fidx.merged || {}; fidx.low = fidx.low || {}; fidx.miss = fidx.miss || {}; fidx.srcN = fidx.srcN || {};
   const MAX_TOTAL = parseInt(process.env.FEED_MAX_TOTAL || '30000', 10), MAX_NEW = parseInt(process.env.FEED_MAX_NEW || '5000', 10);
   const feed = await FEEDS.collectFeeds(process.env, { feedAge: fidx.feedAge });
   fidx.feedAge = { ...(fidx.feedAge || {}), ...(feed.stat.feedAge || {}) };   // tuoi du lieu tung feed (hoi API 1 lan/ngay, khong ton han muc)
@@ -76,6 +86,12 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     for (const [src, a] of Object.entries(by)) { const e = per[src] = per[src] || { total: 0, n: 0, age: null }; e.total += a.length; e.n += a.length; e.age = +(medOf(a) / 24).toFixed(1); } }
   console.log(`Gia tim theo tu khoa tren san: ${SROWS.length} offer` + (SROWS.length ? ' (' + Object.entries(SROWS.reduce((a, r) => (a[r.src] = (a[r.src] || 0) + 1, a), {})).map(x => x.join(':')).join(', ') + ')' : ''));
 
+  /* SUC KHOE DU LIEU lan chay nay (dung cho: go SP het nguon, gop SP trung, chinh sach hang gia tri thap): khong nguon nao loi va khong nguon nao TUT
+   * so ban ghi qua nua so voi lan khoe gan nhat (feed tra thieu, bo nho dem ban le bi mat...) - neu khong se go/gop oan hang loat san pham. */
+  const cntBySrc = {}; for (const o of feed.offers) cntBySrc[o.src] = (cntBySrc[o.src] || 0) + 1;
+  const shrunk = Object.entries(fidx.srcN).filter(([src, n]) => n >= 200 && (cntBySrc[src] || 0) < 0.5 * n).map(([src, n]) => `${src} ${cntBySrc[src] || 0}/${n}`);
+  const healthy = feed.offers.length > 0 && !feed.stat.fail.length && !shrunk.length;
+
   /*
    * ===== GHEP OFFER VAO SAN PHAM =====
    *  exBySku : offer KHOP CHINH XAC (cung khoa ten da luu -> cung SKU)
@@ -89,6 +105,8 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   if (feed.offers.length) {
     const fullBySku = new Map(full.map(p => [p.sku, p]));
     const byName = {}; for (const p of full) byName[FEEDS.normKey(p.name)] = p.sku;
+    // ten cua cac SP da gop vao ma chuan (fidx.aka): lien ket "ten -> SP" cua ma cu van hop le voi ma chuan
+    for (const [sku, names] of Object.entries(fidx.aka)) { if (!fullBySku.has(sku)) { delete fidx.aka[sku]; continue; } for (const n of names) { const k = FEEDS.normKey(n); if (!byName[k]) byName[k] = sku; } }
     const g2c = {}; for (const p of full) g2c[p.grp] = [p.category_id, p.category_name];
     const exists = sku => fullBySku.has(sku) && fs.existsSync(path.join(API, 'products', sku + '.json'));
     const IDX = MATCH.createIndex(); for (const p of full) IDX.add(p.sku, p.name, p.grp);
@@ -113,9 +131,34 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       let sku = fidx.map[key] || byName[key];
       if (sku && !exists(sku)) sku = null;
       if (sku) { const p = fullBySku.get(sku), rep = offs.find(o => o.stock) || offs[0];
-        if (!MATCH.linkValid(feat(p.name), feat(rep.name), key.replace(/ #.*$/, '') === FEEDS.normKey(p.name))) { sku = null; delete fidx.map[key]; feed.stat.unlinked++; } }
+        const kb = key.replace(/ #.*$/, ''), fr = feat(rep.name), aka = fidx.aka[sku] || [];
+        const own = feat(p.name).cond === fr.cond && offs.some(o => { const n = prodName(o.name); return n === p.name || aka.includes(n); });   // chinh ten offer nay da sinh ra SP (ke ca khi ten SP bi cat 140 ky tu); ten bi cat mat chu "da kich hoat/cu" thi KHONG tinh
+        if (!own && !MATCH.linkValid(feat(p.name), fr, kb === FEEDS.normKey(p.name)) && !aka.some(n => MATCH.linkValid(feat(n), fr, kb === FEEDS.normKey(n)))) { if (process.env.KK_DEBUG === 'unlink') console.log('GO LIEN KET | ' + p.sku + ' | ' + p.name + ' | <> | ' + rep.name); sku = null; delete fidx.map[key]; feed.stat.unlinked++; } }
       if (sku) { skuOf.set(key, sku); fidx.map[key] = sku; feed.stat.matched++; for (const o of offs) pushM(exBySku, sku, o); }
       else pending.push([key, offs]);
+    }
+    /* (2b) GOP SAN PHAM TRUNG ve mot ma chuan (curate.js): hai trang cung 1 mat hang (tao tu 2 nguon truoc khi co bo ghep cheo) -> con 1 trang.
+     *      Chi gop khi lan chay KHOE (du nguon de biet nguoi ban nao niem yet rieng ca hai). Khoa ten + offer cua ma cu chuyen sang ma chuan;
+     *      ma cu de lai file thay the (merged_into) + trang chuyen huong trong MERGE_KEEP_DAYS ngay cho gio hang / lien ket / don dang xu ly. */
+    const mergedNow = new Map(), canon = id => mergedNow.get(id) || id;
+    if (healthy && MERGE_MAX > 0) {
+      const { plan, why } = CURATE.planMerges({ full, IDX, MATCH, exBySku, origin: fidx.origin, min: MERGE_MIN, max: MERGE_MAX });
+      if (plan.length) {
+        const keysOf = new Map(); for (const [k, sku] of Object.entries(fidx.map)) pushM(keysOf, sku, k);
+        for (const m of plan) { const A = fullBySku.get(m.to), B = fullBySku.get(m.from); if (!A || !B) continue;
+          for (const k of keysOf.get(m.from) || []) { fidx.map[k] = m.to; if (skuOf.has(k)) skuOf.set(k, m.to); }
+          for (const o of exBySku.get(m.from) || []) pushM(exBySku, m.to, o); exBySku.delete(m.from);
+          const aka = (fidx.aka[m.to] || []).concat(B.name, fidx.aka[m.from] || []).filter((n, i, a) => n !== A.name && a.indexOf(n) === i).slice(-8);
+          delete fidx.aka[m.from]; if (aka.length) fidx.aka[m.to] = aka;
+          for (const e of Object.values(fidx.merged)) if (e.to === m.from) e.to = m.to;                 // ma da gop vao B truoc day -> tro thang ve A
+          fidx.merged[m.from] = { to: m.to, slug: /^[a-z0-9-]+$/.test(B.slug || '') ? B.slug : '', name: B.name, at: now };
+          delete fidx.origin[m.from]; delete fidx.miss[m.from]; delete fidx.low[m.from]; if (fidx.hist) delete fidx.hist[m.from];
+          mergedNow.set(m.from, m.to); fullBySku.delete(m.from);
+        }
+        for (let i = full.length - 1; i >= 0; i--) if (mergedNow.has(full[i].sku)) full.splice(i, 1);
+      }
+      feed.stat.merged = { n: mergedNow.size, skip: why };
+      if (mergedNow.size) console.log(`Gop san pham trung: ${mergedNow.size} ma gop ve ma chuan (khong gop: khac chu ky bien the ${why.sig}, khac mau ${why.color}, khac nam ${why.year}, khac thong so ${why.spec}, thua tu dinh danh ${why.words}, cung nguoi ban niem yet rieng ${why.seller}, lech gia ${why.price})`);
     }
     /* (3) Ten chua co san pham: neu ghep mo duoc vao san pham da co -> la offer cua san pham do (khong tao trung);
      *     con lai moi la ung vien san pham moi - uu tien hang co nhieu nguon va gia tri cao, co tran de site khong vuot gioi han GitHub Pages. */
@@ -141,7 +184,8 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       if (!withImg || best.price < NEW_MIN_PRICE) { feed.stat.capped++; continue; }           // chi nhan hang co anh that; hang gia tri thap khong tu them (phi co dinh/mon lam gia doi qua cao)
       const [cid, cname] = g2c[best.grp] || ['khac', 'Khác'];
       const sku = 'KK' + String(nextId++).padStart(6, '0');
-      const name = TRUST.cleanText(best.name).replace(/\s*[-–|]\s*(hàng chính hãng|chính hãng|hàng nhập khẩu)\s*$/i, '').slice(0, 140);
+      const name = prodName(best.name);
+      if (feat(name).cond !== feat(best.name).cond) { feed.stat.capped++; continue; }                 // ten cat 140 ky tu lam mat thong tin tinh trang ("Hang da kich hoat", "cu") -> khong tao SP voi ten gay hieu nham la hang moi
       const brand = (offs.find(o => o.brand) || {}).brand || name.split(' ').find(w => /^[A-Z][A-Za-z0-9&.-]{1,}$/.test(w)) || 'KK Select';
       const base = offs.map(o => o.list || o.price).sort((a, b) => a - b)[Math.floor(offs.length / 2)];
       const initKK = PRICING.ok ? PRICING.sell(Math.min(...offs.map(o => SHIP.landed(o.src, o.price, best.grp, { freeship: isFreeship(o.name), name: o.name })))) : base; // gia thuc tra, khong bao gio de 0d
@@ -161,7 +205,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     for (const [key, offs] of groups) {
       const own = skuOf.get(key), rep = repOf(offs);
       const ms = IDX.find(rep.name, rep.grp, MIN_FZ, feat(rep.name));
-      for (const m of ms) if (m.id !== own) for (const o of offs) pushM(fzBySku, m.id, { o, sc: m.score });
+      { const seenId = new Set([own]); for (const m of ms) { const id = canon(m.id); if (seenId.has(id)) continue; seenId.add(id); for (const o of offs) pushM(fzBySku, id, { o, sc: m.score }); } }
       // PHAN LOAI LAI san pham tu feed neu luat moi xep nhom khac
       if (own && fidx.origin[own]) { const bestG = rep.grp, fe = fullBySku.get(own);
         if (fe && fe.grp !== bestG && g2c[bestG]) { const [cid, cname] = g2c[bestG]; fe.grp = bestG; fe.category_id = cid; fe.category_name = cname;
@@ -169,9 +213,9 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
           feed.stat.reclassified = (feed.stat.reclassified || 0) + 1; } }
     }
     /* (5) Offer tim theo tu khoa (da gan san cho 1 SKU): xac nhan lai bang bo ghep hien hanh roi moi dung */
-    for (const r of SROWS) { const p = fullBySku.get(r.sku); if (!p) continue;
-      const m = IDX.find(r.name, p.grp, MIN_FZ).find(m => m.id === r.sku); if (!m) continue;
-      pushM(fzBySku, r.sku, { o: { src: r.src, price: r.price, stock: 1, url: r.url, image: r.image, name: r.name, stale: r.stale }, sc: m.score }); }
+    for (const r of SROWS) { const sku = fullBySku.has(r.sku) ? r.sku : ((fidx.merged[r.sku] || {}).to || ''), p = fullBySku.get(sku); if (!p) continue;   // ket qua tim cua ma da gop -> dung cho ma chuan
+      const m = IDX.find(r.name, p.grp, MIN_FZ).find(m => m.id === sku); if (!m) continue;
+      pushM(fzBySku, sku, { o: { src: r.src, price: r.price, stock: 1, url: r.url, image: r.image, name: r.name, stale: r.stale }, sc: m.score }); }
     feed.stat.fuzzySku = fzBySku.size;
   }
   if (feed.dropKeys && feed.dropKeys.size) {
@@ -184,11 +228,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   }
   /* ===== GO SAN PHAM KHONG CON NGUON: khong offer nao (chinh xac lan ghep mo) trong RETIRE_RUNS lan chay khoe lien tiep =====
    * (vd hang chi co o feed da chet nhieu nam cua Lazada/Sendo/Dien May Cho Lon - gia do khong mua duoc that) */
-  { fidx.miss = fidx.miss || {}; fidx.srcN = fidx.srcN || {};
-    /* Chi go khi lan chay KHOE: khong nguon nao loi, va khong nguon nao TUT so ban ghi qua nua so voi lan khoe gan nhat
-     * (feed tra thieu, bo nho dem ban le/tim kiem bi mat...) - neu khong se go oan hang loat san pham roi tao lai voi ma moi. */
-    const cntBySrc = {}; for (const o of feed.offers) cntBySrc[o.src] = (cntBySrc[o.src] || 0) + 1;
-    const shrunk = Object.entries(fidx.srcN).filter(([src, n]) => n >= 200 && (cntBySrc[src] || 0) < 0.5 * n).map(([src, n]) => `${src} ${cntBySrc[src] || 0}/${n}`);
+  { /* Chi go khi lan chay KHOE (tinh o tren) - neu khong se go oan hang loat san pham roi tao lai voi ma moi. */
     if (shrunk.length) { feed.stat.shrunk = shrunk; console.log('CANH BAO: nguon tut so ban ghi qua nua so voi lan khoe gan nhat -> lan nay KHONG go san pham: ' + shrunk.join(', ')); }
     /* GIU NGUYEN BAN DA XUAT BAN khi mat du lieu nguon lon: ngay 13/11/2026 API nguon tu choi vi goi qua nhanh, 3 feed khong tai duoc ->
      * 17.000 san pham bi chuyen "tam het hang" oan. Gia cu vai gio van tot hon mot nua cua hang het hang. Qua SHRINK_HOLD_H gio ma nguon
@@ -198,20 +238,30 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
         console.error(`DUNG - GIU NGUYEN BAN DA XUAT BAN (lan xuat ban gan nhat ${meta.lastSync}): mat du lieu nguon ${shrunk.join(', ')}` + (feed.stat.fail.length ? ' · LOI: ' + feed.stat.fail.join('; ') : '') + ` · se tu xuat ban thieu neu qua ${HOLD_H} gio van chua co lai du lieu.`);
         process.exit(2);
       } }
-    const healthy = feed.offers.length > 0 && !feed.stat.fail.length && !shrunk.length, RETIRE_RUNS = Math.max(1, parseInt(process.env.RETIRE_RUNS || '8', 10)), rm = new Set();
+    const RETIRE_RUNS = Math.max(1, parseInt(process.env.RETIRE_RUNS || '8', 10)), rm = new Set();
     if (healthy) fidx.srcN = cntBySrc;
     if (healthy) for (const p of full) {
       if (!fidx.origin[p.sku]) continue;
       if (exBySku.has(p.sku) || fzBySku.has(p.sku)) { delete fidx.miss[p.sku]; continue; }
       const n = (fidx.miss[p.sku] || 0) + 1; fidx.miss[p.sku] = n; if (n >= RETIRE_RUNS) rm.add(p.sku);
     }
+    /* hang gia tri thap: da duoi nguong LOWVAL_RUNS lan chay khoe lien tiep (dem o vong tinh gia ben duoi) -> go */
+    let lowRm = 0; const noSrc = rm.size;
+    if (!SELL_MIN) fidx.low = {};
+    else if (healthy) for (const p of full) if ((fidx.low[p.sku] || 0) >= LOWVAL_RUNS && fidx.origin[p.sku] && !rm.has(p.sku)) {
+      const raw = (exBySku.get(p.sku) || []).filter(o => o.stock).map(o => o.price).concat((fzBySku.get(p.sku) || []).filter(x => x.o.stock).map(x => x.o.price));
+      if (raw.length && Math.min(...raw) >= SELL_MIN) continue;        // lan nay moi offer deu da tu nguong tro len: khong go, vong tinh gia se dat lai bo dem
+      rm.add(p.sku); lowRm++; }
     if (rm.size) {
       for (let i = full.length - 1; i >= 0; i--) if (rm.has(full[i].sku)) { try { fs.unlinkSync(path.join(API, 'products', full[i].sku + '.json')); } catch {} full.splice(i, 1); }
       for (const k of Object.keys(fidx.map)) if (rm.has(fidx.map[k])) delete fidx.map[k];
-      for (const sku of rm) { delete fidx.origin[sku]; delete fidx.miss[sku]; }
+      for (const sku of rm) { delete fidx.origin[sku]; delete fidx.miss[sku]; delete fidx.low[sku]; delete fidx.aka[sku]; exBySku.delete(sku); fzBySku.delete(sku); }
     }
-    feed.stat.retired = rm.size; feed.stat.missing = Object.keys(fidx.miss).length; }
-  if (feed.stat.sources) console.log(`Feed: ${feed.stat.ok}/${feed.stat.sources} nguon · ${feed.stat.items} ban ghi · khop ${feed.stat.matched} · ghep mo ${feed.stat.fuzzyKeys} ten vao ${feed.stat.fuzzySku || 0} SP · tach ${feed.stat.split} nhom gop sai · go lien ket sai ${feed.stat.unlinked} · them moi ${feed.stat.added} · phan loai lai ${feed.stat.reclassified || 0} · go ${(feed.stat.removed || 0) + feed.stat.retired} (cho go: ${feed.stat.missing})`
+    /* con tro cua ma da gop: bo khi ma chuan khong con trong cua hang hoac qua han luu */
+    { const live = new Set(full.map(p => p.sku));
+      for (const [from, e] of Object.entries(fidx.merged)) if (!live.has(e.to) || Date.now() - Date.parse(e.at) > MERGE_KEEP_MS) { delete fidx.merged[from]; try { fs.unlinkSync(path.join(API, 'products', from + '.json')); } catch {} } }
+    feed.stat.retired = noSrc; feed.stat.missing = Object.keys(fidx.miss).length; feed.stat.lowVal = { min: SELL_MIN, removed: lowRm }; }
+  if (feed.stat.sources) console.log(`Feed: ${feed.stat.ok}/${feed.stat.sources} nguon · ${feed.stat.items} ban ghi · khop ${feed.stat.matched} · ghep mo ${feed.stat.fuzzyKeys} ten vao ${feed.stat.fuzzySku || 0} SP · tach ${feed.stat.split} nhom gop sai · go lien ket sai ${feed.stat.unlinked} · them moi ${feed.stat.added} · phan loai lai ${feed.stat.reclassified || 0} · go ${(feed.stat.removed || 0) + feed.stat.retired} (cho go: ${feed.stat.missing})` + (feed.stat.lowVal && feed.stat.lowVal.removed ? ` · go hang gia tri thap ${feed.stat.lowVal.removed}` : '')
     + (feed.stat.stale && feed.stat.stale.length ? ' · FEED CU BI BO: ' + feed.stat.stale.join(', ') : '') + (feed.stat.fail.length ? ' · LOI: ' + feed.stat.fail.join('; ') : ''));
   if (feed.stat.per) console.log('Feed theo nguon: ' + Object.entries(feed.stat.per).map(([k, v]) => `${k} ${v.n}/${v.total}${v.age != null ? ' (' + v.age + ' ngay)' : ''}${v.via ? ' [' + v.via + ']' : ''}`).join(' · '));
 
@@ -224,6 +274,17 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
    */
   const docs = new Map(), leaves = [], recent = [], changedSlugs = [];
   const trustStat = { dropped: 0, hold: 0 };
+  /* DUYET TAY (curate.js): so duyet cong khai collector/approvals.json chi gom SKU + ma offer mot chieu + quyet dinh; muc gia da duyet nam trong
+   * goi quan tri ma hoa (so rieng apprPriv). Nap goi quan tri lan truoc 1 lan: lich su cap nhat, so rieng, va gia offer ma quan tri da nhin thay. */
+  const AKEY = (process.env.ADMIN_PORTAL_KEY || '').trim(); // tu cat khoang trang/xuong dong khi dan Secret
+  const ENC = path.join(SITE, 'admin', 'data.enc');
+  const APK = CURATE.apprKeys(AKEY), BOOK = CURATE.loadApprovals(path.join(__dirname, 'approvals.json'));
+  let prevUpdates = null; const apprPriv = {}, prevSeen = new Map(), apprStat = { ok: 0, no: 0, stale: 0, pend: 0 };
+  if (AKEY) { const prev = ULOG.decryptFile(ENC, AKEY);
+    if (prev) { prevUpdates = prev.updates || null;
+      for (const sku of Object.keys(BOOK.items)) if (prev.appr && prev.appr[sku]) apprPriv[sku] = prev.appr[sku];
+      for (const r of prev.rows || []) if (BOOK.items[r.sku]) for (const o of r.offers || []) if (o.id) prevSeen.set(r.sku + '|' + o.id, o.p); } }
+  let lowWait = 0;
   for (const p of full) {
     const f = path.join(API, 'products', p.sku + '.json');
     if (!fs.existsSync(f)) continue;
@@ -232,7 +293,10 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     const sources = ['dienmayxanh', 'thegioididong', 'fptshop', 'cellphones', 'dienmaycholon', 'tiki', 'shopee', 'tiktok', 'lazada', 'sendo'];
     // gia nguon tot nhat chu ky nay
     let best = null, bestSrc = null; let offerState = [];
-    const exOffers = exBySku.get(p.sku) || [], fzOffers = fzBySku.get(p.sku) || [], lowOffers = [];
+    const hasDec = !!(APK && BOOK.items[p.sku]), decMemo = new Map();
+    const decOf = (src, url, price) => { if (!hasDec) return ''; const id = APK.oid(p.sku, src, url), k = id + '|' + price; if (!decMemo.has(k)) decMemo.set(k, CURATE.decisionOf(BOOK, apprPriv, APK, p.sku, id, price, [prevSeen.get(p.sku + '|' + id) || 0])); return decMemo.get(k); };
+    const exAll = exBySku.get(p.sku) || [], fzAll = fzBySku.get(p.sku) || [], lowOffers = [];
+    const exOffers = hasDec ? exAll.filter(o => decOf(o.src, o.url, o.price) !== 'no') : exAll, fzOffers = hasDec ? fzAll.filter(x => decOf(x.o.src, x.o.url, x.o.price) !== 'no') : fzAll;
     if (exOffers.length || fzOffers.length || fidx.origin[p.sku]) {
       // GIA THAT tu kenh chinh thuc (san pham tu feed khong co gia mo phong; mat khoi feed => tam het hang)
       const toState = (o, extra) => ({ source: o.src, price: o.price, in_stock: o.stock ? 1 : 0, url: o.url, image: o.image, name: o.name, fetched_at: now, fs: FS_RE.test(o.name || '') ? 1 : 0, st: o.stale ? 1 : 0, ...extra });
@@ -259,12 +323,15 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       for (const o of exOffers) consider(toState(o));
       for (const y of bT.ok.concat(bS.ok, bW.ok)) consider(toState(y.x.o, { fz: y.x.sc }));
       offerState = Object.values(per);
-      for (const y of bT.low.concat(bS.low, bW.low)) lowOffers.push({ ...toState(y.x.o, { fz: y.x.sc }), x: 'Ghép chéo: rẻ bất thường so với giá neo - chưa dùng định giá, cần duyệt tay' });
-      trustStat.low = (trustStat.low || 0) + lowOffers.length;
+      const lowB = bT.low.concat(bS.low, bW.low);
+      for (const y of lowB) if (decOf(y.x.o.src, y.x.o.url, y.x.o.price) === 'ok') { y.ap = 1; const st = toState(y.x.o, { fz: y.x.sc, ap: 'ok' }), cur = per[st.source]; if (!cur || st.price < cur.price || !cur.in_stock) { per[st.source] = st; offerState = Object.values(per); } }   // quan tri da duyet -> dung dinh gia
+      for (const y of lowB) if (!y.ap) lowOffers.push({ ...toState(y.x.o, { fz: y.x.sc }), x: 'Ghép chéo: rẻ bất thường so với giá neo - chưa dùng định giá, cần duyệt tay', pend: 1 });
+      if (hasDec) for (const o of exAll.concat(fzAll.map(x => x.o))) if (decOf(o.src, o.url, o.price) === 'no') lowOffers.push({ ...toState(o), x: 'Quản trị đã từ chối offer này - không dùng', ap: 'no' });
+      trustStat.low = (trustStat.low || 0) + lowB.filter(y => !y.ap).length;
       // offer ghep cheo DAT hon 1,6 lan gia neo: khong anh huong gia re nhat -> chi liet ke 1 dong/nguon de quan tri tham khao (neu nguon do chua co offer hop le)
       { const seenH = new Set(Object.keys(per)); for (const y of bT.high.concat(bS.high, bW.high).sort((a, b) => a.price - b.price)) { const src = y.x.o.src; if (seenH.has(src)) continue; seenH.add(src);
           lowOffers.push({ ...toState(y.x.o, { fz: y.x.sc }), x: 'Ghép chéo: đắt hơn 1,6 lần giá neo (giá niêm yết cao hoặc bản khác) - không dùng' }); } }
-      for (const o of offerState) { o.ship = SHIP.shipFor(o.source, o.price, p.grp, { freeship: o.fs, stale: o.st, name: p.name }); o.landed = o.price + o.ship; }
+      for (const o of offerState.concat(lowOffers)) { o.ship = SHIP.shipFor(o.source, o.price, p.grp, { freeship: o.fs, stale: o.st, name: p.name }); o.landed = o.price + o.ship; }
     } else for (const src of sources) {
       const rnd = mulberry32((seed + hash32(p.sku + src)) >>> 0);
       const price = round1000(d.base_price * (0.91 + rnd() * 0.18));
@@ -287,11 +354,17 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
           flt = TRUST.filterOffers(d, offerState, PRICING.ok ? PRICING.toCost : 0);
         }
       } else if (hk[p.sku]) delete hk[p.sku]; }
+    if (hasDec && flt.dropped.length) { const back = flt.dropped.filter(o => o.in_stock && o.url && decOf(o.source, o.url, o.price) === 'ok');   // quan tri da duyet: bo qua bo loc tin cay cho dung offer do
+      if (back.length) { for (const o of back) { delete o.why; o.ap = 'ok'; } flt.valid = flt.valid.concat(back); flt.dropped = flt.dropped.filter(o => !back.includes(o)); } }
     const hadLive = offerState.some(o => o.in_stock);
     best = null; bestSrc = null; let bestListed = null, bestShip = 0, bestFz = 0;   // best = GIA THUC TRA (da gom ship nguon)
     for (const o of flt.valid) if (o.in_stock && (!best || o.landed < best)) { best = o.landed; bestListed = o.price; bestShip = o.ship; bestSrc = o.source; bestFz = o.fz || 0; }
-    for (const o of flt.dropped) o.x = o.why;
+    for (const o of flt.dropped) { o.x = o.why; if (o.in_stock && o.url && o.landed > 0 && (!best || o.landed < best)) o.pend = 1; }   // re hon gia dang dung -> vao danh sach cho duyet
+    for (const o of lowOffers) if (o.pend && !(o.in_stock && o.url && o.landed > 0 && (!best || o.landed < best))) delete o.pend;
+    for (const o of offerState.concat(lowOffers)) { if (o.pend) { apprStat.pend++; if (hasDec && decOf(o.source, o.url, o.price) === 'stale') { o.ap = 'stale'; apprStat.stale++; } } else if (o.ap === 'ok' && flt.valid.includes(o)) apprStat.ok++; else if (o.ap === 'no') apprStat.no++; }
     trustStat.dropped += flt.dropped.length;
+    /* hang gia tri thap: dem so lan chay khoe lien tiep ma gia niem yet re nhat tai nguon duoi nguong (go o dau lan chay sau khi du LOWVAL_RUNS) */
+    if (SELL_MIN > 0 && fidx.origin[p.sku] && best) { if (bestListed < SELL_MIN) { lowWait++; if (healthy) fidx.low[p.sku] = (fidx.low[p.sku] || 0) + 1; } else delete fidx.low[p.sku]; }
     if (hadLive && !best) { d.hold = 1; d.hold_why = flt.dropped[0] ? flt.dropped[0].why : 'Không còn nguồn giá hợp lệ'; trustStat.hold++; }
     else { delete d.hold; delete d.hold_why; }
     let kk = d.kk_price;
@@ -344,7 +417,9 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       sp: Object.keys(d.specs || {}).length,
       best: best ? { s: bestSrc, p: bestListed, sh: bestShip, l: best } : null, margin: best ? d.kk_price - best : null,   // margin = lai thuc sau ship
       // u = duong dan dat hang (bot chi tu dat khi khop chinh xac hoac trung ma model >= 0.9); ghep theo ten: duong dan nam o fu de nguoi van hanh kiem tra truoc
-      offers: offerState.concat(lowOffers).map(o => { const man = o.fz && o.fz < 0.9; const r = { s: o.source, p: o.price, sh: o.ship || 0, l: o.landed || o.price, k: o.in_stock, u: man ? '' : (o.url || ''), x: o.x || '' }; if (o.fz) { r.f = o.fz; r.n = String(o.name || '').slice(0, 110); if (man) r.fu = o.url || ''; } return r; }).sort((a, b) => a.l - b.l), feed: (exOffers.length || fzOffers.length) ? 1 : 0, nx: exOffers.length, bf: best && bestFz ? bestFz : 0,
+      offers: offerState.concat(lowOffers).map(o => { const man = o.fz && o.fz < 0.9; const r = { s: o.source, p: o.price, sh: o.ship || 0, l: o.landed || o.price, k: o.in_stock, u: man ? '' : (o.url || ''), x: o.x || '' }; if (o.fz) { r.f = o.fz; r.n = String(o.name || '').slice(0, 110); if (man) r.fu = o.url || ''; }
+        if (APK && o.url && (o.pend || o.ap)) r.id = APK.oid(p.sku, o.source, o.url);                         // ma offer (HMAC mot chieu) cho nut Duyet / Tu choi
+        if (o.pend) { r.pa = 1; if (PRICING.ok) r.kq = PRICING.sell(o.landed); if (!r.n) r.n = String(o.name || '').slice(0, 110); if (!r.fu && !r.u) r.fu = o.url || ''; } if (o.ap) r.ap = o.ap; return r; }).sort((a, b) => a.l - b.l), feed: (exOffers.length || fzOffers.length) ? 1 : 0, nx: exOffers.length, bf: best && bestFz ? bestFz : 0,
       hold: d.hold ? d.hold_why : '', fl: ev.fl, disc: ev.disc });
   }
   /* ===== MERKLE ROOT toan so cai + proof tung SP, roi moi ghi file ===== */
@@ -358,8 +433,21 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     x.p.updated_at = d.updated_at; prodBytes += Buffer.byteLength(js); }
   fidx.size = { n: docs.size, prod: prodBytes, at: now };   // dung luong thuc cua du lieu SP -> tinh tran danh muc lan chay sau (SIZE_BUDGET_MB)
   console.log(`Ghi file san pham: ${wrote}/${docs.size} (chi ghi khi noi dung doi) · trung binh ${docs.size ? Math.round(prodBytes / docs.size) : 0} byte/SP`);
+  /* MA DA GOP: file thay the products/<ma cu>.json (ten/gia/ton kho cua SP chuan + merged_into) de gio hang cu, lien ket cu va may chu don hang van
+   * dinh gia dung; api/alias.json (cong khai: chi ma SP + slug cu) cho trang chuyen huong SEO; ban do ma cu -> ma chuan vao goi quan tri (lenh mua cu). */
+  const aliasMap = {}, aliasPub = {};
+  for (const [from, e] of Object.entries(fidx.merged)) { const c = docs.get(e.to); if (!c) continue;
+    const f = path.join(API, 'products', from + '.json'), js = JSON.stringify(CURATE.aliasStub(from, e.slug, c.d, c.d.updated_at));
+    let old = ''; try { old = fs.readFileSync(f, 'utf8'); } catch { }
+    if (old !== js) fs.writeFileSync(f, js);
+    aliasMap[from] = e.to; aliasPub[from] = { to: e.to, slug: e.slug || '' }; }
+  wj('alias.json', { v: 1, n: Object.keys(aliasPub).length, map: aliasPub });
+  if (feed.stat.merged) feed.stat.merged.total = Object.keys(aliasMap).length;
   docs.clear();
   feed.stat.trust = { dropped: trustStat.dropped, hold: trustStat.hold, low: trustStat.low || 0, histWait: trustStat.histWait || 0, healed: trustStat.healed || 0 };
+  feed.stat.appr = apprStat; if (feed.stat.lowVal) feed.stat.lowVal.wait = lowWait;
+  if (apprStat.pend || apprStat.ok || apprStat.no) console.log(`Duyet tay: ${apprStat.pend} offer cho duyet · dang ap dung ${apprStat.ok} offer da duyet · ${apprStat.no} offer da tu choi · ${apprStat.stale} can duyet lai (gia da doi)`);
+  if (SELL_MIN) console.log(`Hang gia tri thap (gia nguon < ${SELL_MIN.toLocaleString('vi-VN')} d): ${lowWait} SP dang duoi nguong · da go lan nay ${(feed.stat.lowVal || {}).removed || 0}`);
   console.log(`Bo loc tin cay: loai ${trustStat.dropped} offer ngoai lai · tam giu ${trustStat.hold} SP · cho xac nhan muc gia moi ${trustStat.histWait || 0} SP · da dat lai moc lich su ${trustStat.healed || 0} SP · Merkle root ${mk.root.slice(0, 16)}… (${mk.n} la, ${mk.chunks.length} khoi)`);
   /* ===== KIEM TRA ANH THAT (xoay vong ~300 anh/lan) + thay anh hong bang anh nguon khac ===== */
   fidx.broken = fidx.broken || {};
@@ -403,21 +491,19 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
 
   // ---- GOI DU LIEU QUAN TRI MA HOA (cong /admin) ----
   // Chi sinh khi co khoa (GitHub Secret ADMIN_PORTAL_KEY); nguoi ngoai khong giai ma duoc.
-  const AKEY = (process.env.ADMIN_PORTAL_KEY || '').trim(); // tu cat khoang trang/xuong dong khi dan Secret
   if (AKEY) {
     const SRCMETA = { dienmayxanh: ['\u0110i\u1ec7n M\u00e1y Xanh', '#2e7d32'], thegioididong: ['Th\u1ebf Gi\u1edbi Di \u0110\u1ed9ng', '#f9a825'], fptshop: ['FPT Shop', '#f37021'], cellphones: ['CellphoneS', '#d70018'], dienmaycholon: ['\u0110M Ch\u1ee3 L\u1edbn', '#0066b3'], tiki: ['Tiki', '#1a94ff'], shopee: ['Shopee', '#ee4d2d'], tiktok: ['TikTok Shop', '#111'], lazada: ['Lazada', '#0f146d'], sendo: ['Sendo', '#d0021b'] , hoangha: ['Ho\u00e0ng H\u00e0 Mobile', '#c2185b'], phucanh: ['Ph\u00fac Anh', '#1565c0'], anphat: ['An Ph\u00e1t', '#d84315'] };
     // Lich su cap nhat: giai ma goi cu -> noi them ban ghi lan chay nay
-    const ENC = path.join(SITE, 'admin', 'data.enc');
-    const prev = ULOG.decryptFile(ENC, AKEY);
     const FEEDK = ['ACCESSTRADE_KEY', 'FEED_URLS', 'SHOPEE_APP_ID', 'LAZADA_APP_KEY', 'TIKTOK_APP_KEY', 'TIKI_CLIENT_ID', 'SENDO_FEED_URL'].filter(k => process.env[k]);
     const entry = ULOG.finish(run, {
       at: now, dur: Date.now() - t0,
-      trig: process.env.KK_TRIGGER === 'bu-lich' ? 'Lịch bù (GitHub trễ lịch)' : process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' ? 'Chạy tay' : 'Lịch 3 giờ',
+      trig: process.env.KK_TRIGGER === 'bu-lich' ? 'Lịch bù (GitHub trễ lịch)' : process.env.KK_TRIGGER === 'duyet-gia' ? 'Sau khi quản trị duyệt giá' : process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' ? 'Chạy tay' : 'Lịch 3 giờ',
       mode: feed.stat.ok ? 'Feed chính thức (' + feed.stat.ok + '/' + feed.stat.sources + ' nguồn) + mô phỏng phần chưa có feed' : (FEEDK.length ? 'Đã cấu hình feed nhưng chưa tải được' : 'Mô phỏng thị trường (chưa nối feed)'),
       offers: adminRows.reduce((a, r) => a + r.offers.length, 0), feed: feed.stat.sources ? feed.stat : undefined, img: imgStat, pub: pub.length, hidden: hiddenSynthetic, ledger: [seqFrom + 1, seq], price_ok: PRICING.ok,
     });
-    const updates = ULOG.append(prev && prev.updates, entry);
-    const encObj = ULOG.encrypt({ v: 1, generated_at: now, total: adminRows.length, sources: SRCMETA, rows: adminRows, updates, unclassSample: feed.unclassSample || [] }, AKEY);
+    const updates = ULOG.append(prevUpdates, entry);
+    for (const sku of Object.keys(apprPriv)) { for (const id of Object.keys(apprPriv[sku])) if (!(BOOK.items[sku] && BOOK.items[sku][id] && BOOK.items[sku][id].d === 'ok')) delete apprPriv[sku][id]; if (!Object.keys(apprPriv[sku]).length) delete apprPriv[sku]; }   // so rieng: chi giu muc con hieu luc
+    const encObj = ULOG.encrypt({ v: 1, generated_at: now, total: adminRows.length, sources: SRCMETA, rows: adminRows, updates, unclassSample: feed.unclassSample || [], alias: aliasMap, appr: apprPriv }, AKEY);
     fs.mkdirSync(path.join(SITE, 'admin'), { recursive: true });
     fs.writeFileSync(ENC, JSON.stringify(encObj));
     const ct = Buffer.from(encObj.ct, 'base64');
@@ -430,7 +516,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   // ---- XUAT BAN CONG KHAI (catalog, nganh, pack, SDUI, meta + Merkle root, nhat ky root) ----
   meta.syncMinutes = CYCLE_MIN;
   { const live = new Set(feed.offers.filter(o => o.stock).map(o => o.src).concat(SROWS.map(r => r.src))); if (live.size) meta.sourceCount = live.size; }   // so nguon THUC SU co du lieu lan nay (khong tinh feed da chet)
-  const PUBR = publish({ API, pub, meta, now, seq, mk, recent: recent.sort((a, b) => b.seq - a.seq), chain: CHAIN });
+  const PUBR = publish({ API, pub, meta, now, seq, mk, recent: recent.sort((a, b) => b.seq - a.seq), chain: CHAIN, keep: new Set(Object.keys(aliasMap)) });
   // danh sach trang SP vua doi gia/ton kho -> IndexNow (chay sau deploy)
   const pubSet = new Set(PUBR.pub.map(r => r.slug));
   fs.writeFileSync(path.join(__dirname, '.changed.json'), JSON.stringify(changedSlugs.filter(s => s && pubSet.has(s))));
