@@ -198,6 +198,25 @@ const PAIRS = [
   t(!!m && require('crypto').createHash('sha256').update('123' + m[1] + got.body + 'sec').digest('hex') === m[2], 'Shopee Affiliate: chu ky SHA256(AppId+Timestamp+Payload+Secret) dung dinh dang');
   t(r2.status === 200 && r2.items.length === 1 && r2.items[0].lo === 700000 && /shopee\.vn\/product\/9\/1/.test(r2.items[0].u), 'Shopee Affiliate: doc ket qua productOfferV2');
   t(!S.PROVIDERS.shopee.enabled({}) && S.PROVIDERS.tiktok.enabled({ ACCESSTRADE_KEY: 'x' }), 'chua co khoa Shopee -> tu bo qua; TikTok dung khoa AccessTrade');
+  // doi chieu voi VI DU TRONG TAI LIEU CHINH THUC cua Shopee (affiliate.shopee.vn/open_api - muc Authentication): AppId=123456, Secret=demo, Timestamp=1577836800
+  t(S.shopeeSign('123456', 1577836800, '{"query":"{\\nbrandOffer{\\n    nodes{\\n        commissionRate\\n        offerName\\n    }\\n}\\n}"}', 'demo') === 'dc88d72feea70c80c52c3399751a7d34966763f51a7f056aa070a5e9df645412', 'Shopee Affiliate: chu ky khop vi du trong tai lieu chinh thuc');
+  { // ma loi theo bang "Error Code Description" cua tai lieu chinh thuc
+    let mode = 10035, calls = 0;
+    const body = () => ({ errors: [{ message: mode === 11001 ? 'error [11001]: Params Error : limit is too large' : 'error [' + mode + ']', extensions: { code: mode, message: mode === 11001 ? 'Params Error : limit is too large' : 'x' } }] });
+    const sv3 = http.createServer((req, res) => { req.resume(); req.on('end', () => { calls++; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(body())); }); });
+    await new Promise(r => sv3.listen(0, '127.0.0.1', r));
+    const E3 = { SHOPEE_APP_ID: '123', SHOPEE_APP_SECRET: 'sec-khong-duoc-lo', SHOPEE_API: 'http://127.0.0.1:' + sv3.address().port + '/graphql' };
+    const a = await S.PROVIDERS.shopee.search(E3, 'x'); mode = 10030; const b = await S.PROVIDERS.shopee.search(E3, 'x'); mode = 11001; const c = await S.PROVIDERS.shopee.search(E3, 'x'); mode = 10020; const d = await S.PROVIDERS.shopee.search(E3, 'x');
+    t(a.status === 400 && a.code === 10035 && /CHUA duoc cap quyen/.test(a.fatal) && !/sec-khong/.test(a.err + a.fatal), 'Shopee: ma 10035 (chua duoc cap quyen Open API) -> loi het duong, co huong dan, khong lo khoa');
+    t(b.status === 429 && !b.fatal, 'Shopee: ma 10030 -> qua gioi han toc do (gian nhip), khong phai loi het duong');
+    t(c.status === 400 && c.code === 11001 && !c.fatal, 'Shopee: loi tham so co chu "limit" KHONG bi hieu nham la gioi han toc do');
+    t(d.code === 10020 && !!d.fatal, 'Shopee: ma 10020 (sai khoa / chu ky / ung dung bi tat) -> loi het duong');
+    // vong chay that tren danh muc: 2 lan loi het duong lien tiep la dung, khong hoi tiep ca danh muc voi khoa hong
+    mode = 10035; calls = 0; const logs = [], tmpc = require('path').join(require('os').tmpdir(), 'kk-search-test-' + process.pid + '.json.gz');
+    const r3 = await S.run(1, { ...E3, SEARCH_CACHE_FILE: tmpc, SEARCH_ERR_WAIT_MS: '0', SEARCH_SHOPEE_GAP_MS: '0' }, m => logs.push(String(m)));
+    sv3.close(); try { require('fs').unlinkSync(tmpc); } catch { }
+    t(calls === 2 && !!r3 && r3.shopee.fatal === 10035 && r3.shopee.n === 0 && logs.some(l => /\[shopee\] DUNG - .*CHUA duoc cap quyen/.test(l)) && !logs.some(l => /sec-khong/.test(l)), 'Shopee: chua duoc cap quyen -> dung sau 2 lan goi, ghi ro ly do, nhat ky khong co khoa');
+  }
 
   t(M.isFreeship('Tai nghe Sony WH-1000XM5 - Freeship toàn quốc') && M.isFreeship('[FREESHIP] Nồi cơm Sharp KS-183TJV'), '"Freeship" khong dieu kien -> khong du phong phi ship');
   t(!M.isFreeship('[FREESHIP HN&HCM] Máy Giặt Sấy Hitachi BD-D852HVOS') && !M.isFreeship('Quạt Senko - freeship đơn từ 300k') && !M.isFreeship('Ốp lưng iPhone 17 Freeship Xtra') && !M.isFreeship('Tủ lạnh Samsung miễn phí vận chuyển nội thành') && !M.isFreeship('Chuột Logitech G304'), '"Freeship" kem dieu kien (khu vuc / gia tri don / chuong trinh co tran) -> van du phong phi ship');

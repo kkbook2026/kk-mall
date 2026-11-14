@@ -16,8 +16,8 @@ const CACHE = path.join(__dirname, '.search-cache', 'search.json.gz');
 const API = path.join(__dirname, '..', 'site', 'api');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-function loadCache() { try { const c = JSON.parse(zlib.gunzipSync(fs.readFileSync(CACHE)).toString('utf8')); if (c && c.items) return c; } catch { } return { v: 1, items: {}, stat: {} }; }
-function saveCache(C) { fs.mkdirSync(path.dirname(CACHE), { recursive: true }); fs.writeFileSync(CACHE, zlib.gzipSync(JSON.stringify(C))); }
+function loadCache(file = CACHE) { try { const c = JSON.parse(zlib.gunzipSync(fs.readFileSync(file)).toString('utf8')); if (c && c.items) return c; } catch { } return { v: 1, items: {}, stat: {} }; }
+function saveCache(C, file = CACHE) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, zlib.gzipSync(JSON.stringify(C))); }
 
 async function http(url, opt = {}, timeout = 25000) {
   const ac = new AbortController(); const t = setTimeout(() => ac.abort(), timeout);
@@ -26,6 +26,23 @@ async function http(url, opt = {}, timeout = 25000) {
   finally { clearTimeout(t); }
 }
 const num = v => { const n = Math.round(parseFloat(v)); return Number.isFinite(n) ? n : 0; };
+
+/* ---------- Shopee Affiliate Open API: da doi chieu voi tai lieu chinh thuc (affiliate.shopee.vn/open_api) ngay 14/11/2026 ----------
+ * Diem cuoi duy nhat: POST https://open-api.affiliate.shopee.vn/graphql, noi dung JSON { query }.
+ * Authorization: SHA256 Credential={AppId}, Timestamp={giay}, Signature={SHA256(AppId+Timestamp+Payload+Secret), 64 ky tu hex thuong}.
+ * Dong ho lech toi da 10 phut. Gioi han chinh thuc: 8.000 lan goi/gio (mac dinh o day 1.800 lan/gio). */
+const shopeeSign = (app, ts, payload, secret) => crypto.createHash('sha256').update(String(app) + ts + payload + secret).digest('hex');
+/* Ma loi theo tai lieu: 10030 = qua gioi han toc do (gian nhip). Cac ma duoi day hoi tiep cung vo ich -> DUNG NGAY de khong goi sai lap lai. */
+const SHOPEE_FATAL = {
+  10020: 'AppID / Secret / chu ky / dong ho khong hop le, hoac ung dung da bi tat - kiem tra lai hai Secret SHOPEE_APP_ID va SHOPEE_APP_SECRET',
+  10031: 'Shopee tu choi truy cap', 10032: 'ma doi tac tiep thi lien ket khong hop le',
+  10033: 'tai khoan doi tac dang bi dong bang', 10034: 'tai khoan doi tac nam trong danh sach den',
+  10035: 'tai khoan CHUA duoc cap quyen Open API - gui yeu cau qua bieu mau lien he ghi trong tai lieu Open API cua Shopee',
+};
+const shopeeCode = errs => {
+  for (const e of errs || []) { const c = e && e.extensions && e.extensions.code; if (+c > 0) return +c; }
+  const m = /\b1[01]0\d\d\b/.exec(JSON.stringify(errs || '')); return m ? +m[0] : 0;
+};
 
 /* ---------- cac san ---------- */
 const PROVIDERS = {
@@ -43,18 +60,23 @@ const PROVIDERS = {
   },
   shopee: {
     enabled: env => !!(String(env.SHOPEE_APP_ID || '').trim() && String(env.SHOPEE_APP_SECRET || '').trim()),
-    gap: env => parseInt(env.SEARCH_SHOPEE_GAP_MS || '2000', 10),   // gioi han cua Shopee: 2.000 truy van/gio
-    /* Shopee Affiliate Open API (GraphQL). Chu ky: SHA256(AppId + Timestamp + Payload + Secret) */
+    gap: env => parseInt(env.SEARCH_SHOPEE_GAP_MS || '2000', 10),   // 1.800 lan/gio = chua toi 1/4 gioi han chinh thuc 8.000 lan/gio
+    /* productOfferV2: tim theo ten (keyword), sortType 1 = RELEVANCE_DESC (chi dung khi tim theo tu khoa).
+     * Chi lay productLink (link san pham thuong) - KHONG lay offerLink (link tiep thi): don mua ho khong di qua link tiep thi cua chinh minh. */
     async search(env, q) {
       const base = env.SHOPEE_API || 'https://open-api.affiliate.shopee.vn/graphql';
       const app = String(env.SHOPEE_APP_ID).trim(), secret = String(env.SHOPEE_APP_SECRET).trim();
       const query = `{ productOfferV2(keyword: ${JSON.stringify(q)}, sortType: 1, page: 1, limit: 30) { nodes { itemId productName priceMin priceMax imageUrl productLink shopName shopId sales ratingStar } } }`;
       const payload = JSON.stringify({ query }), ts = Math.floor(Date.now() / 1000);
-      const sig = crypto.createHash('sha256').update(app + ts + payload + secret).digest('hex');
+      const sig = shopeeSign(app, ts, payload, secret);
       const r = await http(base, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `SHA256 Credential=${app}, Timestamp=${ts}, Signature=${sig}` }, body: payload });
-      const errs = r.j && r.j.errors, ns = (r.j && r.j.data && r.j.data.productOfferV2 && r.j.data.productOfferV2.nodes) || [];
-      const status = errs && errs.length ? (/(rate|limit|10030)/i.test(JSON.stringify(errs)) ? 429 : 400) : r.status;
-      return { status, err: errs ? JSON.stringify(errs).slice(0, 160) : '', items: ns.map(x => ({ n: String(x.productName || ''), lo: num(x.priceMin), hi: num(x.priceMax),
+      const errs = r.j && Array.isArray(r.j.errors) && r.j.errors.length ? r.j.errors : null;
+      const ns = (r.j && r.j.data && r.j.data.productOfferV2 && r.j.data.productOfferV2.nodes) || [];
+      const code = errs ? shopeeCode(errs) : 0;
+      const status = errs ? (code === 10030 ? 429 : 400) : r.status;
+      // chi ghi ma loi + thong diep ngan (khong ghi nguyen van phan hoi) - nhat ky cua GitHub Actions la cong khai
+      const msg = errs ? String((errs[0] && ((errs[0].extensions && errs[0].extensions.message) || errs[0].message)) || '').replace(/\s+/g, ' ').slice(0, 100) : '';
+      return { status, code, fatal: SHOPEE_FATAL[code] || '', err: errs ? `ma ${code || '?'}${msg ? ' - ' + msg : ''}` : '', items: ns.map(x => ({ n: String(x.productName || ''), lo: num(x.priceMin), hi: num(x.priceMax),
         u: String(x.productLink || ''), i: String(x.imageUrl || ''), shop: String(x.shopName || ''), inv: 1 })) };
     },
   },
@@ -85,7 +107,8 @@ async function run(minutes = 110, env = process.env, log = console.log) {
   if (!provs.length) { log('Khong co khoa cho san nao (ACCESSTRADE_KEY / SHOPEE_APP_ID+SECRET) - bo qua.'); return null; }
   const cat = JSON.parse(fs.readFileSync(path.join(API, 'catalog-full.json'), 'utf8'));
   const IDX = MATCH.createIndex(); for (const p of cat) IDX.add(p.sku, p.name, p.grp);
-  const C = loadCache(), deadline = Date.now() + minutes * 60e3, live = new Set(cat.map(p => p.sku));
+  const CF = env.SEARCH_CACHE_FILE || CACHE, ERRWAIT = parseInt(env.SEARCH_ERR_WAIT_MS || '3000', 10);   // hai bien nay chi de kiem thu tach biet
+  const C = loadCache(CF), deadline = Date.now() + minutes * 60e3, live = new Set(cat.map(p => p.sku));
   for (const sku of Object.keys(C.items)) if (!live.has(sku)) delete C.items[sku];                 // SP da go khoi cua hang
   const pool = cat.filter(p => eligible(IDX.features(p.sku)));
   const res = {}, KICK = require('./kick').make(env, log);   // giu nhip 3 gio cua bo thu thap gia trong luc tien trinh nay dang chay
@@ -106,7 +129,7 @@ async function run(minutes = 110, env = process.env, log = console.log) {
     const q0 = sorted.filter(p => pri(p) === 0), q1 = sorted.filter(p => pri(p) !== 0), SHARE = Math.min(10, Math.max(1, parseInt(env.SEARCH_REFRESH_SHARE || '7', 10)));
     const queue = []; for (let i = 0, a = 0, b = 0; a < q0.length || b < q1.length; i++) { if ((i % 10 < SHARE && a < q0.length) || b >= q1.length) queue.push(q0[a++]); else queue.push(q1[b++]); }
     st.refresh = q0.length;
-    let gap = P.gap(env), fails = 0, c429 = 0;
+    let gap = P.gap(env), fails = 0, c429 = 0, nfatal = 0;
     for (const p of queue) {
       if (Date.now() > deadline) break;
       await KICK.tick();
@@ -115,6 +138,9 @@ async function run(minutes = 110, env = process.env, log = console.log) {
       if (r.status === 429) { st.e429++; gap = Math.min(8000, Math.round(gap * 1.3));                                     // qua nhanh: gian nhip, bo qua SP nay (lan sau thu lai)
         if (++c429 >= 25) { log(`[${prov}] dung som: bi gioi han toc do keo dai (HTTP 429 x${c429})`); break; } await sleep(15000); continue; }
       c429 = 0;
+      // loi "het duong" (sai khoa, chua duoc cap quyen, tai khoan bi khoa...): 2 lan lien tiep la dung han, khong hoi tiep 12 lan nhu loi thuong
+      if (r.fatal) { st.err++; st.fatal = r.code; if (++nfatal >= 2) { log(`[${prov}] DUNG - ${r.fatal} (ma ${r.code}). Luot nay khong hoi tiep san nay.`); break; } await sleep(ERRWAIT); continue; }
+      nfatal = 0; delete st.fatal;
       if (r.status !== 200) { st.err++; if (++fails >= 12) { log(`[${prov}] dung som: loi lien tiep (HTTP ${r.status}${r.err ? ' ' + r.err : ''})`); break; } await sleep(3000); continue; }
       fails = 0; st.n++; if (r.items.length) st.got++; st.items += r.items.length;
       const offers = [];
@@ -129,12 +155,12 @@ async function run(minutes = 110, env = process.env, log = console.log) {
       offers.sort((a, b) => a.p - b.p);
       (C.items[p.sku] = C.items[p.sku] || {})[prov] = { at: Date.now(), q, offers: offers.slice(0, 3) };
       if (offers.length) { st.hit++; st.offers += offers.length; }
-      if (st.n % 200 === 0) { C.savedAt = Date.now(); saveCache(C); }
+      if (st.n % 200 === 0) { C.savedAt = Date.now(); saveCache(C, CF); }
       await sleep(Math.max(0, gap - (Date.now() - t0)));
     }
     log(`[${prov}] hoi ${st.n} SP · san tra ket qua cho ${st.got} SP (${st.items} tin, ${st.priced} tin con hang co 1 muc gia) · co offer KHOP ${st.hit} SP · 429: ${st.e429} · loi: ${st.err} · nhip ${gap}ms · SP du dieu kien ${st.eligible} · can lam moi ${st.refresh}`);
   }));
-  C.savedAt = Date.now(); C.stat = { at: C.savedAt, res }; saveCache(C);
+  C.savedAt = Date.now(); C.stat = { at: C.savedAt, res }; saveCache(C, CF);
   let tot = 0, withOffer = 0; for (const v of Object.values(C.items)) for (const e of Object.values(v)) { tot++; if (e.offers && e.offers.length) withOffer++; }
   log(`Bo nho dem tim kiem: ${tot} luot SP-san · ${withOffer} co offer khop`);
   return res;
@@ -151,5 +177,5 @@ function rows(maxAgeH = 60) {
 }
 function stat() { const C = loadCache(); return C.stat || {}; }
 
-module.exports = { PROVIDERS, run, rows, stat, queryOf, priceOf, eligible, loadCache, saveCache, CACHE };
+module.exports = { PROVIDERS, run, rows, stat, queryOf, priceOf, eligible, loadCache, saveCache, CACHE, shopeeSign, shopeeCode, SHOPEE_FATAL };
 if (require.main === module) run(parseFloat(process.argv[2]) || 110).then(() => process.exit(0), e => { console.error(e); process.exit(1); });
