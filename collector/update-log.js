@@ -7,6 +7,7 @@
  */
 const fs = require('fs');
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 const MAX_ENTRIES = 1500;   // ~6 thang o chu ky 3 gio
 const KEEP_TOP = 96;        // giu danh sach "thay doi lon nhat" cho 96 ban ghi gan nhat (~2 ngay)
@@ -17,8 +18,10 @@ function encrypt(obj, key) {
   const salt = crypto.randomBytes(16), iv = crypto.randomBytes(12);
   const k = crypto.pbkdf2Sync(key, salt, KDF_ITER, 32, 'sha256');
   const c = crypto.createCipheriv('aes-256-gcm', k, iv);
-  const ct = Buffer.concat([c.update(Buffer.from(JSON.stringify(obj), 'utf8')), c.final(), c.getAuthTag()]);
-  return { v: 1, kdf: 'PBKDF2-SHA256', iter: KDF_ITER, salt: salt.toString('base64'), iv: iv.toString('base64'), ct: ct.toString('base64') };
+  /* NEN gzip TRUOC khi ma hoa (z: 'gzip'): goi quan tri ~1 KB/SP -> 80.000 SP la ~80 MB, sat nguong 100 MB/file cua GitHub (qua nguong la KHONG day duoc du lieu);
+   * nen con ~1/8. Trang quan tri va tien ich (>= 1.3.0) giai nen bang DecompressionStream; goi cu (khong co z) van doc duoc. */
+  const ct = Buffer.concat([c.update(zlib.gzipSync(Buffer.from(JSON.stringify(obj), 'utf8'), { level: 6 })), c.final(), c.getAuthTag()]);
+  return { v: 2, z: 'gzip', kdf: 'PBKDF2-SHA256', iter: KDF_ITER, salt: salt.toString('base64'), iv: iv.toString('base64'), ct: ct.toString('base64') };
 }
 
 function decryptFile(file, key) {
@@ -29,7 +32,8 @@ function decryptFile(file, key) {
     const buf = Buffer.from(e.ct, 'base64');
     const d = crypto.createDecipheriv('aes-256-gcm', k, Buffer.from(e.iv, 'base64'));
     d.setAuthTag(buf.subarray(buf.length - 16));
-    return JSON.parse(Buffer.concat([d.update(buf.subarray(0, buf.length - 16)), d.final()]).toString('utf8'));
+    const pt = Buffer.concat([d.update(buf.subarray(0, buf.length - 16)), d.final()]);
+    return JSON.parse((e.z === 'gzip' ? zlib.gunzipSync(pt) : pt).toString('utf8'));
   } catch { return null; }   // khoa doi / goi hong -> bat dau lich su moi
 }
 

@@ -61,8 +61,11 @@ async function offers() {
   const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(key), 'PBKDF2', false, ['deriveKey']);
   const aes = await crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt: b64(enc.salt), iterations: enc.iter }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
   let pt; try { pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(enc.iv) }, aes, b64(enc.ct)); } catch (e) { throw Object.assign(new Error('Khóa quản trị không đúng'), { pause: true }); }
-  const data = JSON.parse(new TextDecoder().decode(pt)), m = {};
+  // goi moi (z: 'gzip'): nen truoc khi ma hoa - giai nen ngay trong service worker
+  const txt = enc.z === 'gzip' ? await new Response(new Blob([pt]).stream().pipeThrough(new DecompressionStream('gzip'))).text() : new TextDecoder().decode(pt);
+  const data = JSON.parse(txt), m = {};
   for (const r of data.rows || []) m[r.sku] = r.offers || [];
+  for (const k in data.alias || {}) { const to = data.alias[k]; if (m[to] && !m[k]) m[k] = m[to]; }   // ma SP da gop vao SP chuan: dung link nguon cua SP chuan
   OFFERS = m; OFFERS_AT = Date.now(); return m;
 }
 

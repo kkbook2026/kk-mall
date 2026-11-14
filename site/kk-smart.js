@@ -90,7 +90,7 @@ function histPoints(p) {
   const pts = new Map();
   for (const x of p.d90 || []) pts.set('d' + x[0], { t: x[0] * DAY + 12 * 3600e3, v: x[1], h: x[2], kind: 'day' });
   for (const e of p.ledger || []) { const t = Date.parse(e.at); const k = 'd' + Math.floor(t / DAY); pts.delete(k); pts.set('e' + e.seq, { t, v: e.kk_price, h: e.hash, seq: e.seq, kind: 'entry' }); }
-  if (p.kk_price) pts.set('now', { t: Date.parse(p.updated_at || new Date().toISOString()), v: p.kk_price, h: (p.ledger || []).length ? p.ledger[p.ledger.length - 1].hash : '', kind: 'now' });
+  if (p.kk_price) pts.set('now', { t: Math.max(Date.parse(p.updated_at || '') || 0, Date.parse((window.META && META.lastSync) || '') || 0) || Date.now(), v: p.kk_price, h: (p.ledger || []).length ? p.ledger[p.ledger.length - 1].hash : '', kind: 'now' });
   return [...pts.values()].filter(x => x.v > 0).sort((a, b) => a.t - b.t);
 }
 function priceChart(p, days, id) {
@@ -130,12 +130,34 @@ function bindChart(id) {
     c.addEventListener('mouseenter', showTip); c.addEventListener('click', showTip); c.addEventListener('mouseleave', () => tip.classList.remove('show'));
   });
 }
+// d90 luu nen theo doan: [ngay, gia, ma niem phong] co hieu luc den truoc phan tu ke tiep (phan tu cuoi: den hom nay) -> bung ra gia tung ngay
+function histDaily(p) {
+  const A = p.d90 || [], today = Math.floor(Date.now() / DAY), out = [];
+  for (let i = 0; i < A.length; i++) { const end = i + 1 < A.length ? A[i + 1][0] - 1 : Math.max(today, A[i][0]); for (let d = Math.max(A[i][0], today - 89); d <= end; d++) out.push(A[i][1]); }
+  return out.filter(x => x > 0);
+}
 function histStats(p) {
-  const v = histPoints(p).map(x => x.v); if (!v.length) return null;
-  const s = v.slice().sort((a, b) => a - b); return { min: s[0], max: s[s.length - 1], med: s[s.length >> 1], n: v.length, now: p.kk_price, atLow: p.kk_price && p.kk_price <= s[0] };
+  const pts = histPoints(p).map(x => x.v), days = histDaily(p), all = pts.concat(days); if (!all.length) return null;
+  const s = (days.length ? days : pts).slice().sort((a, b) => a - b), mn = Math.min(...all);   // trung vi tinh theo NGAY (khong theo so lan doi gia)
+  return { min: mn, max: Math.max(...all), med: s[s.length >> 1], n: all.length, now: p.kk_price, atLow: p.kk_price && p.kk_price <= mn };
+}
+/* Merkle theo KHOI (api/merkle): tu bam lai toan bo la cua khoi chua SKU -> nut khoi -> root, ngay tren trinh duyet.
+ * top.json = { root, n, c, first[], nodes[] }; <i>.json = { i, root, skus[], heads[] }. Tra { stale } khi file SP va khoi khac phien xuat ban. */
+const pairUpH = async L => { const o = []; for (let i = 0; i < L.length; i += 2) o.push(await sha256(L[i] + (L[i + 1] || L[i]))); return o; };
+async function merkleByChunk(sku, head, fresh) {
+  const opt = { cache: fresh ? 'reload' : 'no-cache' }, gj = u => fetch(u, opt).then(r => r.ok ? r.json() : null).catch(() => null);
+  const top = await gj('api/merkle/top.json'); if (!top || !top.n || !Array.isArray(top.first) || !Array.isArray(top.nodes)) return null;
+  let i = 0; while (i + 1 < top.first.length && top.first[i + 1] <= sku) i++;
+  const ch = await gj('api/merkle/' + i + '.json'); if (!ch || !Array.isArray(ch.skus)) return null;
+  const k = ch.skus.indexOf(sku);
+  if (k < 0 || ch.heads[k] !== head || ch.root !== top.root) return { stale: true, root: top.root, at: top.at };
+  let lv = []; for (let j = 0; j < ch.skus.length; j++) lv.push(await sha256('LEAF|' + ch.skus[j] + '|' + ch.heads[j]));
+  for (let x = 0, LV = Math.log2(top.c || 256); x < LV && Math.ceil(top.n / 2 ** x) > 1; x++) lv = await pairUpH(lv);
+  let up = top.nodes.slice(); while (up.length > 1) up = await pairUpH(up);
+  return { ok: lv[0] === top.nodes[i] && up[0] === top.root, root: top.root, at: top.at, steps: ch.skus.length + top.nodes.length, chunk: i, leaves: ch.skus.length, n: top.n };
 }
 // Kiem chung chuoi bang WebCrypto
-async function verifyChain(p) {
+async function verifyChain(p, fresh) {
   const L = (p.ledger || []).slice().sort((a, b) => a.seq - b.seq); const rows = [];
   for (let i = 0; i < L.length; i++) {
     const e = L[i]; let st = 'fail';
@@ -147,14 +169,14 @@ async function verifyChain(p) {
     rows.push({ ...e, st });
   }
   // Merkle proof -> root
-  let merkle = null;
-  if (p.mp && p.mr) {
-    const head = L.length ? L[L.length - 1].hash : 'GENESIS-' + p.sku;
+  let merkle = null; const head = L.length ? L[L.length - 1].hash : 'GENESIS-' + p.sku;
+  if (!(p.mp && p.mr)) { try { merkle = await merkleByChunk(p.sku, head, fresh); } catch { merkle = null; } }
+  else {   // du lieu ban cu: proof nam ngay trong file san pham
     let h = await sha256('LEAF|' + p.sku + '|' + head);
     for (const x of p.mp) h = x[0] === 'L' ? await sha256(x.slice(2) + h) : await sha256(h + x.slice(2));
     merkle = { ok: h === p.mr, root: p.mr, at: p.mat, steps: p.mp.length };
   }
-  return { rows, merkle, ok: rows.every(r => r.st !== 'fail') && (!merkle || merkle.ok) };
+  return { rows, merkle, ok: rows.every(r => r.st !== 'fail') && (!merkle || merkle.ok || merkle.stale) };
 }
 let LG_ROOTS = null;
 async function ledgerPanel(sku, box) {
@@ -168,21 +190,27 @@ async function ledgerPanel(sku, box) {
     ${st ? `<div class="hstat"><div><span>Thấp nhất</span><b>${vnd(st.min)}</b></div><div><span>Trung vị</span><b>${vnd(st.med)}</b></div><div><span>Cao nhất</span><b>${vnd(st.max)}</b></div><div><span>Hiện tại</span><b class="${st.atLow ? 'okc' : ''}">${vnd(st.now)}${st.atLow ? ' · đáy' : ''}</b></div></div>` : ''}
     <div class="vbox" id="lgVerify"><div class="lg-load">🔐 Đang kiểm chứng SHA-256 ngay trên trình duyệt của bạn...</div></div>`;
   window._lgP = p; bindChart('lgc');
-  const t0 = performance.now(); const r = await verifyChain(p); const ms = Math.round(performance.now() - t0);
+  const t0 = performance.now(); let r = await verifyChain(p);
+  if (r.merkle && r.merkle.stale) {   // file SP dang hien la ban luu cu cua trinh duyet (hoac site vua xuat ban phien moi): tai lai ban moi nhat roi kiem lai
+    try { const q = await fetch('api/products/' + sku + '.json', { cache: 'reload' }).then(x => x.ok ? x.json() : null); if (q && q.sku === sku) { p = q; window._lgP = p; } } catch { }
+    r = await verifyChain(p, true);
+    if (r.merkle && r.merkle.stale) { r.merkle = { ok: false, root: r.merkle.root, at: r.merkle.at, steps: 0 }; r.ok = false; }
+  }
+  const ms = Math.round(performance.now() - t0);
   if (!LG_ROOTS) { try { LG_ROOTS = await api('/api/ledger-roots'); } catch { LG_ROOTS = []; } }
   const inLog = r.merkle && (LG_ROOTS || []).find(x => x.root === r.merkle.root);
   const nOk = r.rows.filter(x => x.st === 'ok' || x.st === 'genesis').length, nBoot = r.rows.filter(x => x.st === 'boot' || x.st === 'anchor').length, nBad = r.rows.filter(x => x.st === 'fail').length;
   const lab = { ok: '<span class="okc">✓ khớp</span>', genesis: '<span class="okc">✓ khởi đầu</span>', anchor: '<span class="mut">⚓ neo</span>', boot: '<span class="mut">◇ khởi tạo</span>', fail: '<span class="bad">✗ sai</span>' };
   document.getElementById('lgVerify').innerHTML = `<div class="vsum ${nBad || (r.merkle && !r.merkle.ok) ? 'bad' : 'good'}">
       ${nBad || (r.merkle && !r.merkle.ok) ? '⚠️ Phát hiện bản ghi không khớp chuỗi băm' : '✅ Toàn vẹn - lịch sử giá chưa từng bị sửa lùi'}
-      <small>${nOk} liên kết SHA-256 khớp${nBoot ? ` · ${nBoot} bản ghi neo/khởi tạo` : ''}${r.merkle ? ` · Merkle proof ${r.merkle.steps} bước ${r.merkle.ok ? '✓ hợp lệ' : '✗ sai'}` : ''} · kiểm chứng trong ${ms} ms trên máy bạn</small></div>
+      <small>${nOk} liên kết SHA-256 khớp${nBoot ? ` · ${nBoot} bản ghi neo/khởi tạo` : ''}${r.merkle ? (r.merkle.leaves ? ` · Merkle: băm lại ${r.merkle.leaves} lá của khối #${r.merkle.chunk} → root (${(r.merkle.n || 0).toLocaleString('vi-VN')} sản phẩm) ${r.merkle.ok ? '✓ hợp lệ' : '✗ sai'}` : ` · Merkle proof ${r.merkle.steps} bước ${r.merkle.ok ? '✓ hợp lệ' : '✗ sai'}`) : ''} · kiểm chứng trong ${ms} ms trên máy bạn</small></div>
     ${r.merkle ? `<div class="mroot">Merkle root: <code>${r.merkle.root}</code><br>${inLog ? `✓ Có trong nhật ký root công khai (#${inLog.seq.toLocaleString('vi-VN')}, ${new Date(inLog.at).toLocaleString('vi-VN')})` : 'Root của phiên niêm phong ' + (r.merkle.at ? new Date(r.merkle.at).toLocaleString('vi-VN') : '')}</div>` : ''}
     <div style="overflow-x:auto"><table class="lgt"><tr><th>#Seq</th><th>Thời điểm</th><th>Giá</th><th>Hash SHA-256</th><th>Kết quả</th></tr>
     ${r.rows.slice().reverse().slice(0, 40).map(x => `<tr><td>${x.seq.toLocaleString('vi-VN')}</td><td>${new Date(x.at).toLocaleString('vi-VN')}</td><td>${vnd(x.kk_price)}</td><td><code title="${x.hash}">${x.hash.slice(0, 20)}…</code></td><td>${lab[x.st]}</td></tr>`).join('')}</table></div>
     <details class="algo"><summary>Thuật toán & cách tự kiểm chứng độc lập</summary>
     <ol><li>Mỗi lần giá/tồn kho đổi: <code>hash = SHA256(seq|SKU|giá|còn_hàng|thời_điểm|hash_trước)</code> - sửa 1 bản ghi cũ sẽ làm gãy toàn bộ chuỗi phía sau.</li>
     <li>Đầu chuỗi của mọi sản phẩm gộp thành <b>Merkle root</b> duy nhất, công bố mỗi chu kỳ thu thập (3 giờ/lần) và lưu nhật ký tại <a href="./api/ledger-roots.json" target="_blank">ledger-roots.json</a>.</li>
-    <li>Dữ liệu gốc công khai: <a href="./api/products/${p.sku}.json" target="_blank">products/${p.sku}.json</a> (ledger, mp = Merkle proof, mr = root) - tự tính lại bằng bất kỳ công cụ SHA-256 nào.</li>
+    <li>Dữ liệu gốc công khai: <a href="./api/products/${p.sku}.json" target="_blank">products/${p.sku}.json</a> (ledger) → lá <code>SHA256(LEAF|SKU|hash_cuối)</code>; <a href="./api/merkle/top.json" target="_blank">merkle/top.json</a> + <code>merkle/&lt;khối&gt;.json</code> (256 lá/khối, xếp theo SKU) → root - tự tính lại bằng bất kỳ công cụ SHA-256 nào.</li>
     <li>"⚓ neo": bản ghi cũ hơn đã xoay vòng (giữ 60 bản ghi gần nhất + chuỗi theo ngày 90 ngày). "◇ khởi tạo": lô dữ liệu đầu tiên khi mở sổ cái.</li></ol></details>`;
 }
 function lgRange(btn, sku, days) { btn.parentNode.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn)); const p = window._lgP; if (!p) return; $('#lgChartBox').innerHTML = priceChart(p, days, 'lgc'); bindChart('lgc'); }

@@ -7,7 +7,6 @@
  */
 (function () {
   const realFetch = window.fetch.bind(window);
-  let FULL = null;
   const jr = (obj, status = 200) => Promise.resolve(new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json; charset=utf-8' } }));
   const err = (msg, code = 400) => jr({ error: msg }, code);
   const fixImg = (o) => { if (o && typeof o === 'object') { for (const k in o) { const v = o[k];
@@ -19,22 +18,11 @@
   const normPhone = p => String(p || '').replace(/\D/g, '').replace(/^84/, '0');
   const nowIso = () => new Date().toISOString();
 
-  async function loadFull() { if (!FULL) FULL = await realFetch('api/catalog-full.json').then(r => r.json()); return FULL; }
-
-  /* ---------- TAI DU LIEU THEO NGANH (nhe cho dien thoai) ----------
-   * api/cat/index.json  : danh sach nganh + so luong + nhom
-   * api/cat/<nganh>.json: san pham cua 1 nganh (chi tai khi xem nganh do)
-   * catalog-pack.json   : chi muc gon de tim kiem / sap xep toan site
-   * products/<sku>.json : chi tiet tung SP (gio hang, the san pham) */
-  let CATIDX = null, PACK = null; const CHUNK = {}, PROD = {};
-  async function catIndex() {
-    if (CATIDX === null) { try { const r = await realFetch('api/cat/index.json', { cache: 'no-cache' }); CATIDX = r.ok ? await r.json() : false; } catch { CATIDX = false; } }
-    return CATIDX;
-  }
-  function loadCat(id) {
-    if (!CHUNK[id]) CHUNK[id] = realFetch('api/cat/' + encodeURIComponent(id) + '.json?v=' + encodeURIComponent((CATIDX && CATIDX.v) || '')).then(r => r.ok ? r.json() : []).catch(() => []);
-    return CHUNK[id];
-  }
+  /* ---------- TAI DU LIEU (nhe cho dien thoai) ----------
+   * catalog-pack.json   : chi muc gon toan site (Worker tai 1 lan, luu IndexedDB) - loc nganh / tim kiem / sap xep deu chay tren chi muc nay
+   * products/<sku>.json : chi tiet tung SP - chi tai cho dung trang dang xem (24 SP), gio hang, the san pham
+   * (khong con file rieng cho tung nganh: 1 nganh lon nang vai MB va trung voi chi muc gon) */
+  let PACK = null; const PROD = {};
   let LITE = null;
   async function getPack() {
     if (!PACK) PACK = (async () => {
@@ -52,8 +40,6 @@
     return PROD[sku];
   }
   async function bySkus(skus) {
-    const ix = await catIndex();
-    if (!ix) { const full = await loadFull(); return Object.fromEntries(full.map(r => [r.sku, r])); }
     const out = {}; await Promise.all([...new Set(skus)].map(async s => { const d = await getProd(s); if (d) out[s] = d; }));
     return out;
   }
@@ -151,17 +137,15 @@
   async function listProducts(qs) {
     const q = Object.fromEntries(new URLSearchParams(qs));
     const limit = Math.min(60, +q.limit || 24); const page = Math.max(1, +q.page || 1);
-    const ix = await catIndex();
-    let rows, brandSrc = null;
-    if (!ix) {                                   // du phong: ban cu chua tach nganh
-      rows = (await loadFull()).slice(); if (q.cat) rows = rows.filter(r => r.category_id === q.cat);
-      if (q.cat) brandSrc = rows.slice();
-      rows = filterRows(rows, q);
-    } else if (q.cat) {                          // xem 1 nganh: chi tai file nganh do
-      const all = await loadCat(q.cat); brandSrc = all;
-      rows = filterRows(all.slice(), q);
-    } else {                                     // tim kiem / tat ca: loc tren chi muc gon, roi lay chi tiet dung trang can xem
-      const lite = await getLite();
+    const lite = await getLite();
+    if (q.cat) {                                 // xem 1 nganh: loc tren chi muc gon, roi lay chi tiet dung trang can xem
+      const all = lite.filter(r => r.category_id === q.cat), hit = filterRows(all.slice(), q);
+      const slice = hit.slice((page - 1) * limit, page * limit), det = await bySkus(slice.map(r => r.sku));
+      const bc = {}; for (const r of all) bc[r.brand] = (bc[r.brand] || 0) + 1;
+      return jr({ total: hit.length, page, limit, items: slice.map(r => det[r.sku] ? fixImg(toRow(det[r.sku])) : r),
+        brands: Object.entries(bc).sort((a, b) => b[1] - a[1]).slice(0, 30).map(([brand, n]) => ({ brand, n })) });
+    }
+    {                                            // tim kiem / tat ca
       let hit, search = null, brands = [];
       if (q.q && window.kkSearch) {                // KK-SEARCH: xep theo do phu hop (Worker), roi ap cac bo loc phu
         const must = String(q.attr || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 4);   // bo loc thuoc tinh (55 inch, 256GB...)
@@ -192,10 +176,6 @@
       const det = await bySkus(slice.map(r => r.sku));
       return jr({ total: hit.length, page, limit, items: slice.map(r => det[r.sku] ? fixImg(toRow(det[r.sku])) : r), brands, search });
     }
-    const brandCount = {};
-    if (brandSrc) for (const r of brandSrc) brandCount[r.brand] = (brandCount[r.brand] || 0) + 1;
-    return jr({ total: rows.length, page, limit, items: rows.slice((page - 1) * limit, page * limit),
-      brands: Object.entries(brandCount).sort((a, b) => b[1] - a[1]).slice(0, 30).map(([brand, n]) => ({ brand, n })) });
   }
 
   window.fetch = async function (url, opts) {

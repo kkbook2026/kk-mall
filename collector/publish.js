@@ -1,7 +1,7 @@
 'use strict';
 /*
  * KK-MALL PUBLISH - xuat du lieu cong khai (dung chung cho collect.js va trust-pass.js)
- * catalog-full / cat/<nganh> / catalog-pack / sdui-home / meta / ledger-verify / ledger-roots / ledger-recent
+ * catalog-full / cat/index / catalog-pack / merkle/<khoi> / sdui-home / meta / ledger-verify / ledger-roots / ledger-recent
  * Tuyet doi khong ghi nguon, gia nguon hay phan gia noi bo ra cac file nay.
  * (c) Nguyen Duy Dien. All rights reserved.
  */
@@ -12,7 +12,7 @@ const T = require('./trust');
 const DEAL_BLOCK = T.FL.HOLD | T.FL.USED | T.FL.REF_INFLATED | T.FL.NO_SOURCE;
 const isDeal = r => r.in_stock && (r.disc || 0) >= 5 && !((r.fl || 0) & DEAL_BLOCK);
 
-function publish({ API, pub: pubIn, meta, now, seq, mk, recent, chain, log = console.log }) {
+function publish({ API, pub: pubIn, meta, now, seq, mk, recent, chain, keep, log = console.log }) {
   let pub = pubIn;
   const wj = (f, d) => fs.writeFileSync(path.join(API, f), JSON.stringify(d));
   const rj = f => JSON.parse(fs.readFileSync(path.join(API, f), 'utf8'));
@@ -41,18 +41,25 @@ function publish({ API, pub: pubIn, meta, now, seq, mk, recent, chain, log = con
     }
     if (fixed) log(`Dong bo SP cung loai/bien the: ${fixed} trang`);
     // xoa trang SP mo coi (khong con trong danh muc): khong cho mo/dat qua link truc tiep
-    let orphan = 0; for (const f of fs.readdirSync(path.join(API, 'products'))) { const sku = f.replace(/\.json$/, ''); if (/^KK\d+$/.test(sku) && !PM.has(sku)) { fs.unlinkSync(path.join(API, 'products', f)); orphan++; } }
+    let orphan = 0; for (const f of fs.readdirSync(path.join(API, 'products'))) { const sku = f.replace(/\.json$/, ''); if (/^KK\d+$/.test(sku) && !PM.has(sku) && !(keep && keep.has(sku))) { fs.unlinkSync(path.join(API, 'products', f)); orphan++; } }
     if (orphan) log(`Xoa ${orphan} trang SP mo coi khong con kinh doanh`); }
 
   /* ---- tach theo nganh ---- */
   fs.mkdirSync(path.join(API, 'cat'), { recursive: true });
   const byCat = {}; for (const p of pub) (byCat[p.category_id] = byCat[p.category_id] || []).push(p);
-  for (const f of fs.readdirSync(path.join(API, 'cat'))) if (f !== 'index.json' && !byCat[f.replace(/\.json$/, '')]) fs.unlinkSync(path.join(API, 'cat', f));
+  /* File cat/<nganh>.json (toan bo SP cua nganh, ~0,55 KB/SP) KHONG con dung: giao dien loc nganh tren chi muc gon catalog-pack (da tai san cho tim kiem)
+   * roi chi lay chi tiet cua trang dang xem. Giu them den CAT_CHUNKS_UNTIL cho cac tab dang mo ban giao dien cu, sau do tu xoa. */
+  const catChunks = Date.parse(now) < Date.parse(process.env.CAT_CHUNKS_UNTIL || '2026-11-17T00:00:00Z');
+  for (const f of fs.readdirSync(path.join(API, 'cat'))) if (f !== 'index.json' && (!catChunks || !byCat[f.replace(/\.json$/, '')])) fs.unlinkSync(path.join(API, 'cat', f));
   const catIdx = [];
   for (const [cid, rows] of Object.entries(byCat)) {
-    wj('cat/' + cid + '.json', rows);
+    if (catChunks) wj('cat/' + cid + '.json', rows);
     catIdx.push({ id: cid, name: rows[0].category_name, n: rows.length, groups: [...new Set(rows.map(r => r.grp))] });
   }
+  /* anh minh hoa SVG cua du lieu mau cu: chi giu cho SP con trong danh muc */
+  { const dir = path.join(API, 'img'), S = new Set(pub.map(p => p.sku)); let rm = 0;
+    if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir)) if (/^KK\d+\.svg$/.test(f) && !S.has(f.slice(0, -4))) { fs.unlinkSync(path.join(dir, f)); rm++; }
+    if (rm) log(`Xoa ${rm} anh minh hoa SVG cua SP khong con trong danh muc`); }
   wj('cat/index.json', { v: now, total: pub.length, cats: catIdx });
   for (const c of (meta.categories || [])) { const b = byCat[c.id] || []; c.count = b.length; for (const g of new Set(b.map(r => r.grp))) if (!c.groups.includes(g)) c.groups.push(g); }
   meta.totalProducts = pub.length;
@@ -84,9 +91,16 @@ function publish({ API, pub: pubIn, meta, now, seq, mk, recent, chain, log = con
   if (chain) meta.orderChain = { seq: chain.seq, hash: chain.hash, at: chain.at, anchored_at: now, note: 'Đầu chuỗi băm nhật ký tiền & trạng thái của máy chủ đơn hàng (?a=chainhead) - neo công khai mỗi lần xuất bản' }; // bang chung thoi diem khong can tin KK-MALL
   delete meta.installment;                                   // tam bo tra gop
   wj('meta.json', meta);
+  /* ---- Merkle theo khoi: merkle/top.json + merkle/<i>.json (thay cho proof nam trong tung file SP) ---- */
+  if (mk.chunks) {
+    const dir = path.join(API, 'merkle'); fs.mkdirSync(dir, { recursive: true });
+    for (const c of mk.chunks) wj('merkle/' + c.i + '.json', { i: c.i, root: mk.root, skus: c.skus, heads: c.heads });
+    wj('merkle/top.json', { root: mk.root, n: mk.n, c: mk.c, at: now, seq, first: mk.first, nodes: mk.nodes });
+    for (const f of fs.readdirSync(dir)) { const m = f.match(/^(\d+)\.json$/); if (m && +m[1] >= mk.chunks.length) fs.unlinkSync(path.join(dir, f)); }
+  }
   wj('ledger-verify.json', { ok: true, checked: seq, head_seq: seq, head_hash: headHash, merkle_root: mk.root, leaves: mk.n, at: now,
-    algo: { entry: 'sha256(seq|sku|kk_price|in_stock|at|prev_hash)', leaf: 'sha256(LEAF|sku|last_entry_hash)', node: 'sha256(left+right), nút lẻ nhân đôi', head: 'sha256(HEAD|seq|merkle_root|at)' },
-    note: 'Mỗi sản phẩm có chuỗi băm riêng; đầu chuỗi của toàn bộ sản phẩm được gộp thành Merkle root. Tự kiểm chứng: products/<SKU>.json (ledger, mp = Merkle proof, mr = root).' });
+    algo: { entry: 'sha256(seq|sku|kk_price|in_stock|at|prev_hash)', leaf: 'sha256(LEAF|sku|last_entry_hash)', node: 'sha256(left+right), nút lẻ nhân đôi', head: 'sha256(HEAD|seq|merkle_root|at)', chunk: mk.c || 256 },
+    note: 'Mỗi sản phẩm có chuỗi băm riêng; đầu chuỗi của toàn bộ sản phẩm được gộp thành Merkle root. Tự kiểm chứng: products/<SKU>.json (ledger) -> lá; merkle/<i>.json (các lá của khối chứa SKU, xếp theo SKU) -> nút khối; merkle/top.json (nút của mọi khối) -> root; đối chiếu root với ledger-roots.json.' });
   let roots = []; try { roots = rj('ledger-roots.json'); } catch { }
   if (!roots.length || roots[roots.length - 1].root !== mk.root) roots.push({ seq, root: mk.root, head: headHash, n: mk.n, at: now });
   wj('ledger-roots.json', roots.slice(-500));

@@ -31,7 +31,7 @@ const num = v => { const n = Math.round(parseFloat(v)); return Number.isFinite(n
 const PROVIDERS = {
   tiktok: {
     enabled: env => !!String(env.ACCESSTRADE_KEY || '').trim(),
-    gap: env => parseInt(env.SEARCH_TT_GAP_MS || '2400', 10),       // 25 truy van/phut - duoi gioi han chinh thuc 30 yeu cau/phut cua AccessTrade, chua lai 5 cho viec khac
+    gap: env => parseInt(env.SEARCH_TT_GAP_MS || '4000', 10),       // 15 truy van/phut = mot nua gioi han chinh thuc 30 yeu cau/phut cua AccessTrade (tien trinh chay noi chuoi lien tuc)
     async search(env, q) {
       const base = env.ACCESSTRADE_TT_API || 'https://api.accesstrade.vn/v2/tiktokshop_product_feeds';
       const r = await http(`${base}?title_keywords=${encodeURIComponent(q)}&sort_field=${encodeURIComponent(env.SEARCH_TT_SORT || 'RECOMMENDED')}&limit=20`,
@@ -88,7 +88,7 @@ async function run(minutes = 110, env = process.env, log = console.log) {
   const C = loadCache(), deadline = Date.now() + minutes * 60e3, live = new Set(cat.map(p => p.sku));
   for (const sku of Object.keys(C.items)) if (!live.has(sku)) delete C.items[sku];                 // SP da go khoi cua hang
   const pool = cat.filter(p => eligible(IDX.features(p.sku)));
-  const res = {};
+  const res = {}, KICK = require('./kick').make(env, log);   // giu nhip 3 gio cua bo thu thap gia trong luc tien trinh nay dang chay
   await Promise.all(provs.map(async prov => {
     const P = PROVIDERS[prov], st = res[prov] = { n: 0, got: 0, items: 0, priced: 0, hit: 0, offers: 0, e429: 0, err: 0, eligible: pool.length };
     const ent = p => (C.items[p.sku] || {})[prov], last = p => (ent(p) || {}).at || 0, t00 = Date.now();
@@ -100,10 +100,16 @@ async function run(minutes = 110, env = process.env, log = console.log) {
     // SP chua tung hoi: thu tu gia ngau nhien co dinh theo ma SP (trai deu moi nhom hang, moi tam gia) - xep theo gia giam dan thi cac lan dau chi hoi
     // toan hang tram trieu dong, loai hang gan nhu khong co tren san
     const mix = sku => parseInt(crypto.createHash('md5').update(prov + sku).digest('hex').slice(0, 8), 16);
-    const queue = pool.slice().sort((a, b) => (pri(a) - pri(b)) || (last(a) - last(b)) || (mix(a.sku) - mix(b.sku)));
+    const sorted = pool.slice().sort((a, b) => (pri(a) - pri(b)) || (last(a) - last(b)) || (mix(a.sku) - mix(b.sku)));
+    /* Danh muc lon (80.000 SP): so SP dang co offer can lam moi co the vuot ngan sach 1 lan chay -> SP chua tung hoi se khong bao gio toi luot.
+     * Tron hang doi: cu 10 luot thi toi da SEARCH_REFRESH_SHARE (mac dinh 7) luot lam moi, con lai la kham pha (chua hoi / hoi lau nhat). */
+    const q0 = sorted.filter(p => pri(p) === 0), q1 = sorted.filter(p => pri(p) !== 0), SHARE = Math.min(10, Math.max(1, parseInt(env.SEARCH_REFRESH_SHARE || '7', 10)));
+    const queue = []; for (let i = 0, a = 0, b = 0; a < q0.length || b < q1.length; i++) { if ((i % 10 < SHARE && a < q0.length) || b >= q1.length) queue.push(q0[a++]); else queue.push(q1[b++]); }
+    st.refresh = q0.length;
     let gap = P.gap(env), fails = 0, c429 = 0;
     for (const p of queue) {
       if (Date.now() > deadline) break;
+      await KICK.tick();
       const t0 = Date.now(), f = IDX.features(p.sku), q = queryOf(p.name, f);
       const r = await P.search(env, q);
       if (r.status === 429) { st.e429++; gap = Math.min(8000, Math.round(gap * 1.3));                                     // qua nhanh: gian nhip, bo qua SP nay (lan sau thu lai)
@@ -126,7 +132,7 @@ async function run(minutes = 110, env = process.env, log = console.log) {
       if (st.n % 200 === 0) { C.savedAt = Date.now(); saveCache(C); }
       await sleep(Math.max(0, gap - (Date.now() - t0)));
     }
-    log(`[${prov}] hoi ${st.n} SP · san tra ket qua cho ${st.got} SP (${st.items} tin, ${st.priced} tin con hang co 1 muc gia) · co offer KHOP ${st.hit} SP · 429: ${st.e429} · loi: ${st.err} · nhip ${gap}ms · SP du dieu kien ${st.eligible}`);
+    log(`[${prov}] hoi ${st.n} SP · san tra ket qua cho ${st.got} SP (${st.items} tin, ${st.priced} tin con hang co 1 muc gia) · co offer KHOP ${st.hit} SP · 429: ${st.e429} · loi: ${st.err} · nhip ${gap}ms · SP du dieu kien ${st.eligible} · can lam moi ${st.refresh}`);
   }));
   C.savedAt = Date.now(); C.stat = { at: C.savedAt, res }; saveCache(C);
   let tot = 0, withOffer = 0; for (const v of Object.values(C.items)) for (const e of Object.values(v)) { tot++; if (e.offers && e.offers.length) withOffer++; }

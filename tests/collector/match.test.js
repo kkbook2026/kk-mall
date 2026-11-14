@@ -206,22 +206,66 @@ const PAIRS = [
     t(JSON.stringify(M.features('Camera EZVIZ H3C 1080P').res) === '[2]' && JSON.stringify(M.features('Camera Imou 2K 4MP').res) === '[4]' && M.features('Chuột Logitech G304').res === null, 'do phan giai quy ve megapixel: 1080P = 2MP; "2K 4MP" = 4MP'); }
   /* ---------- 7) Bo loc tin cay: lich su niem phong la GIA THUC TRA -> so voi gia thuc tra cua offer ---------- */
   { const TR = require('../../collector/trust');
-    const day = i => new Date(Date.UTC(2026, 9, 1 + i)).toISOString().slice(0, 10), d90 = v => Array.from({ length: 5 }, (_, i) => [day(i), v]);
+    const day = i => TR.dayOf(new Date(Date.UTC(2026, 9, 1 + i)).toISOString()), d90 = v => Array.from({ length: 5 }, (_, i) => [day(i), v, 'h']), D5 = day(4);   // 5 ngay cung gia (ban cu: moi ngay 1 diem)
     const toCost = kk => kk - 18000;
     // vi du: sach 20.000d + ship du phong 30.000d = thuc tra 50.000d -> gia ban 68.000d. Truoc day lay 20.000 so voi 50% x 50.000 nen bi loai VINH VIEN
-    const book = TR.filterOffers({ name: 'Sách thiếu nhi A', grp: 'Sách', base_price: 30000, d90: d90(68000) }, [{ source: 'tiki', price: 20000, ship: 30000, landed: 50000, in_stock: 1 }], toCost);
+    const book = TR.filterOffers({ name: 'Sách thiếu nhi A', grp: 'Sách', base_price: 30000, d90: d90(68000) }, [{ source: 'tiki', price: 20000, ship: 30000, landed: 50000, in_stock: 1 }], toCost, D5);
     t(book.valid.length === 1 && !book.dropped.length, 'hang re co ship du phong > gia hang KHONG con bi loai oan vi "thap hon 50% lich su"');
-    const drop = TR.filterOffers({ name: 'Sách thiếu nhi A', grp: 'Sách', base_price: 30000, d90: d90(170000) }, [{ source: 'tiki', price: 20000, ship: 30000, landed: 50000, in_stock: 1 }], toCost);
+    const drop = TR.filterOffers({ name: 'Sách thiếu nhi A', grp: 'Sách', base_price: 30000, d90: d90(170000) }, [{ source: 'tiki', price: 20000, ship: 30000, landed: 50000, in_stock: 1 }], toCost, D5);
     t(drop.dropped.length === 1 && /50%/.test(drop.dropped[0].why), 'gia thuc tra sut that > 50% so voi lich su van bi giu lai de kiem tra');
     // dat lai moc tham chieu (muc gia moi da duoc xac nhan lap lai): chi doi chieu voi lich su tu moc do, lich su cu van nguyen
     { const dd = { name: 'Loa thanh Y', grp: 'Loa', base_price: 0, d90: d90(14752000) }; const off = [{ source: 'cellphones', price: 6990000, landed: 6990000, in_stock: 1 }];
-      const before = TR.filterOffers(dd, off.map(o => ({ ...o })), toCost).dropped.length;
-      dd.href = TR.dayOf(new Date(Date.UTC(2026, 9, 20)).toISOString()); dd.href_at = new Date(Date.UTC(2026, 9, 20)).toISOString();
-      t(before === 1 && TR.histRef(dd) === 0 && TR.filterOffers(dd, off.map(o => ({ ...o })), toCost).valid.length === 1 && dd.d90.length === 5, 'gia moi lech > 50% lich su: bi giu; sau khi dat lai moc tham chieu thi duoc nhan, lich su niem phong khong bi sua'); }
+      const R = TR.dayOf(new Date(Date.UTC(2026, 9, 20)).toISOString());   // ngay dat lai moc = ngay chay
+      const before = TR.filterOffers(dd, off.map(o => ({ ...o })), toCost, R).dropped.length;
+      dd.href = R; dd.href_at = new Date(Date.UTC(2026, 9, 20)).toISOString();
+      t(before === 1 && TR.histRef(dd, R) === 0 && TR.filterOffers(dd, off.map(o => ({ ...o })), toCost, R).valid.length === 1 && dd.d90.length === 5, 'gia moi lech > 50% lich su: bi giu; sau khi dat lai moc tham chieu thi duoc nhan, lich su niem phong khong bi sua');
+      // sau khi gia moi duoc nhan: d90 mo doan moi -> cac ngay sau chi doi chieu voi muc gia moi
+      dd.kk_price = 7016000; dd.ledger = [{ hash: 'f'.repeat(64), at: dd.href_at, kk_price: 7016000 }]; TR.updateD90(dd, dd.href_at);
+      t(TR.histRef(dd, R + 5) === 7016000 && dd.d90.length === 2 && dd.d90[0][1] === 14752000, 'tu ngay dat lai moc, gia tham chieu la muc gia moi; doan gia cu van nam trong lich su'); }
+    /* d90 nen theo doan + Merkle theo khoi */
+    { const d0 = TR.dayOf('2026-10-01T00:00:00Z'), iso = (i, h = 1) => new Date((d0 + i) * 864e5 + h * 3600e3).toISOString();
+      const d = { kk_price: 100000, ledger: [{ hash: 'a'.repeat(64), at: iso(0), kk_price: 100000 }], d90: [] };
+      for (let i = 0; i < 10; i++) TR.updateD90(d, iso(i));
+      t(d.d90.length === 1 && TR.histVals(d.d90, d0 + 9).length === 10, 'd90 nen theo doan: 10 ngay cung gia chi 1 phan tu, bung ra du 10 ngay');
+      d.kk_price = 120000; d.ledger.push({ hash: 'b'.repeat(64), at: iso(10), kk_price: 120000 }); TR.updateD90(d, iso(10));
+      d.kk_price = 110000; d.ledger.push({ hash: 'c'.repeat(64), at: iso(10, 5), kk_price: 110000 }); TR.updateD90(d, iso(10, 5));
+      t(d.d90.length === 2 && d.d90[1][0] === d0 + 10 && d.d90[1][1] === 110000, 'doi gia 2 lan trong ngay: giu gia cuoi ngay, khong tao 2 phan tu');
+      for (let i = 11; i < 60; i++) TR.updateD90(d, iso(i));
+      const v = TR.histVals(d.d90, d0 + 59); t(d.d90.length === 2 && v.length === 60 && v.filter(x => x === 100000).length === 10 && TR.histRef(d, d0 + 59) === 110000, 'trung vi lich su tinh theo NGAY (10 ngay gia cu, 50 ngay gia moi)');
+      for (let i = 60; i < 130; i++) TR.updateD90(d, iso(i));
+      t(d.d90.length === 1 && TR.histVals(d.d90, d0 + 129).length === 90, 'cua so 90 ngay: doan da ket thuc truoc cua so bi bo, van bung du 90 ngay');
+      t(JSON.stringify(TR.packD90([[1, 5, 'G'], [2, 5, 'G'], [3, 6, 'H'], [4, 6, 'H'], [6, 6, 'H']])) === '[[1,5,"G"],[3,6,"H"]]', 'du lieu cu (moi ngay 1 diem) duoc gop thanh doan');
+      let okM = true;
+      for (const n of [1, 2, 3, 255, 256, 257, 513, 1000, 4097]) { const L = Array.from({ length: n }, (_, i) => ({ sku: 'KK' + String(100000 + i * 7), head: TR.sha('h' + i) })); const a = TR.merkle(L), b = TR.merkleChunks(L), top = { n: b.n, c: b.c, nodes: b.nodes, root: b.root };
+        const last = b.chunks[b.chunks.length - 1], k = last.skus.length - 1;
+        if (a.root !== b.root || !TR.verifyChunk(b.chunks[0].skus[0], b.chunks[0].heads[0], b.chunks[0], top) || !TR.verifyChunk(last.skus[k], last.heads[k], last, top) || TR.verifyChunk(last.skus[k], TR.sha('gia'), last, top)) okM = false;
+        const bad = { ...last, heads: last.heads.map((h, i) => i ? h : TR.sha('sua')) }; if (n > 1 && TR.verifyChunk(bad.skus[k], bad.heads[k], bad, top)) okM = false; }
+      t(okM, 'Merkle theo khoi: cung root voi cay cu; SKU dau/cuoi kiem chung duoc; dau chuoi gia hoac khoi bi sua bi phat hien'); }
     const both = TR.filterOffers({ name: 'Tai nghe X', grp: 'Tai nghe', base_price: 0 }, [{ source: 'thegioididong', price: 1000000, landed: 1000000, in_stock: 1 }, { source: 'dienmayxanh', price: 1000000, landed: 1000000, in_stock: 1 }, { source: 'hoangha', price: 450000, landed: 450000, in_stock: 1 }], toCost);
     t(both.valid.some(o => o.source === 'hoangha'), '2 chuoi dung chung 1 bang gia chi tinh 1 lan; chuoi ban le chinh hang khop chinh xac re hon han khong bi loai');
     const mk = TR.filterOffers({ name: 'Tai nghe X', grp: 'Tai nghe', base_price: 0 }, [{ source: 'tiki', price: 1000000, landed: 1000000, in_stock: 1 }, { source: 'cellphones', price: 990000, landed: 990000, in_stock: 1 }, { source: 'shopee', price: 300000, landed: 300000, in_stock: 1 }], toCost);
     t(mk.dropped.length === 1 && mk.dropped[0].source === 'shopee' && !!mk.dropped[0].why, 'offer san TMDT thap hon 50% trung vi cac nguon van bi loai, kem ly do'); }
+
+  /* ---------- 8) Bu lich trong luc chay (kick.js) voi GitHub API gia lap ---------- */
+  { const http = require('http'); let runs = [], posts = [];
+    const srv = http.createServer((q, r) => { let b = ''; q.on('data', c => b += c); q.on('end', () => {
+      if (q.headers.authorization !== 'Bearer tok-thu') { r.statusCode = 401; return r.end('{}'); }
+      if (q.method === 'GET' && /\/actions\/workflows\/collect\.yml\/runs/.test(q.url)) { r.setHeader('content-type', 'application/json'); return r.end(JSON.stringify({ workflow_runs: runs })); }
+      if (q.method === 'POST' && /\/actions\/workflows\/collect\.yml\/dispatches$/.test(q.url)) { posts.push(JSON.parse(b)); r.statusCode = 204; return r.end(); }
+      r.statusCode = 404; r.end('{}'); }); });
+    await new Promise(res => srv.listen(0, '127.0.0.1', res));
+    const env = { GH_TOKEN: 'tok-thu', GITHUB_REPOSITORY: 'o/r', KICK_API: 'http://127.0.0.1:' + srv.address().port, KICK_EVERY_MIN: '10', KICK_AFTER_MIN: '180' }, K = require('../../collector/kick');
+    const T0 = Date.parse('2026-11-14T06:00:00Z'), ago = m => new Date(T0 - m * 60e3).toISOString(), quiet = () => { };
+    runs = [{ status: 'completed', run_started_at: ago(100) }]; let k = K.make(env, quiet);
+    const a1 = await k.tick(T0), a2 = await k.tick(T0 + 60e3);
+    t(a1 === 'fresh' && a2 === null && !posts.length, 'bu lich: lan thu thap gan nhat moi 100 phut -> khong goi; trong 10 phut khong hoi lai GitHub');
+    runs = [{ status: 'completed', run_started_at: ago(190) }]; k = K.make(env, quiet);
+    const b1 = await k.tick(T0), b2 = await k.tick(T0 + 11 * 60e3);
+    t(b1 === 'kicked' && b2 === 'recent' && posts.length === 1 && posts[0].ref === 'main' && posts[0].inputs.trigger === 'bu-lich', 'bu lich: qua 3 gio -> goi collect.yml dung 1 lan (trigger=bu-lich), khong goi chong');
+    runs = [{ status: 'in_progress', run_started_at: ago(1) }, { status: 'completed', run_started_at: ago(400) }]; k = K.make(env, quiet); posts = [];
+    t(await k.tick(T0) === 'running' && !posts.length, 'bu lich: dang co lan thu thap chay/cho -> khong goi them');
+    t(await K.make({ GITHUB_REPOSITORY: 'o/r' }, quiet).tick(T0) === null && await K.make({ ...env, GH_TOKEN: 'sai' }, quiet).tick(T0) === 'http401', 'bu lich: khong co token thi bo qua; token sai khong lam hong tien trinh');
+    srv.close(); }
 
   console.log(`\nBo ghep cheo & bo nap feed: ${pass}/${pass + fail} dat`);
   process.exit(fail ? 1 : 0);

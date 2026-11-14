@@ -32,3 +32,8 @@ PHIÊN BẢN 1.1.0 (04/11/2026) - đi cùng máy chủ v1.7.0
 1.2.0 (04/11/2026) - can may chu v1.8.0:
 - Lenh "Cho nguoi duyet" sau khi quan tri DUYET (nut trong email hoac Quan tri -> Lenh mua) se duoc bot dat o chu ky ke tiep (bo cac ly do mem: tran, gio, khach moi; van giu kiem tra gia, nguon, VAT, dia chi).
 - Cai lai: giai nen goi moi, chrome://extensions -> go ban cu -> Load unpacked. Khoa bot/khoa quan tri giu nguyen.
+
+1.3.0 (14/11/2026):
+- Goi du lieu quan tri (data.enc) nay duoc NEN truoc khi ma hoa (nhe hon ~8 lan, de danh muc len 80.000 san pham). Ban 1.2.0 tro xuong KHONG doc duoc goi moi -> bot tu dung an toan (khong dat), can cai ban nay.
+- San pham trung da duoc GOP ve mot ma chuan: lenh mua mang ma cu van tim dung link nguon cua san pham chuan.
+- Cai lai: giai nen goi moi, chrome://extensions -> go ban cu -> Load unpacked. Khoa bot/khoa quan tri giu nguyen.

@@ -32,6 +32,8 @@ jobs:
           key: retail-${{ github.run_id }}
           restore-keys: retail-
       - name: Thu thap (150 phut, 3 trang song song)
+        env:
+          GH_TOKEN: ${{ github.token }}   # chi de goi chay bu bo thu thap gia khi lich cua GitHub tre (collector/kick.js)
         run: node collector/retail.js 150
       - name: Luu bo nho dem
         if: always()

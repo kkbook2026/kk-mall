@@ -77,7 +77,8 @@ jobs:
           FEED_URLS: ${{ secrets.FEED_URLS }}            # datafeed chinh thuc: moi dong <ma-nguon>|<url>
           FEED_MAX_TOTAL: ${{ vars.FEED_MAX_TOTAL || '80000' }}  # tran tong so SP nap tu feed
           FEED_MAX_NEW: ${{ vars.FEED_MAX_NEW || '5000' }}      # tran SP moi moi lan chay
-          FEED_HARD_MAX: ${{ vars.FEED_HARD_MAX || '36000' }}   # tran cung tong so SP: GitHub Pages gioi han 1 GB/site (~15 KB/SP gom trang SEO)
+          FEED_HARD_MAX: ${{ vars.FEED_HARD_MAX || '80000' }}   # tran cung tong so SP: GitHub Pages gioi han 1 GB/site (~8,5 KB/SP gom trang SEO)
+          SIZE_BUDGET_MB: ${{ vars.SIZE_BUDGET_MB || '850' }}   # ngan sach dung luong site: tran SP tu ha khi lich su gia dai dan (collect.js)
           NEW_MIN_PRICE: ${{ vars.NEW_MIN_PRICE || '100000' }}  # chi tu them SP moi co gia nguon tu muc nay (hang gia tri thap: phi co dinh/mon lam gia doi qua cao)
           FEED_MAX_AGE_DAYS: ${{ vars.FEED_MAX_AGE_DAYS || '45' }} # feed khong cap nhat qua so ngay nay bi bo (Lazada/Sendo/DM Cho Lon tren AccessTrade da chet 3-5 nam)
           RETIRE_RUNS: ${{ github.event.inputs.retire_runs || vars.RETIRE_RUNS || '8' }}
@@ -105,7 +106,7 @@ jobs:
             git push origin main || republish
           fi
       - name: SEO - sinh trang tinh SP/nganh/nhom + sitemap (khong commit)
-        run: node collector/build-seo.js
+        run: node collector/build-seo.js --deploy   # --deploy: bo file chi phuc vu khau thu thap khoi goi xuat ban + kiem ngan sach dung luong 1 GB
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:

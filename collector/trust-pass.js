@@ -33,13 +33,10 @@ for (const p of pub) {
   const L = d.ledger || []; if (L.length) { const e = L[L.length - 1]; recent.push({ sku: p.sku, name: p.name, kk: e.kk_price, prev: L.length > 1 ? L[L.length - 2].kk_price : null, s: e.s, seq: e.seq, hash: e.hash, at: e.at }); }
   docs.set(p.sku, { f, d });
 }
-const mk = T.merkle(leaves);
-let bad = 0;
-for (const [sku, { f, d }] of docs) {
-  d.mp = mk.proofs[sku]; d.mr = mk.root; d.mat = now;
-  if (Math.random() < 0.01 && !T.verifyProof(sku, leaves.find(l => l.sku === sku).head, d.mp, mk.root)) bad++;
-  fs.writeFileSync(f, JSON.stringify(d));
-}
+const mk = T.merkleChunks(leaves);
+let bad = 0; const top = { n: mk.n, c: mk.c, nodes: mk.nodes, root: mk.root };
+for (const c of mk.chunks) { const k = Math.floor(Math.random() * c.skus.length); if (!T.verifyChunk(c.skus[k], c.heads[k], c, top)) bad++; }
+for (const [, { f, d }] of docs) { delete d.mp; delete d.mr; delete d.mat; fs.writeFileSync(f, JSON.stringify(d)); }
 if (bad) { console.error('MERKLE PROOF SAI:', bad); process.exit(1); }
 // giu nguyen thoi diem dong bo gia that (pass nay khong thu thap gia)
 const keepSync = meta.lastSync;

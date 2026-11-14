@@ -322,7 +322,7 @@ async function unlock(e){
     const aes=await crypto.subtle.deriveKey({name:'PBKDF2',hash:'SHA-256',salt:Uint8Array.from(atob(enc.salt),c=>c.charCodeAt(0)),iterations:enc.iter},base,{name:'AES-GCM',length:256},false,['decrypt']);
     const ct=Uint8Array.from(atob(enc.ct),c=>c.charCodeAt(0));
     const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:Uint8Array.from(atob(enc.iv),c=>c.charCodeAt(0))},aes,ct);
-    DATA=JSON.parse(new TextDecoder().decode(pt));
+    DATA=JSON.parse(enc.z==='gzip'?await new Response(new Blob([pt]).stream().pipeThrough(new DecompressionStream('gzip'))).text():new TextDecoder().decode(pt));   // goi moi: nen gzip truoc khi ma hoa
     sessionStorage.setItem('kk_admin_email',email);
     try{const bk=await crypto.subtle.importKey('raw',te.encode(key),'PBKDF2',false,['deriveBits']);const h=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:te.encode('kk-stats-v2'),iterations:300000},bk,256);sessionStorage.setItem('kk_stats_key',[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join(''))}catch{}  // khoa thong ke ship (dan xuat, khong luu khoa goc)
     boot();

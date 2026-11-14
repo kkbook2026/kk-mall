@@ -55,12 +55,12 @@ function cleanText(t) {
 const median = a => { if (!a.length) return 0; const s = a.slice().sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2); };
 
 /* Gia tham chieu tu lich su niem phong (chi tinh khi du du lieu): trung vi gia so cai/ngay */
-function histRef(d) {
+function histRef(d, today) {
   // d.href = ngay "dat lai moc tham chieu": muc gia moi da duoc XAC NHAN LAP LAI tai chuoi ban le chinh hang (collect.js) -> chi doi chieu voi lich su
   // tu ngay do tro di. Lich su niem phong (so cai, d90) KHONG bi sua - chi doi cua so dung de phat hien bat thuong.
   const from = d.href || 0, fromMs = from ? Date.parse(String(d.href_at || '')) || 0 : 0;
   const L = (d.ledger || []).filter(e => e && e.kk_price > 0 && (!fromMs || Date.parse(e.at) >= fromMs));
-  const D = (d.d90 || []).filter(x => !from || x[0] >= from).map(x => x[1]).filter(v => v > 0);
+  const D = histVals(d.d90, today || dayOf(new Date().toISOString()), from).filter(v => v > 0);   // gia tung ngay (d90 luu nen theo doan)
   if (D.length >= 3) return median(D);
   if (L.length >= 3) { const span = Date.parse(L[L.length - 1].at) - Date.parse(L[0].at); if (span >= 6 * 3600e3) return median(L.map(e => e.kk_price)); }
   return 0;
@@ -71,9 +71,9 @@ function histRef(d) {
  * Tra ve { valid, dropped:[{...offer, why}] }
  */
 const RETAIL_TRUSTED = new Set(['thegioididong', 'dienmayxanh', 'fptshop', 'cellphones', 'dienmaycholon', 'hoangha', 'phucanh', 'anphat']);
-function filterOffers(d, offers, offset) {
+function filterOffers(d, offers, offset, today) {
   const toCost = typeof offset === 'function' ? offset : (v => v - (Number.isFinite(offset) ? offset : 0));
-  const H = histRef(d);                       // gia ban niem phong trung vi
+  const H = histRef(d, today);                // gia ban niem phong trung vi
   const Hsrc = H ? toCost(H) : 0;             // quy ve gia nguon (theo bieu loi tung bac)
   const live = offers.filter(o => o.in_stock && o.price > 0);
   // Trung vi tinh theo CHU SO HUU bang gia (The Gioi Di Dong + Dien May Xanh dung chung 1 bang gia niem yet -> chi tinh 1 lan),
@@ -106,14 +106,14 @@ function filterOffers(d, offers, offset) {
 
 /* Danh gia tin cay cong khai cho 1 SP (sau khi da co kk_price). Khong doi gia. */
 const FL = { HOLD: 1, USED: 2, LOW: 4, COMBO: 8, REF_INFLATED: 16, NO_SOURCE: 32 }; // NO_SOURCE: chua co nguon hang that (gia mo phong) -> khong cho dat
-function evaluate(d) {
+function evaluate(d, today) {
   let fl = 0; const why = [];
   const kk = d.kk_price || 0, base = d.base_price || 0;
   const used = isUsed(d.name, d.category_id) || isUsed(d.variant, d.category_id);
   if (used) { fl |= FL.USED; why.push('Hàng đã qua sử dụng - không so với giá máy mới'); }
   if (isCombo(d.name)) fl |= FL.COMBO;
   // HOLD: collector da danh dau (khong con offer hop le) / duoi san may chinh / sap > 50% so lich su
-  const H = histRef(d);
+  const H = histRef(d, today);
   if (d.hold) { fl |= FL.HOLD; why.push(d.hold_why || 'Không còn nguồn giá hợp lệ'); }
   else if (kk && FLOOR[d.grp] && looksMain(d.name, d.grp) && kk < FLOOR[d.grp]) { fl |= FL.HOLD; why.push('Giá thấp bất thường so với sàn giá máy chính'); }
   else if (kk && H && kk < 0.5 * H) { fl |= FL.HOLD; why.push('Giá sụt > 50% so với trung vị lịch sử niêm phong'); }
@@ -145,14 +145,38 @@ function seedD90(d) {
   for (const e of d.ledger || []) if (e && e.at) by.set(dayOf(e.at), [dayOf(e.at), e.kk_price, String(e.hash || '').slice(0, 16)]);
   return [...by.values()].sort((a, b) => a[0] - b[0]).slice(-90);
 }
+/* d90 LUU NEN THEO DOAN: moi phan tu [ngay, gia, 16 ky tu dau hash so cai] co hieu luc tu ngay do den truoc phan tu ke tiep
+ * (phan tu cuoi: den hom nay). Chi them phan tu khi gia/hash doi -> file san pham KHONG doi moi ngay va khong phinh theo thoi gian
+ * (truoc day moi ngay 1 diem: 90 diem ~3 KB/SP). Du lieu cu (moi ngay 1 diem) duoc gop tu dong khi cap nhat. */
+function packD90(A) { const out = []; for (const x of A || []) { const t = out[out.length - 1]; if (!t || t[1] !== x[1] || t[2] !== x[2]) out.push(x); } return out; }
+/* Bung ra gia TUNG NGAY trong cua so 90 ngay tinh den `today` (tu ngay `from` neu co) */
+function histDays(A, today, from = 0) {
+  const out = []; A = A || []; const start = Math.max(from || 0, today - 89);
+  for (let i = 0; i < A.length; i++) {
+    const end = i + 1 < A.length ? A[i + 1][0] - 1 : Math.max(today, A[i][0]);
+    for (let day = Math.max(A[i][0], start); day <= end; day++) out.push([day, A[i][1], A[i][2]]);
+  }
+  return out;
+}
+function histVals(A, today, from = 0) {
+  const out = []; A = A || []; const start = Math.max(from || 0, today - 89);
+  for (let i = 0; i < A.length; i++) {
+    const end = i + 1 < A.length ? A[i + 1][0] - 1 : Math.max(today, A[i][0]);
+    for (let day = Math.max(A[i][0], start); day <= end; day++) out.push(A[i][1]);
+  }
+  return out;
+}
 function updateD90(d, nowIso) {
   if (!Array.isArray(d.d90) || !d.d90.length) d.d90 = seedD90(d);
   const day = dayOf(nowIso), last = (d.ledger || []).slice(-1)[0];
   const pt = [day, d.kk_price || 0, last ? String(last.hash).slice(0, 16) : 'GENESIS'];
   if (!pt[1]) return d.d90;
-  if (d.d90.length && d.d90[d.d90.length - 1][0] === day) d.d90[d.d90.length - 1] = pt; else d.d90.push(pt);
-  if (d.d90.length > 90) d.d90 = d.d90.slice(-90);
-  return d.d90;
+  const A = packD90(d.d90), tail = A[A.length - 1];
+  if (tail && tail[0] === day) A[A.length - 1] = pt;                         // doan bat dau hom nay: lay gia cuoi ngay
+  else if (!tail || tail[1] !== pt[1] || tail[2] !== pt[2]) A.push(pt);      // chi mo doan moi khi gia/hash doi
+  while (A.length >= 2 && A[A.length - 1][1] === A[A.length - 2][1] && A[A.length - 1][2] === A[A.length - 2][2]) A.pop();   // doi roi quay lai dung muc cu trong ngay
+  while (A.length >= 2 && A[1][0] <= day - 89) A.shift();                    // bo doan da ket thuc truoc cua so 90 ngay
+  d.d90 = A; return A;
 }
 
 /* Merkle (SHA-256, nut le nhan doi kieu Bitcoin). leaves: [{sku, head}] -> {root, proofs:{sku:[ 'L:hash'|'R:hash' ]}} */
@@ -175,10 +199,38 @@ function merkle(leaves) {
   const out = {}; L.forEach((x, k) => { out[x.sku] = proofs[k]; });
   return { root: level[0], proofs: out, n: L.length };
 }
+/* MERKLE THEO KHOI - cung cay, cung root voi merkle() nhung KHONG luu proof trong tung file san pham (truoc: ~1,2 KB/SP, doi moi lan chay).
+ * Cong bo: merkle/<i>.json = { i, skus[], heads[] } (C la lien tiep theo thu tu SKU) va merkle/top.json = { n, c, first[], nodes[], root }.
+ * Tu kiem chung 1 SKU: bam lai C la cua khoi -> nut khoi, doi chieu top.nodes[i]; bam top.nodes -> root; doi chieu root da cong bo. */
+const MERKLE_CHUNK = 256;
+const pairUp = level => { const next = []; for (let i = 0; i < level.length; i += 2) next.push(sha(level[i] + (level[i + 1] || level[i]))); return next; };
+function chunkNode(skus, heads, n, C = MERKLE_CHUNK) {
+  let level = skus.map((s, k) => leafHash(s, heads[k]));
+  for (let k = 0, LV = Math.log2(C); k < LV && Math.ceil(n / 2 ** k) > 1; k++) level = pairUp(level);
+  return level[0];
+}
+function merkleChunks(leaves, C = MERKLE_CHUNK) {
+  const L = leaves.slice().sort((a, b) => a.sku < b.sku ? -1 : 1), n = L.length;
+  if (!n) return { root: sha('EMPTY'), n: 0, c: C, chunks: [], nodes: [], first: [] };
+  const chunks = [], nodes = [], first = [];
+  for (let s = 0; s < n; s += C) {
+    const part = L.slice(s, s + C), skus = part.map(x => x.sku), heads = part.map(x => x.head);
+    chunks.push({ i: s / C, skus, heads }); nodes.push(chunkNode(skus, heads, n, C)); first.push(skus[0]);
+  }
+  let level = nodes; while (level.length > 1) level = pairUp(level);
+  return { root: level[0], n, c: C, chunks, nodes, first };
+}
+/* Kiem chung phia may chu/kiem thu: SKU + dau chuoi co nam trong root khong (dung dung du lieu se cong bo) */
+function verifyChunk(sku, head, chunk, top) {
+  const k = chunk.skus.indexOf(sku); if (k < 0 || chunk.heads[k] !== head) return false;
+  if (chunkNode(chunk.skus, chunk.heads, top.n, top.c) !== top.nodes[chunk.i]) return false;
+  let level = top.nodes; while (level.length > 1) level = pairUp(level);
+  return level[0] === top.root;
+}
 function verifyProof(sku, head, proof, root) {
   let h = leafHash(sku, head);
   for (const p of proof) h = p[0] === 'L' ? sha(p.slice(2) + h) : sha(h + p.slice(2));
   return h === root;
 }
 
-module.exports = { cleanText, sha, fold, isUsed, isAccessory, isCombo, looksMain, FLOOR, FL, median, histRef, filterOffers, evaluate, seedD90, updateD90, dayOf, merkle, verifyProof, leafHash };
+module.exports = { cleanText, sha, fold, isUsed, isAccessory, isCombo, looksMain, FLOOR, FL, median, histRef, filterOffers, evaluate, seedD90, updateD90, packD90, histDays, histVals, dayOf, merkle, merkleChunks, verifyChunk, chunkNode, MERKLE_CHUNK, verifyProof, leafHash };

@@ -74,6 +74,21 @@ async function t(name, f) { try { await f(); pass++; console.log('  ✓', name);
     const btn = await page.$('#pmBox button:has-text("Thêm vào giỏ"), #pmBox button:has-text("Mua ngay")'); if (!btn) throw new Error('khong co nut them vao gio'); await btn.click(); await page.waitForTimeout(600);
     const cnt = await page.evaluate(() => Number((document.querySelector('#cartN') || {}).textContent || 0)); if (!(cnt >= 1)) throw new Error('dem gio: ' + cnt);
   });
+  await t('xem 1 nganh (?c=) -> loc tren chi muc gon, >= 12 the san pham co gia va anh (khong can file rieng theo nganh)', async () => {
+    const cat = await page.evaluate(async () => { const n = {}; for (const r of await window.kkPackRows()) n[r[3]] = (n[r[3]] || 0) + 1; return Object.entries(n).sort((a, b) => b[1] - a[1])[0][0]; });
+    const reqs = []; const onReq = r => { if (/\/api\/cat\/(?!index)/.test(r.url())) reqs.push(r.url()); }; page.on('request', onReq);
+    await page.goto(BASE + '/?c=' + encodeURIComponent(cat), { waitUntil: 'load' }); await page.waitForFunction(() => typeof packReady !== 'undefined' && packReady === true, null, { timeout: 15000 });
+    await page.waitForFunction(() => document.querySelectorAll('.card .price').length >= 12, null, { timeout: 15000 }); page.off('request', onReq);
+    const m = await page.evaluate(() => ({ n: [...document.querySelectorAll('.card .price')].filter(e => /\d{3}/.test(e.textContent)).length, img: document.querySelectorAll('.card img[src^="http"]').length }));
+    if (m.n < 12 || m.img < 6) throw new Error('the co gia: ' + m.n + ', anh: ' + m.img); if (reqs.length) throw new Error('van goi file nganh: ' + reqs[0]);
+  });
+  await t('so cai gia (?ledger=SKU): chuoi SHA-256 khop + Merkle hop le, tu kiem chung tren trinh duyet', async () => {
+    const sku = await page.evaluate(async () => (await window.kkPackRows()).find(r => r[7])[0]);
+    await page.goto(BASE + '/?ledger=' + sku, { waitUntil: 'load' });
+    await page.waitForFunction(() => { const v = document.querySelector('#lgVerify .vsum'); return !!v; }, null, { timeout: 20000 });
+    const v = await page.evaluate(() => { const e = document.querySelector('#lgVerify .vsum'); return { good: e.classList.contains('good'), tx: e.textContent }; });
+    if (!v.good || !/Merkle[^·]*✓ hợp lệ/.test(v.tx)) throw new Error('ket qua kiem chung: ' + v.tx.replace(/\s+/g, ' ').slice(0, 200));
+  });
 
   console.log('3. Dien thoai 390 px');
   const mctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }), mp = await mctx.newPage();

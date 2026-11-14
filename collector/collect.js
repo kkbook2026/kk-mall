@@ -32,6 +32,7 @@ const BAD_IMG_HOST = /^https:\/\/(vn-test-\d+\.slatic\.net|lzd-staging[^/]*|[^/]
 const goodImg = u => typeof u === 'string' && /^https:\/\//.test(u) && !BAD_IMG_HOST.test(u);
 const { isFreeship } = require('./match');   // 'Freeship' trong ten chi duoc tinh khi KHONG kem dieu kien (khu vuc, gia tri don, chuong trinh co tran)
 const FS_RE = { test: n => isFreeship(n) };
+const LEDGER_KEEP = Math.max(10, parseInt(process.env.LEDGER_KEEP || '20', 10));   // so ban ghi so cai giu trong file SP (cu hon: chuoi 90 ngay d90 van giu ma niem phong)
 const HIST_RUNS = Math.max(1, parseInt(process.env.HIST_OVERRIDE_RUNS || '3', 10)), HIST_HOURS = Math.max(0, parseFloat(process.env.HIST_OVERRIDE_HOURS || '20'));
 
 // PRNG deterministic theo chu ky - gia nguon dao dong nhu thi truong that
@@ -119,7 +120,12 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     /* (3) Ten chua co san pham: neu ghep mo duoc vao san pham da co -> la offer cua san pham do (khong tao trung);
      *     con lai moi la ung vien san pham moi - uu tien hang co nhieu nguon va gia tri cao, co tran de site khong vuot gioi han GitHub Pages. */
     const NEW_MIN_PRICE = parseInt(process.env.NEW_MIN_PRICE || '100000', 10);
-    const maxTotal = Math.min(MAX_TOTAL, parseInt(process.env.FEED_HARD_MAX || '36000', 10));
+    /* TRAN THEO DUNG LUONG: GitHub Pages gioi han 1 GB/site. Moi SP chiem: file du lieu (do thuc te o lan chay truoc - fidx.size) + trang SEO + chi muc
+     * (SIZE_PER_EXTRA). SIZE_BUDGET_MB tru phan co dinh -> so SP toi da; lich su gia dai dan theo thoi gian thi tran TU HA, khong lam vo trang. */
+    const SIZE_BUDGET = parseInt(process.env.SIZE_BUDGET_MB || '850', 10) * 1048576, SIZE_FIXED = 45 * 1048576, SIZE_PER_EXTRA = parseInt(process.env.SIZE_PER_EXTRA || '7000', 10);   // trang SEO ~5,9 KB + trang nhom/sitemap ~0,6 KB + chi muc gon, goi quan tri, khoi Merkle ~0,4 KB (do tren du lieu that 14/11/2026)
+    const maxBySize = Math.floor((SIZE_BUDGET - SIZE_FIXED) / ((fidx.size && fidx.size.n ? fidx.size.prod / fidx.size.n : 3300) + SIZE_PER_EXTRA));
+    const maxTotal = Math.min(MAX_TOTAL, parseInt(process.env.FEED_HARD_MAX || '80000', 10), maxBySize);
+    feed.stat.cap = maxTotal;
     const repOf = offs => offs.find(o => o.stock) || offs[0];
     const cands = [];
     for (const [key, offs] of pending) { const rep = repOf(offs); if (IDX.find(rep.name, rep.grp, MIN_FZ, feat(rep.name)).length) feed.stat.fuzzyKeys++; else cands.push([key, offs]); }
@@ -221,7 +227,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   for (const p of full) {
     const f = path.join(API, 'products', p.sku + '.json');
     if (!fs.existsSync(f)) continue;
-    const d = JSON.parse(fs.readFileSync(f, 'utf8'));
+    const raw = fs.readFileSync(f, 'utf8'), d = JSON.parse(raw);
     // Danh sach nguon noi bo (khong cong bo ra du lieu tinh)
     const sources = ['dienmayxanh', 'thegioididong', 'fptshop', 'cellphones', 'dienmaycholon', 'tiki', 'shopee', 'tiktok', 'lazada', 'sendo'];
     // gia nguon tot nhat chu ky nay
@@ -298,7 +304,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     ULOG.track(run, p, d.kk_price, kk, d.in_stock, inStock);
     // Tuyet doi khong ghi danh tinh nguon / gia nguon ra du lieu cong khai
     delete d.offers; delete d.sources; delete d.best_source; delete d.best_price; delete d.best_url;
-    d.in_stock = inStock; d.updated_at = now; d.sh = best ? bestShip : 0;   // phan ship nguon da du phong trong gia (khong lo danh tinh nguon)
+    d.in_stock = inStock; d.sh = best ? bestShip : 0;   // phan ship nguon da du phong trong gia (khong lo danh tinh nguon)
     if (priceChanged) {
       changed++;
       d.kk_price = kk;
@@ -309,7 +315,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       const h = sha(`${seq}|${p.sku}|${kk}|${inStock}|${now}|${prev}`);
       const oldKK = d.ledger.length ? d.ledger[d.ledger.length - 1].kk_price : null;
       d.ledger.push({ seq, kk_price: kk, s: inStock, at: now, hash: h });
-      if (d.ledger.length > 60) d.ledger = d.ledger.slice(-60);
+      if (d.ledger.length > LEDGER_KEEP) d.ledger = d.ledger.slice(-LEDGER_KEEP);
       recent.push({ sku: p.sku, name: p.name, kk, prev: oldKK, s: inStock, seq, hash: h, at: now });
       changedSlugs.push(/^[a-z0-9-]+$/.test(p.slug || '') ? p.slug : '');
     }
@@ -330,8 +336,8 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     p.disc = ev.disc; p.fl = ev.fl;
     const lastE = d.ledger && d.ledger.length ? d.ledger[d.ledger.length - 1].hash : 'GENESIS-' + p.sku;
     leaves.push({ sku: p.sku, head: lastE });
-    docs.set(p.sku, { f, d });
-    p.kk_price = d.kk_price; p.in_stock = inStock; p.updated_at = now;
+    docs.set(p.sku, { f, d, raw, p });
+    p.kk_price = d.kk_price; p.in_stock = inStock;
     adminRows.push({ sku: p.sku, name: p.name, brand: p.brand, cat: p.category_id, catName: p.category_name, grp: p.grp,
       base: d.base_price, kk: d.kk_price, stock: inStock, rating: p.rating, sold: p.sold,
       img: (d.image || '').startsWith('http') ? d.image : '',
@@ -342,11 +348,19 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       hold: d.hold ? d.hold_why : '', fl: ev.fl, disc: ev.disc });
   }
   /* ===== MERKLE ROOT toan so cai + proof tung SP, roi moi ghi file ===== */
-  const mk = TRUST.merkle(leaves);
-  for (const [sku, { f, d }] of docs) { d.mp = mk.proofs[sku]; d.mr = mk.root; d.mat = now; fs.writeFileSync(f, JSON.stringify(d)); }
+  /* Proof KHONG con nam trong tung file SP (truoc: mp/mr/mat ~1,2 KB/SP va doi MOI lan chay -> lan nao cung ghi lai toan bo danh muc).
+   * Nay cong bo theo khoi 256 SP tai api/merkle/ (publish.js); file SP chi ghi lai khi NOI DUNG doi (gia, ton kho, nhan tin cay, anh...). */
+  const mk = TRUST.merkleChunks(leaves);
+  let wrote = 0, prodBytes = 0;
+  for (const x of docs.values()) { const d = x.d; delete d.mp; delete d.mr; delete d.mat;
+    let js = JSON.stringify(d);
+    if (js !== x.raw) { d.updated_at = now; js = JSON.stringify(d); fs.writeFileSync(x.f, js); wrote++; }
+    x.p.updated_at = d.updated_at; prodBytes += Buffer.byteLength(js); }
+  fidx.size = { n: docs.size, prod: prodBytes, at: now };   // dung luong thuc cua du lieu SP -> tinh tran danh muc lan chay sau (SIZE_BUDGET_MB)
+  console.log(`Ghi file san pham: ${wrote}/${docs.size} (chi ghi khi noi dung doi) · trung binh ${docs.size ? Math.round(prodBytes / docs.size) : 0} byte/SP`);
   docs.clear();
   feed.stat.trust = { dropped: trustStat.dropped, hold: trustStat.hold, low: trustStat.low || 0, histWait: trustStat.histWait || 0, healed: trustStat.healed || 0 };
-  console.log(`Bo loc tin cay: loai ${trustStat.dropped} offer ngoai lai · tam giu ${trustStat.hold} SP · cho xac nhan muc gia moi ${trustStat.histWait || 0} SP · da dat lai moc lich su ${trustStat.healed || 0} SP · Merkle root ${mk.root.slice(0, 16)}… (${mk.n} la)`);
+  console.log(`Bo loc tin cay: loai ${trustStat.dropped} offer ngoai lai · tam giu ${trustStat.hold} SP · cho xac nhan muc gia moi ${trustStat.histWait || 0} SP · da dat lai moc lich su ${trustStat.healed || 0} SP · Merkle root ${mk.root.slice(0, 16)}… (${mk.n} la, ${mk.chunks.length} khoi)`);
   /* ===== KIEM TRA ANH THAT (xoay vong ~300 anh/lan) + thay anh hong bang anh nguon khac ===== */
   fidx.broken = fidx.broken || {};
   const imgList = full.filter(p => /^https:\/\//.test(p.image || ''));

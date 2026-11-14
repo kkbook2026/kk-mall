@@ -65,7 +65,7 @@ function parseProduct(html) {
 function loadCache() { try { return JSON.parse(zlib.gunzipSync(fs.readFileSync(CACHE)).toString('utf8')); } catch { return { v: 1, sites: {}, offers: {} }; } }
 function saveCache(c) { fs.mkdirSync(path.dirname(CACHE), { recursive: true }); fs.writeFileSync(CACHE, zlib.gzipSync(JSON.stringify(c))); }
 
-async function crawlSite(src, S, C, deadline, log) {
+async function crawlSite(src, S, C, deadline, log, KICK) {
   const st = C.sites[src] = C.sites[src] || { urls: [], sitemapAt: 0 };
   const rb = await get(S.base + '/robots.txt').catch(() => ({ status: 0, text: '' }));
   const R = robots(rb.text); const delay = Math.max(S.delay, R.delay * 1000);
@@ -93,6 +93,7 @@ async function crawlSite(src, S, C, deadline, log) {
   let n = 0, ok = 0, prod = 0, errs = 0;
   for (const [p] of seen) {
     if (Date.now() + delay > deadline) break;
+    if (KICK) await KICK.tick();
     const t0 = Date.now(); n++;
     let r; try { r = await get(S.base + p); } catch { r = { status: 0, text: '' }; }
     if (r.status === 429 || r.status >= 500 || r.status === 0) { errs++; if (errs >= 6) { log(`[${src}] dung som: may chu bao ban/loi ${r.status}`); break; } await sleep(delay * 4); continue; }
@@ -112,8 +113,8 @@ async function crawlSite(src, S, C, deadline, log) {
 
 /* Chay thu thap trong ngan sach thoi gian (phut); 3 trang chay song song, moi trang tuan tu theo crawl-delay rieng */
 async function run(minutes = 45, log = console.log) {
-  const C = loadCache(), deadline = Date.now() + minutes * 60e3;
-  const res = await Promise.all(Object.entries(SITES).map(([src, S]) => crawlSite(src, S, C, deadline, log).catch(e => (log(`[${src}] loi: ${e.message}`), null))));
+  const C = loadCache(), deadline = Date.now() + minutes * 60e3, KICK = require('./kick').make(process.env, log);   // giu nhip 3 gio cua bo thu thap gia
+  const res = await Promise.all(Object.entries(SITES).map(([src, S]) => crawlSite(src, S, C, deadline, log, KICK).catch(e => (log(`[${src}] loi: ${e.message}`), null))));
   C.savedAt = Date.now(); saveCache(C);
   const tot = Object.values(C.offers).filter(o => !o.skip).length;
   log(`Bo nho dem gia ban le: ${tot} san pham co gia`);

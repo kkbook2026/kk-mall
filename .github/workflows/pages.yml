@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: '22'
       - name: SEO - sinh trang tinh SP/nganh/nhom + sitemap (khong commit)
-        run: node collector/build-seo.js
+        run: node collector/build-seo.js --deploy   # --deploy: bo file chi phuc vu khau thu thap khoi goi xuat ban + kiem ngan sach dung luong 1 GB
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
