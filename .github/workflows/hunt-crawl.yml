@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       probe:
-        description: 'Chi DO KY THUAT (khong thu thap): ma website cach nhau dau phay, hoac "all" cho moi website trong danh ba + ung vien'
+        description: 'Chi DO KY THUAT (khong thu thap): ma website cach nhau dau phay, hoac "all"; "net:ma1,ma2" de chan doan ket noi mang'
         required: false
         default: ''
       minutes:
@@ -46,7 +46,9 @@ jobs:
           PROBE: ${{ inputs.probe }}
           MINUTES: ${{ inputs.minutes }}
         run: |
-          if [ -n "$PROBE" ]; then
+          if [ "${PROBE#net:}" != "$PROBE" ]; then
+            node collector/hunt.js net "${PROBE#net:}"          # chan doan mang (DNS / TCP / HTTP) cho cac website neu sau "net:"
+          elif [ -n "$PROBE" ]; then
             [ "$PROBE" = "all" ] && PROBE=""
             node collector/hunt.js probe "$PROBE"
           else

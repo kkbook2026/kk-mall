@@ -55,7 +55,7 @@ async function get(url, { timeout = 30000, max = 8 * 1048576 } = {}) {
     if (buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b) { try { buf = zlib.gunzipSync(buf); } catch { return { status: 0, text: '', url: r.url || url }; } }
     if (buf.length > max) buf = buf.subarray(0, max);
     return { status: r.status, text: buf.toString('utf8'), url: r.url || url };
-  } catch { return { status: 0, text: '', url }; } finally { clearTimeout(t); }
+  } catch (e) { return { status: 0, text: '', url, err: String((e && e.cause && (e.cause.code || e.cause.name)) || (e && e.name) || 'loi').slice(0, 40) }; } finally { clearTimeout(t); }
 }
 
 /* ---------- robots.txt: luat cua retail.robots (gop nhom "*" va nhom ten bot) + danh sach Sitemap ---------- */
@@ -316,7 +316,7 @@ async function probe(ids, log = console.log, env = process.env) {
   const out = {};
   await Promise.all(pick.map(async id => { const S = ALL[id], o = out[id] = { mode: S.mode }; const deadline = Date.now() + budget;
     try {
-      const rb = await get(S.base + '/robots.txt'); o.robots = rb.status; if (hostOf(rb.url) !== hostOf(S.base)) o.moved = hostOf(rb.url);
+      const rb = await get(S.base + '/robots.txt'); o.robots = rb.status; if (rb.err) o.neterr = rb.err; if (hostOf(rb.url) !== hostOf(S.base)) o.moved = hostOf(rb.url);
       if (!(rb.status === 200 || rb.status === 404 || rb.status === 410)) return;
       const R = robotsOf(rb.status === 200 ? rb.text : ''), delay = delayOf(S, R, env); o.delay = delay / 1000; o.smDecl = R.sitemaps.length;
       let paths = [];
@@ -329,9 +329,19 @@ async function probe(ids, log = console.log, env = process.env) {
     } catch (e) { o.err = String(e && e.message || e).slice(0, 80); }
   }));
   for (const id of pick) { const o = out[id], m = o.map, s = o.sample;
-    log(`${id.padEnd(14)} robots ${o.robots}${o.moved ? ' ->' + o.moved : ''}` + (o.delay != null ? ` · cach ${o.delay}s · sitemap khai ${o.smDecl}` : '') + (m ? ` · doc ${m.files} file${m.cut ? '+' : ''} (loi ${m.err}${m.http ? ' HTTP ' + m.http : ''}, bo ${m.skip}) · ${m.urls} dia chi · trung ma ${m.match}` : '') + (o.dir ? ` · danh ba ${o.dir.n} (uu tien 1: ${o.dir.p1}), duoc phep ${o.allowed}` : '')
+    log(`${id.padEnd(14)} robots ${o.robots}${o.neterr ? ' (' + o.neterr + ')' : ''}${o.moved ? ' ->' + o.moved : ''}` + (o.delay != null ? ` · cach ${o.delay}s · sitemap khai ${o.smDecl}` : '') + (m ? ` · doc ${m.files} file${m.cut ? '+' : ''} (loi ${m.err}${m.http ? ' HTTP ' + m.http : ''}, bo ${m.skip}) · ${m.urls} dia chi · trung ma ${m.match}` : '') + (o.dir ? ` · danh ba ${o.dir.n} (uu tien 1: ${o.dir.p1}), duoc phep ${o.allowed}` : '')
       + (s ? ` · mau ${s.n}: HTTP ${JSON.stringify(s.http)} · co du lieu ${s.data} (${Object.entries(s.via).map(x => x.join(':')).join(',') || '-'}) · co gia ${s.price} · con hang ${s.stock}` : '') + (o.err ? ' · LOI ' + o.err : '')); }
   return out;
+}
+
+/* ---------- CHAN DOAN MANG: vi sao 1 website khong ket noi duoc tu noi dang chay (DNS / TCP / TLS / HTTP) - chi in ma loi va thoi gian ---------- */
+async function netDiag(ids, log = console.log, env = process.env) {
+  const ALL = { ...require('./hunt-candidates'), ...sitesOf(env) }, dns = require('dns').promises, net = require('net');
+  for (const id of ids.filter(i => ALL[i])) { const S = ALL[id], host = new URL(S.base).host, o = [];
+    let ips = []; try { ips = await dns.resolve4(host); o.push('DNS ' + ips.length + ' dia chi'); } catch (e) { o.push('DNS loi ' + (e.code || e.name)); }
+    if (ips.length) { const t0 = Date.now(); const r = await new Promise(res => { const sk = net.connect({ host: ips[0], port: 443, timeout: 12000 }); sk.on('connect', () => { sk.destroy(); res('TCP 443 mo sau ' + (Date.now() - t0) + ' ms'); }); sk.on('timeout', () => { sk.destroy(); res('TCP 443 het gio 12s (goi tin bi bo - thuong la chan theo vung/dai dia chi)'); }); sk.on('error', e => res('TCP 443 loi ' + (e.code || e.name))); }); o.push(r); }
+    const t1 = Date.now(), r = await get(S.base + '/robots.txt', { timeout: 20000 }); o.push('HTTP robots.txt ' + r.status + (r.err ? ' (' + r.err + ')' : '') + ' sau ' + (Date.now() - t1) + ' ms');
+    log(`${id.padEnd(14)} ${o.join(' · ')}`); }
 }
 
 module.exports = { run, liveRows, huntRows, siteStat, reachNote, probe, urlKey, hostOf, buildIndex, slugSkus, parsePage, sameItem, robotsOf, delayOf, cleanTitle, sitesOf, loadCache, saveCache, get, dueList, UA };
@@ -339,6 +349,7 @@ if (require.main === module) {
   const a = process.argv[2];
   const done = p => p.then(() => process.exit(0), e => { console.error(e); process.exit(1); });
   if (a === 'probe') done(probe(String(process.argv[3] || '').split(',').filter(Boolean)));
+  else if (a === 'net') done(netDiag(String(process.argv[3] || '').split(',').filter(Boolean)));
   else if (a === 'stat') { const s = siteStat(); for (const [k, v] of Object.entries(s)) console.log(`${k.padEnd(14)} ${v.mode} · trang ${v.targets} · con moi ${v.fresh} · ngung ban ${v.gone} · khong doc duoc ${v.miss} · tuoi ${v.ageH == null ? '-' : v.ageH + 'h'}${v.fail ? ' · ' + v.fail : ''}`); }
   else done(run(parseFloat(a) || 45));
 }
