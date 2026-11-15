@@ -2,18 +2,30 @@
 
 Tài liệu này giải thích vì sao hệ thống được thiết kế như hiện tại để mô hình "tổng hợp giá từ các sàn - cộng 32.000đ - đặt hộ - giao thẳng" **hợp pháp tại Việt Nam**. Đây là phân tích kỹ thuật-pháp lý để làm việc với luật sư/kế toán, không thay thế tư vấn pháp lý chính thức.
 
-## 0. Thông tin pháp nhân vận hành (cập nhật 12/11/2026)
+## 0. Thông tin pháp nhân vận hành (cập nhật 15/11/2026 theo GCN ĐKDN)
 
 | Mục | Nội dung |
 |---|---|
 | Tên công ty | **CÔNG TY TNHH KK-MALL** |
-| Tên tiếng Anh | **KK-MALL COMPANY LIMITED** |
+| Tên tiếng Anh | **KK-MALL COMPANY LIMITED** (không có tên viết tắt) |
+| Loại hình | Công ty trách nhiệm hữu hạn một thành viên |
 | Mã số doanh nghiệp (đồng thời là mã số thuế) | **0111694057** |
-| Địa chỉ trụ sở, hotline, email CSKH | chờ bổ sung tại Admin → Hệ thống |
-| Nơi cấp / ngày cấp GCN ĐKDN, người đại diện theo pháp luật | chờ bổ sung tại Admin → Hệ thống |
+| Đăng ký lần đầu | 09/11/2026 |
+| Nơi cấp | Phòng Đăng ký kinh doanh và Tài chính doanh nghiệp - Sở Tài chính Thành phố Hà Nội |
+| Trụ sở chính | Xóm 4, Thôn Phù Yên, Xã Phú Nghĩa, Thành phố Hà Nội, Việt Nam |
+| Vốn điều lệ | 2.000.000.000 đồng |
+| Người đại diện theo pháp luật | Nguyễn Duy Điển - Giám đốc |
+| Website | www.kk-mall.com |
+| Hotline, email CSKH | **chờ chủ sở hữu cấp** (chưa công khai số/email cá nhân trên GCN) |
 | Số/mã hồ sơ xác nhận thông báo nền tảng TMĐT (UBND TP Hà Nội) | chờ bổ sung sau khi được xác nhận |
 
-Đã hiển thị trên www.kk-mall.com: chân trang, trang Pháp lý & Chính sách, mẫu hợp đồng ủy thác / hợp đồng dịch vụ / điều khoản (Bên B), dữ liệu có cấu trúc Google (legalName, taxID) và cấu hình máy chủ dùng cho email, hóa đơn phí dịch vụ, hợp đồng điện tử theo đơn.
+**Nguồn dữ liệu duy nhất:** `collector/company.json` - bộ thu thập gộp vào `site/api/meta.json` mỗi lượt chạy, nên không lượt xuất bản nào ghi đè mất. Hợp đồng điện tử (`site/kk-hop-dong.js` → `backend/Code.gs` qua `tools/build-terms.js`) và `COMPANY_DEFAULT` của máy chủ dùng cùng nội dung.
+
+**Đã hiển thị:** chân trang mọi trang (gồm trang SEO tĩnh), bảng "Thông tin doanh nghiệp" tại /phap-ly, trang /doi-tac, mẫu hợp đồng ủy thác / dịch vụ / điều khoản (Bên B), dữ liệu có cấu trúc Google (legalName, taxID, foundingDate, PostalAddress).
+
+**Không bao giờ công khai:** số định danh cá nhân, ngày sinh, địa chỉ liên lạc cá nhân của người đại diện; số điện thoại và email cá nhân ghi trên GCN.
+
+**Khi có hotline/email riêng:** điền vào `collector/company.json` (phone, email) hoặc Admin → Hệ thống → Công ty; chân trang, trang pháp lý và hợp đồng tự cập nhật.
 
 ## 0.1. Chân trang pháp lý & thủ tục thông báo nền tảng TMĐT (cập nhật 12/11/2026)
 
@@ -36,7 +48,7 @@ Tài liệu này giải thích vì sao hệ thống được thiết kế như h
 | Kết quả | Biểu tượng xác nhận điện tử liên kết về hệ thống quản lý TMĐT, gắn ở chân trang (Điều 45 k2a) |
 | Công khai bắt buộc (Điều 4, Điều 17 k1) | Tên, địa chỉ trụ sở, người đại diện theo pháp luật, số/ngày/nơi cấp GCN ĐKDN, MST, hotline, email - hiển thị nổi bật trên trang chủ |
 
-**Còn thiếu (nhập tại Admin → Hệ thống):** địa chỉ trụ sở, người đại diện theo pháp luật, ngày + nơi cấp GCN ĐKDN, hotline, email CSKH.
+**Đã đủ (15/11/2026):** tên, địa chỉ trụ sở, người đại diện theo pháp luật, số/ngày/nơi cấp GCN ĐKDN, MST. **Còn thiếu:** hotline + email CSKH (chủ sở hữu cấp) và số/mã hồ sơ xác nhận thông báo TMĐT (sau khi nộp tại Cổng DVC quốc gia).
 
 Nguồn: hethongphapluat.com (NĐ 248/2026), moit.gov.vn (phổ biến Luật TMĐT + NĐ 248), thuvienphapluat.vn (Luật 122/2025/QH15), tapchicongthuong.vn.
 
@@ -52,7 +64,7 @@ Nguồn: hethongphapluat.com (NĐ 248/2026), moit.gov.vn (phổ biến Luật TM
 
 - KK-MALL là **bên bán** đối với khách hàng (xuất hóa đơn cho khách theo giá đã thanh toán), đồng thời là **bên mua** đối với nguồn (cần hóa đơn đầu vào/chứng từ từ nguồn để hạch toán giá vốn). Đây là mô hình **dropship/mua hộ có doanh thu** - phổ biến và hợp pháp khi kê khai đủ thuế GTGT, TNDN.
 - Khoản 32.000đ là **phí dịch vụ giao hàng & xử lý đơn**, hiển thị tách bạch ở mọi nơi (trang SP, giỏ hàng, hóa đơn dòng riêng) → tuân thủ nghĩa vụ công khai giá, phí theo Luật TMĐT 122/2025/QH15, NĐ 248/2026 & Luật BVQLNTD 2023, tránh bị coi là "ẩn phí".
-- KK-MALL **không nhận COD** → tiền về trước khi đặt nguồn, không phát sinh rủi ro tín dụng và hoàn toàn phù hợp với cổng thanh toán được NHNN cấp phép.
+- KK-MALL **không nhận COD** → tiền về trước khi đặt nguồn, không phát sinh rủi ro tín dụng và hoàn toàn phù hợp với chuyển khoản ngân hàng qua VietQR (hiện chưa tích hợp ví điện tử / cổng VNPay, MoMo, ZaloPay).
 
 ## 3. Nghĩa vụ đăng ký & công bố
 
