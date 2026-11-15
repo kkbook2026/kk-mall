@@ -313,6 +313,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   const ENC = path.join(SITE, 'admin', 'data.enc');
   const APK = CURATE.apprKeys(AKEY);
   let prevUpdates = null; const apprPriv = {}, prevSeen = new Map(), apprStat = { ok: 0, no: 0, stale: 0, pend: 0 };
+  const MKT = { n: {}, gap: [], save: [], src: {} };   // vi the gia so voi thi truong (chi ghi vao goi quan tri ma hoa)
   if (AKEY) { const prev = ULOG.decryptFile(ENC, AKEY);
     if (prev) { prevUpdates = prev.updates || null;
       for (const sku of Object.keys(BOOK.items)) if (prev.appr && prev.appr[sku]) apprPriv[sku] = prev.appr[sku];
@@ -394,6 +395,15 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       } else if (hk[p.sku]) delete hk[p.sku]; }
     if (hasDec && flt.dropped.length) { const back = flt.dropped.filter(o => o.in_stock && o.url && decOf(o.source, o.url, o.price) === 'ok');   // quan tri da duyet: bo qua bo loc tin cay cho dung offer do
       if (back.length) { for (const o of back) { delete o.why; o.ap = 'ok'; } flt.valid = flt.valid.concat(back); flt.dropped = flt.dropped.filter(o => !back.includes(o)); } }
+    /* TRUNG MA 100% (15/11/2026): offer GHEP THEO TEN (diem < 0.9 - chua trung ma model / chua du thong so dinh danh) KHONG duoc keo gia xuong duoi nguon
+     * TRUNG MA dang con hang: dua vao danh sach cho duyet tay (quan tri xem 2 ten canh nhau, duyet 1 cham thi duoc dung). SP khong co nguon trung ma nao
+     * thi van dung gia ghep theo ten nhu truoc (bot khong tu dat - nguoi van hanh kiem tra duong dan truoc khi dat) va duoc danh dau trong ra soat vi the gia. */
+    const twinMemo = new Map(), twin = o => { const k = o.name || ''; if (!twinMemo.has(k)) twinMemo.set(k, !!k && MATCH.codeTwin(p.name, k)); return twinMemo.get(k); };
+    const codeOk = o => !o.fz || o.fz >= 0.9 || o.ap === 'ok' || twin(o);   // trung ma: khop chinh xac / trung ma model >= 0.9 / trung toan bo ma ngan / quan tri da duyet
+    { const codeBest = flt.valid.filter(o => o.in_stock && o.landed > 0 && codeOk(o)).reduce((m, o) => Math.min(m, o.landed), Infinity);
+      if (codeBest < Infinity) { const nm = flt.valid.filter(o => o.in_stock && !codeOk(o) && o.landed < codeBest);
+        if (nm.length) { for (const o of nm) o.why = 'Ghép theo tên (chưa trùng mã model 100%) rẻ hơn nguồn trùng mã - chưa dùng định giá, cần duyệt tay';
+          flt.valid = flt.valid.filter(o => !nm.includes(o)); flt.dropped = flt.dropped.concat(nm); trustStat.nameHeld = (trustStat.nameHeld || 0) + 1; } } }
     const hadLive = offerState.some(o => o.in_stock);
     best = null; bestSrc = null; let bestListed = null, bestShip = 0, bestFz = 0;   // best = GIA THUC TRA (da gom ship nguon)
     for (const o of flt.valid) if (o.in_stock && (!best || o.landed < best)) { best = o.landed; bestListed = o.price; bestShip = o.ship; bestSrc = o.source; bestFz = o.fz || 0; }
@@ -410,6 +420,37 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     else if (best && !PRICING.ok) kk = d.kk_price;                   // thieu Secret: giu gia, van cap nhat ton kho
     const inStock = best ? 1 : 0;
     if (!inStock) outOfStock++;
+    /* ===== VI THE GIA SO VOI THI TRUONG (ra soat 15/11/2026) =====
+     * Thi truong = moi offer CON HANG, CO DUONG DAN DAT MUA, TRUNG MA (khop chinh xac theo datafeed hoac trung ma model >= 0.9) o moi nguon - ke ca offer dang
+     * cho duyet, nguon chi giao theo vung, offer bi bo loc tin cay giu lai. KHONG tinh: offer ghep theo ten (< 0.9), offer quan tri da tu choi,
+     * offer la phu kien / duoi san gia may chinh / dat bat thuong (la offer sai mat hang, khong phai gia thi truong).
+     * c: 'cheap'  gia KK-MALL <= gia niem yet re nhat thi truong (so 1)
+     *    'struct' dang dung NGUON RE NHAT trong >= 2 nguon trung ma - chenh lech chi con ship du phong + phi dich vu (gioi han cua mo hinh mua ho)
+     *    'single' nhu struct nhung chi co 1 nguon trung ma -> chua doi chung duoc, can them nguon
+     *    'reg'    co nguon trung ma RE HON nhung chi giao theo vung / chua xac minh pham vi giao -> quan tri duyet tay (tab Duyet)
+     *    'pend'   co nguon trung ma RE HON dang cho quan tri duyet (ghep cheo re bat thuong so voi gia neo)
+     *    'held'   co nguon trung ma RE HON bi bo loc tin cay giu (lech lich su niem phong / trung vi cac nguon) - tu duoc nhan neu lap lai >= 20 gio
+     *    'name'   gia dang dua tren offer GHEP THEO TEN (khong co nguon trung ma) - can them nguon trung ma hoac quan tri xac nhan
+     *    'none'   khong co gia thi truong trung ma (chi ghep theo ten / gia mo phong)   'oos' het hang tai moi nguon */
+    let mkt = null;
+    { const bad = o => o.ap === 'no' || /phụ kiện|sàn giá|đắt hơn 1,6|2,5 lần/.test(o.x || o.why || '');
+      const M = offerState.concat(lowOffers).filter(o => o.in_stock && o.price > 0 && o.url && codeOk(o) && !bad(o));
+      const srcs = new Set(M.map(o => o.source)), mMin = M.length ? Math.min(...M.map(o => o.price)) : 0;
+      // offer trung ma CHUA duoc dung dinh gia ma GIA THUC TRA (niem yet + ship du phong) re hon nguon dang dung -> co the ha gia neu quan tri xac nhan
+      const L = o => o.landed > 0 ? o.landed : o.price;
+      const lo = M.filter(o => !flt.valid.includes(o) && (!best || L(o) < best - Math.max(1000, 0.005 * best))).sort((a, b) => L(a) - L(b))[0];
+      let c;
+      if (!M.length) c = inStock ? 'none' : 'oos';
+      else if (lo) { const w = lo.x || lo.why || ''; c = /Săn giá theo mã/.test(w) ? 'reg' : /lịch sử|trung vị/.test(w) ? 'held' : 'pend'; }
+      else if (!inStock) c = 'oos';
+      else if (kk <= mMin) c = 'cheap';
+      else c = srcs.size > 1 ? 'struct' : 'single';
+      if (inStock && !flt.valid.some(o => o.in_stock && o.landed === best && codeOk(o)) && (c === 'none' || c === 'cheap' || c === 'struct' || c === 'single')) c = 'name';   // gia dang dua tren offer ghep theo ten (khong co nguon trung ma)
+      const save = lo && inStock && PRICING.ok ? Math.max(0, kk - PRICING.sell(L(lo))) : 0;   // het hang: offer re hon nay la nguon co the mo ban lai (save = 0)
+      mkt = { c, m: mMin, n: srcs.size, g: inStock && mMin ? kk - mMin : 0, sv: save };
+      MKT.n[c] = (MKT.n[c] || 0) + 1; MKT.src[Math.min(srcs.size, 4)] = (MKT.src[Math.min(srcs.size, 4)] || 0) + 1;
+      if ((c === 'struct' || c === 'single') && mMin) MKT.gap.push((kk - mMin) / mMin);
+      if (save > 0) MKT.save.push(save); }
 
     const priceChanged = kk !== d.kk_price || inStock !== d.in_stock;
     ULOG.track(run, p, d.kk_price, kk, d.in_stock, inStock);
@@ -455,10 +496,10 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       sp: Object.keys(d.specs || {}).length,
       best: best ? { s: bestSrc, p: bestListed, sh: bestShip, l: best } : null, margin: best ? d.kk_price - best : null,   // margin = lai thuc sau ship
       // u = duong dan dat hang (bot chi tu dat khi khop chinh xac hoac trung ma model >= 0.9); ghep theo ten: duong dan nam o fu de nguoi van hanh kiem tra truoc
-      offers: offerState.concat(lowOffers).map(o => { const man = o.fz && o.fz < 0.9; const r = { s: o.source, p: o.price, sh: o.ship || 0, l: o.landed || o.price, k: o.in_stock, u: man ? '' : (o.url || ''), x: o.x || '' }; if (o.lv) r.lv = 1; if (o.fz) { r.f = o.fz; r.n = String(o.name || '').slice(0, 110); if (man) r.fu = o.url || ''; }
+      offers: offerState.concat(lowOffers).map(o => { const man = o.fz && o.fz < 0.9; const r = { s: o.source, p: o.price, sh: o.ship || 0, l: o.landed || o.price, k: o.in_stock, u: man ? '' : (o.url || ''), x: o.x || '' }; if (o.lv) r.lv = 1; if (o.fz && o.fz < 0.9 && o.name && twin(o)) r.ct = 1; if (o.fz) { r.f = o.fz; r.n = String(o.name || '').slice(0, 110); if (man) r.fu = o.url || ''; }
         if (APK && o.url && (o.pend || o.ap)) r.id = APK.oid(p.sku, o.source, o.url);                         // ma offer (HMAC mot chieu) cho nut Duyet / Tu choi
         if (o.pend) { r.pa = 1; if (PRICING.ok) r.kq = PRICING.sell(o.landed); if (!r.n) r.n = String(o.name || '').slice(0, 110); if (!r.fu && !r.u) r.fu = o.url || ''; } if (o.ap) r.ap = o.ap; return r; }).sort((a, b) => a.l - b.l), feed: (exOffers.length || fzOffers.length) ? 1 : 0, nx: exOffers.length, bf: best && bestFz ? bestFz : 0,
-      hold: d.hold ? d.hold_why : '', fl: ev.fl, disc: ev.disc });
+      hold: d.hold ? d.hold_why : '', fl: ev.fl, disc: ev.disc, mk: mkt });
   }
   /* ===== MERKLE ROOT toan so cai + proof tung SP, roi moi ghi file ===== */
   /* Proof KHONG con nam trong tung file SP (truoc: mp/mr/mat ~1,2 KB/SP va doi MOI lan chay -> lan nao cung ghi lai toan bo danh muc).
@@ -482,7 +523,11 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   wj('alias.json', { v: 1, n: Object.keys(aliasPub).length, map: aliasPub });
   if (feed.stat.merged) feed.stat.merged.total = Object.keys(aliasMap).length;
   docs.clear();
-  feed.stat.trust = { dropped: trustStat.dropped, hold: trustStat.hold, low: trustStat.low || 0, histWait: trustStat.histWait || 0, healed: trustStat.healed || 0 };
+  feed.stat.trust = { dropped: trustStat.dropped, hold: trustStat.hold, low: trustStat.low || 0, histWait: trustStat.histWait || 0, healed: trustStat.healed || 0, nameHeld: trustStat.nameHeld || 0 };
+  { const med = a => { if (!a.length) return 0; const x = a.slice().sort((p, q) => p - q); return x[x.length >> 1]; }, N = MKT.n;
+    feed.stat.market = { n: N, src: MKT.src, gapMed: Math.round(med(MKT.gap) * 1000) / 10, saveMed: med(MKT.save), saveN: MKT.save.length };
+    // nhat ky cong khai: CHI so dem (khong gia, khong ten nguon, khong ty le chenh)
+    console.log(`Vi the gia so voi thi truong (gia niem yet re nhat cua offer trung ma, moi nguon): re nhat ${N.cheap || 0} · dung nguon re nhat ${N.struct || 0} · chi 1 nguon trung ma ${N.single || 0} · co nguon trung ma re hon: cho duyet ${N.pend || 0}, giao theo vung ${N.reg || 0}, bo loc giu ${N.held || 0} · gia theo ghep ten (chua co nguon trung ma) ${N.name || 0} · khong co gia trung ma ${N.none || 0} · het hang ${N.oos || 0} · offer ghep ten bi chan ha gia duoi nguon trung ma: ${trustStat.nameHeld || 0} SP`); }
   feed.stat.appr = apprStat; if (feed.stat.lowVal) feed.stat.lowVal.wait = lowWait;
   if (apprStat.pend || apprStat.ok || apprStat.no) console.log(`Duyet tay: ${apprStat.pend} offer cho duyet · dang ap dung ${apprStat.ok} offer da duyet · ${apprStat.no} offer da tu choi · ${apprStat.stale} can duyet lai (gia da doi)`);
   if (SELL_MIN) console.log(`Hang gia tri thap (gia nguon < ${SELL_MIN.toLocaleString('vi-VN')} d): ${lowWait} SP dang duoi nguong · da go lan nay ${(feed.stat.lowVal || {}).removed || 0}`);

@@ -46,6 +46,11 @@ module.exports = {
   watchstore: { name: 'WatchStore', color: '#37474f', base: 'https://www.watchstore.vn', mode: 'map', delay: 2500, reach: 'vn',
     ship: { tiers: [[500000, 0], [0, 30000]], bulky: 0, note: 'Miễn phí vận chuyển toàn quốc cho đơn từ 500.000đ; giao COD toàn quốc' } },
   karofi: { name: 'Karofi', color: '#00838f', base: 'https://karofi.com', mode: 'map', delay: 2500, reach: 'vn', trusted: 1 },   // cua hang chinh hang, giao + lap toan quoc (tinh: 2-5 ngay); phi khong cong bo -> luat du phong mac dinh
+  // DOT 2 (15/11/2026) - do ky thuat dat (robots.txt cho phep, sitemap co trang SP trung ma, trang SP co gia trong du lieu chuan) + da doc chinh sach giao hang cong bo
+  thinkpro: { name: 'ThinkPro', color: '#212121', base: 'https://thinkpro.vn', mode: 'map', delay: 2500, reach: 'vn',
+    ship: { tiers: [[0, 0]], bulky: 0, note: 'Giao hàng toàn quốc qua VNPost/Viettel Post/Nhất Tín; đơn thanh toán trước 100% được miễn 100% phí vận chuyển, phí thu hộ và bảo hiểm (KK-MALL luôn thanh toán trước)' } },
+  galle: { name: 'Galle Watch', color: '#5d4037', base: 'https://galle.vn', mode: 'map', delay: 2500, reach: 'vn',
+    ship: { tiers: [[0, 0]], bulky: 0, note: 'Khách hàng được miễn phí vận chuyển trên toàn quốc (trang Hướng dẫn mua hàng)' } },
 
   /* ===== GIAO TOAN QUOC voi hang nho; hang nang / cong kenh tinh phi rieng theo tung don -> hang cong kenh chi liet ke cho quan tri ===== */
   meta: { name: 'META', color: '#ef6c00', base: 'https://meta.vn', mode: 'map', delay: 2500, reach: 'vn-small', trusted: 1,
@@ -65,4 +70,14 @@ module.exports = {
   didongviet: { name: 'Di Động Việt', color: '#455a64', base: 'https://didongviet.vn', mode: 'map', delay: 2500, reach: 'check' },
   clickbuy: { name: 'Clickbuy', color: '#455a64', base: 'https://clickbuy.com.vn', mode: 'map', delay: 2500, reach: 'check' },
   dangquang: { name: 'Đăng Quang Watch', color: '#455a64', base: 'https://www.dangquangwatch.vn', mode: 'map', delay: 2500, reach: 'check' },
+  // DOT 2 (15/11/2026): dat ky thuat, CHUA doc duoc chinh sach giao hang cong bo -> offer re hon chi vao tab Duyet
+  bepantoan: { name: 'Bếp An Toàn', color: '#455a64', base: 'https://bepantoan.vn', mode: 'map', delay: 2500, reach: 'check' },
+  elmich: { name: 'Elmich (chính hãng)', color: '#455a64', base: 'https://elmich.vn', mode: 'map', delay: 2500, reach: 'check' },
+  cuckoo: { name: 'Cuckoo Việt Nam (chính hãng)', color: '#455a64', base: 'https://cuckoo.vn', mode: 'map', delay: 2500, reach: 'check' },
+  bluestone: { name: 'BlueStone (chính hãng)', color: '#455a64', base: 'https://bluestone.com.vn', mode: 'map', delay: 2500, reach: 'check' },
+  tefal: { name: 'Tefal Việt Nam (chính hãng)', color: '#455a64', base: 'https://www.tefal.com.vn', mode: 'map', delay: 2500, reach: 'check' },
+  tandoanh: { name: 'Tân Doanh', color: '#455a64', base: 'https://tandoanh.vn', mode: 'map', delay: 2500, reach: 'check' },
+  dtgiakho: { name: 'Điện Thoại Giá Kho', color: '#455a64', base: 'https://dienthoaigiakho.vn', mode: 'map', delay: 2500, reach: 'check' },
+  kccshop: { name: 'KCC Shop', color: '#455a64', base: 'https://kccshop.vn', mode: 'map', delay: 2500, reach: 'check' },
+  hoanghapc: { name: 'Hoàng Hà PC', color: '#455a64', base: 'https://hoanghapc.vn', mode: 'map', delay: 2500, reach: 'check' },
 };

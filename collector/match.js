@@ -319,6 +319,21 @@ function linkValid(fa, fb, sameKey) {
   return sameKey ? true : score(fa, fb) >= 0.9;
 }
 
+/* TRUNG MA 100% THEO MA MODEL NGAN (15/11/2026): G304, C64, AX53, K580... qua ngan de la "ma manh" nen cap ghep di duong so ten (diem toi da 0.89).
+ * Coi la trung ma khi: cung thuong hieu; TOAN BO ma dinh danh (ma ngan + ma manh + ma phu/chip) giong het va khong rong; cung bien the, mau, tinh trang,
+ * so luong goi, phu kien/combo, thong so dung luong/kich thuoc, hau to mau/vung; va diem ghep >= 0.6. Thieu 1 dieu kien -> van la "ghep theo ten". */
+function codeTwin(a, b) {
+  const A = typeof a === 'string' ? features(a) : a, B = typeof b === 'string' ? features(b) : b;
+  const eq = (x, y) => x.size === y.size && [...x].every(t => y.has(t)), st = o => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, Object.keys(o[k] || {}).sort()]));
+  if (!A.brands.size || !eq(A.brands, B.brands)) return false;
+  const id = f => new Set([...f.ids, ...f.strong.map(c => c.full), ...f.cids]), ia = id(A), ib = id(B);
+  if (!ia.size || !eq(ia, ib)) return false;
+  if (!eq(A.variant, B.variant) || !eq(A.color, B.color) || !eq(A.sfx, B.sfx)) return false;
+  if (A.cond !== B.cond || A.pack !== B.pack || A.acc !== B.acc || A.bundle !== B.bundle || A.res !== B.res || A.kind !== B.kind) return false;
+  if (st(A.spec) !== st(B.spec)) return false;
+  return score(A, B) >= 0.6;
+}
+
 /* CHU KY BIEN THE cua 1 ten: ma model manh + bien the + tinh trang + so luong goi + mau + ma phu.
  * Hai offer cung khoa ten (normKey bo noi dung trong ngoac) ma khac chu ky = 2 san pham khac nhau (Tray <> Box, RF48A4000B4 <> RF48A4010M9, Đen <> Trắng). */
 function signature(f) {
@@ -410,4 +425,4 @@ const isFreeship = n => { const s = nd(n); return /free ?ship/.test(s) && !FS_CO
 
 /* Cum mau NGUYEN VAN trong ten (khong quy ve nhom mau): "xanh navy" <> "xanh" - dung khi can chac chan 2 ten la cung mot mau (gop san pham trung) */
 const colorsRaw = name => new Set([...String(name || '').toLowerCase().normalize('NFC').matchAll(new RegExp(COLOR_VI.source, COLOR_VI.flags.includes('g') ? COLOR_VI.flags : COLOR_VI.flags + 'g'))].map(m => nd(m[0]).replace(/[^a-z]/g, '')));
-module.exports = { features, score, linkValid, signature, createIndex, band, colorsRaw, codeOf, codeEq, brandsOf, sellerOf, nd, SINGLE_SELLER, REGION_RE, isFreeship };
+module.exports = { features, score, linkValid, signature, codeTwin, createIndex, band, colorsRaw, codeOf, codeEq, brandsOf, sellerOf, nd, SINGLE_SELLER, REGION_RE, isFreeship };

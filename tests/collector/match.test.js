@@ -370,6 +370,19 @@ const PAIRS = [
     for (const f of fs.readdirSync(dir)) if (/\.ya?ml$/.test(f)) fs.readFileSync(path.join(dir, f), 'utf8').split('\n').forEach((ln, i) => { if (/^\s*if:/.test(ln) && /vars\.[A-Za-z0-9_]+\s*(!=|==)\s*'/.test(ln)) bad.push(f + ':' + (i + 1)); });
     t(!bad.length, 'workflow: khong co `if:` so sanh truc tiep vars.X voi chuoi (bien chua dat se bi ep kieu sai) ' + bad.join(', ')); }
 
+  /* ---------- 11) Trung ma 100% theo ma model ngan (codeTwin, 15/11/2026): offer ghep theo ten chi duoc ha gia khi trung TOAN BO ma ---------- */
+  { const M = require('../../collector/match');
+    const P = [['Chuột Không dây Gaming Logitech G304', 'Chuột Không dây Gaming Logitech G304 Lightspeed', true],
+      ['Router Wifi Chuẩn AC1200 TP-Link Archer C64 Gigabit', 'Router Wifi băng tầng kép AC1200 TP-Link Archer C64 - Chính hãng', true],
+      ['Đồng hồ thông minh Huawei Watch 5 46mm Titanium', 'Đồng hồ thông minh Huawei Watch 5 - 46mm', false],          // khong co ma -> khong chung minh duoc ban Titanium
+      ['Router Wifi 6 TP-Link Archer AX53', 'Router TP-Link Archer AX55 Wi-Fi 6', false],                                  // khac ma
+      ['Chuột Logitech G304', 'Chuột Logitech G304 Đen', false],                                                            // 1 ben co mau
+      ['MacBook Air M5 15 inch 10CPU 10GPU 16GB/512GB', 'MacBook Air M5 15 inch 10CPU 10GPU 16GB/1TB', false],            // khac dung luong
+      ['Chuột Logitech G102 Gen2', 'Chuột Logitech G102', false],                                                           // khac the he
+      ['Bàn phím Logitech K580', 'Bàn phím Logitech K580 (Hàng trưng bày)', false],                                        // khac tinh trang
+      ['Chuột Logitech G304', 'Chuột Razer G304', false]];                                                                    // khac thuong hieu
+    for (const [a, b, e] of P) t(M.codeTwin(a, b) === e, `codeTwin(${a} | ${b}) = ${e}`); }
+
   console.log(`\nBo ghep cheo & bo nap feed: ${pass}/${pass + fail} dat`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
