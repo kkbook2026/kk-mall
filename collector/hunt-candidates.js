@@ -32,4 +32,30 @@ module.exports = {
   // dong ho
   haitrieu: M('Hải Triều', 'https://donghohaitrieu.com'),                           // khong cong bo gia trong du lieu chuan; mot so trang 403
   xwatch: M('Xwatch', 'https://xwatch.vn'),                                         // sitemap khong co dia chi san pham
+  /* DOT 2 (15/11/2026) - mo rong theo yeu cau ra soat them nguon: chuoi/cua hang ban online toan quoc va website chinh hang cua nhan hang
+   * (website chinh hang thuong niem yet gia hang, nhung xac nhan dung ma model + con hang; khi co khuyen mai co the re nhat thi truong). */
+  // dien may - gia dung - bep
+  thienphu: M('Điện Máy Thiên Phú', 'https://dienmaythienphu.vn'),
+  giakho: M('Điện Máy Giá Kho', 'https://dienmaygiakho.vn'),
+  bepantoan: M('Bếp An Toàn', 'https://bepantoan.vn'),
+  bepvuson: M('Bếp Vũ Sơn', 'https://bepvuson.vn'),
+  hawonkoo: M('Hawonkoo', 'https://hawonkoo.vn'),
+  fujihome: M('Fujihome', 'https://fujihome.vn'),
+  elmich: M('Elmich', 'https://elmich.vn'),
+  cuckoo: M('Cuckoo Việt Nam', 'https://cuckoo.vn'),
+  bluestone: M('BlueStone', 'https://bluestone.com.vn'),
+  tefal: M('Tefal Việt Nam', 'https://www.tefal.com.vn'),
+  // dien thoai - may tinh - linh kien
+  hoanghapc: M('Hoàng Hà PC', 'https://hoanghapc.vn'),
+  laptop88: M('Laptop88', 'https://laptop88.vn'),
+  laptopaz: M('LaptopAZ', 'https://laptopaz.vn'),
+  thinkpro: M('ThinkPro', 'https://thinkpro.vn'),
+  hnam: M('Hnam Mobile', 'https://www.hnammobile.com'),
+  dtgiakho: M('Điện Thoại Giá Kho', 'https://dienthoaigiakho.vn'),
+  mobilecity: M('MobileCity', 'https://mobilecity.vn'),
+  tandoanh: M('Tân Doanh', 'https://tandoanh.vn'),
+  kccshop: M('KCC Shop', 'https://kccshop.vn'),
+  // dong ho
+  duyanh: M('Đồng Hồ Duy Anh', 'https://donghoduyanh.com'),
+  galle: M('Galle Watch', 'https://galle.vn'),
 };

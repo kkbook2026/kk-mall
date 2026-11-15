@@ -40,8 +40,13 @@ async function main() {
     const pack = json((await get(SITE + '/api/catalog-pack.json?t=' + Date.now())).body);
     const row = pack && pack.rows ? pack.rows.find(r => r[7] && r[6] > 50000 && !(r[11] & 33)) : null;
     if (row) {
-      const q = json((await get(be, { method: 'POST', body: JSON.stringify({ a: 'quote', items: [{ sku: row[0], qty: 1 }] }), timeout: 40000 })).body);
-      add('Báo giá thật (máy chủ đọc giá website)', q && q.lines && q.lines.length === 1 && q.total > 0, q ? (q.error ? q.error : `${row[0]} → ${q.total} đ`) : 'không phản hồi');
+      // Loi thoang qua (15/11/2026: may chu doc trang SP dung luc CDN cua GitHub Pages tra loi khac 200 -> bao "khong tim thay SP", 17 phut sau binh thuong)
+      // -> thu lai 1 lan sau 20 giay truoc khi bao dong (khong mo Issue canh bao vi mot nhip loi mang).
+      const ask = async () => json((await get(be, { method: 'POST', body: JSON.stringify({ a: 'quote', items: [{ sku: row[0], qty: 1 }] }), timeout: 40000 })).body);
+      const okQ = q => q && q.lines && q.lines.length === 1 && q.total > 0;
+      let q = await ask(), retried = false;
+      if (!okQ(q)) { await new Promise(r => setTimeout(r, 20000)); q = await ask(); retried = true; }
+      add('Báo giá thật (máy chủ đọc giá website)', okQ(q), (q ? (q.error ? q.error : `${row[0]} → ${q.total} đ`) : 'không phản hồi') + (retried ? ' (đã thử lại 1 lần)' : ''));
     } else add('Báo giá thật', false, 'không tìm thấy SP còn hàng trong catalog-pack');
     const rv = json((await get(be + '?a=reviews&sku=' + (row ? row[0] : 'KK000001'), { timeout: 40000 })).body);
     add('Đánh giá sản phẩm (API công khai)', rv && typeof rv.n === 'number', rv ? rv.n + ' đánh giá' : 'không phản hồi');
