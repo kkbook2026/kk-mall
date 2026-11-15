@@ -77,7 +77,10 @@ async function main() {
   }
   const bad = checks.filter(c => !c.ok);
   const md = `## ${bad.length ? '🚨 ' + bad.length + ' kiểm tra lỗi' : '✅ Hệ thống bình thường'} - ${new Date().toISOString()}\n\n| | Kiểm tra | Chi tiết |\n|---|---|---|\n` + checks.map(c => `| ${c.ok ? '✅' : '❌'} | ${c.name} | ${c.detail.replace(/\|/g, '/')} |`).join('\n') + '\n';
-  fs.writeFileSync(process.env.MONITOR_REPORT || 'monitor-report.md', md);
+  // chu ky loi: workflow chi binh luan (= bao ve dien thoai) khi tap kiem tra loi THAY DOI, tranh bao lap moi 30 phut
+  const sig = bad.map(c => c.name).sort().join(' | ');
+  fs.writeFileSync(process.env.MONITOR_REPORT || 'monitor-report.md', md + (bad.length ? `\n\n<!-- kk-sig: ${sig} -->\n` : ''));
+  fs.writeFileSync(process.env.MONITOR_SIG || 'monitor-sig.txt', sig);
   if (bad.length) process.exitCode = 1;
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });

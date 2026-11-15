@@ -38,9 +38,18 @@ jobs:
         run: |
           TITLE="🚨 Giám sát KK-MALL: hệ thống có lỗi"
           NUM=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "\"$TITLE\" in:title" --json number -q '.[0].number' || true)
+          # Bao ve dien thoai: Issue giao cho chu kho ma (GitHub gui email + day thong bao app GitHub Mobile).
+          # Chi binh luan khi danh sach kiem tra loi THAY DOI (khong bao lap moi 30 phut); het loi -> binh luan + dong.
+          SIG=$(cat monitor-sig.txt 2>/dev/null || true)
           if [ "$OUTCOME" = "failure" ]; then
-            if [ -n "$NUM" ]; then gh issue comment "$NUM" -R "$GITHUB_REPOSITORY" --body-file monitor-report.md
-            else gh issue create -R "$GITHUB_REPOSITORY" --title "$TITLE" --body-file monitor-report.md; fi
+            if [ -n "$NUM" ]; then
+              LAST=$(gh issue view "$NUM" -R "$GITHUB_REPOSITORY" --json body,comments -q '([.body] + [.comments[].body]) | map(select(test("kk-sig:"))) | last // ""' | sed -n 's/.*kk-sig: \(.*\) -->.*/\1/p' | tail -1)
+              if [ "$LAST" != "$SIG" ]; then gh issue comment "$NUM" -R "$GITHUB_REPOSITORY" --body-file monitor-report.md
+              else echo "Loi khong doi ($SIG) - khong bao lap"; fi
+            else
+              gh issue create -R "$GITHUB_REPOSITORY" --title "$TITLE" --body-file monitor-report.md --assignee "$GITHUB_REPOSITORY_OWNER" \
+                || gh issue create -R "$GITHUB_REPOSITORY" --title "$TITLE" --body-file monitor-report.md
+            fi
             exit 1
           elif [ -n "$NUM" ]; then
             gh issue comment "$NUM" -R "$GITHUB_REPOSITORY" --body-file monitor-report.md && gh issue close "$NUM" -R "$GITHUB_REPOSITORY" --reason completed
