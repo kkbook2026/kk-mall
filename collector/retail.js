@@ -87,9 +87,12 @@ async function crawlSite(src, S, C, deadline, log, KICK) {
     st.http = { robots: rb.status, sitemap: smStatus, at: Date.now() };
     log(`[${src}] sitemap: ${st.urls.length} trang san pham hop le (robots.txt + crawl-delay ${delay / 1000}s)` + (urls.size ? '' : ` - KHONG doc duoc sitemap (robots HTTP ${rb.status}, sitemap HTTP ${smStatus}): may chu tu choi truy cap tu dong -> khong thu thap, khong vuot chan`));
   }
-  // uu tien: chua tung tai -> gia cu nhat
-  const now = Date.now(), seen = st.urls.map(p => [p, (C.offers[src + '|' + p] || {}).at || 0]);
+  // uu tien: chua tung tai -> gia cu nhat. Ton trong website nguon: trang vua doc trong RETAIL_MIN_AGE_H gio (mac dinh 12) khong doc lai;
+  // trang khong phai san pham (danh muc / thuong hieu) 7 ngay moi kiem lai. Het viec thi dung som (dieu phoi lich goi luot sau theo nhip 4 gio).
+  const now = Date.now(), MIN_AGE = Math.max(0, parseFloat(process.env.RETAIL_MIN_AGE_H || '12')) * 3600e3, SKIP_AGE = 7 * 24 * 3600e3;
+  const seen = st.urls.map(p => { const o = C.offers[src + '|' + p] || {}; return [p, o.at || 0, o.skip ? 1 : 0]; }).filter(([, at, sk]) => now - at >= (sk ? SKIP_AGE : MIN_AGE));
   seen.sort((a, b) => a[1] - b[1]);
+  log(`[${src}] den han doc lai: ${seen.length}/${st.urls.length} trang`);
   let n = 0, ok = 0, prod = 0, errs = 0;
   for (const [p] of seen) {
     if (Date.now() + delay > deadline) break;

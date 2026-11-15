@@ -6,6 +6,7 @@ on:
 permissions:
   contents: read
   issues: write
+  actions: write   # doc nhip cac quy trinh tu dong + dieu phoi lich (collector/scheduler.js)
 concurrency:
   group: monitor
   cancel-in-progress: false
@@ -17,7 +18,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-          sparse-checkout: collector/monitor.js
+          sparse-checkout: |
+            collector/monitor.js
+            collector/scheduler.js
           sparse-checkout-cone-mode: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -25,6 +28,8 @@ jobs:
       - name: Kiem tra he thong that tu ben ngoai
         id: mon
         continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}   # chi doc lan chay gan nhat cua cac quy trinh tu dong
         run: node collector/monitor.js
       - name: Mo / cap nhat / dong Issue canh bao
         env:
@@ -40,3 +45,12 @@ jobs:
           elif [ -n "$NUM" ]; then
             gh issue comment "$NUM" -R "$GITHUB_REPOSITORY" --body-file monitor-report.md && gh issue close "$NUM" -R "$GITHUB_REPOSITORY" --reason completed
           fi
+      - name: Dieu phoi lich - goi cac quy trinh den han (cron cua GitHub bo / tre phan lon luot)
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KK_JOB_STATUS: ${{ job.status }}
+          SEARCH_CHAIN: ${{ vars.SEARCH_CHAIN }}
+          HUNT_VN_RUNNER: ${{ vars.HUNT_VN_RUNNER }}
+        run: KK_RUN_START=$(cat "$RUNNER_TEMP/kk-start" 2>/dev/null || echo 0) node collector/scheduler.js --self monitor.yml

@@ -8,6 +8,8 @@
 var KKHD = (function () {
   'use strict';
   var NA = '[đang cập nhật]';
+  /* thong tin phap nhan theo Giay chung nhan dang ky doanh nghiep (dang ky lan dau 09/11/2026) - cau hinh COMPANY_JSON tren may chu ghi de neu co */
+  var CO = { reg_by: 'Phòng Đăng ký kinh doanh và Tài chính doanh nghiệp - Sở Tài chính Thành phố Hà Nội', reg_date: '09/11/2026', address: 'Xóm 4, Thôn Phù Yên, Xã Phú Nghĩa, Thành phố Hà Nội, Việt Nam', rep: 'Nguyễn Duy Điển', rep_title: 'Giám đốc' };
   var CSS = 'body{font-family:"Segoe UI",Arial,sans-serif;max-width:860px;margin:0 auto;padding:20px 16px;color:#0F172A;line-height:1.55;font-size:14px}'
     + '.hd h1,.dk h1{font-size:20px;text-align:center;margin:8px 0 4px;letter-spacing:.3px}.hd-top{text-align:center;margin:0 0 6px}.hd-sub{text-align:center;color:#334155;margin:0 0 14px}'
     + '.hd h2,.dk h2{font-size:15px;margin:16px 0 4px;color:#1E3A8A}.hd p,.dk p{margin:4px 0;text-align:justify}'
@@ -36,8 +38,8 @@ var KKHD = (function () {
       code: or(o.code, '[cấp khi đặt hàng]'), at: o.created_at ? vnTime(o.created_at) : '[thời điểm đặt hàng]',
       terms_label: or(t.label, ''), terms_date: vnDate(t.effective) || '[ngày áp dụng]', terms_published: vnDate(t.published) || '', terms_url: or(t.url, 'https://www.kk-mall.com/phap-ly.html'),
       cust_name: or(cu.name, ''), cust_phone: or(cu.phone, ''), cust_email: or(cu.email, ''), cust_address: or(cu.address, ''), vat_block: vatBlock,
-      co_name: or(co.name, 'CÔNG TY TNHH KK-MALL'), co_tax: or(co.tax, '0111694057'), co_reg_no: or(co.reg_no, '0111694057'), co_reg_by: or(co.reg_by, NA), co_reg_date: or(co.reg_date, NA),
-      co_address: or(co.address, NA), co_phone: or(co.phone, NA), co_email: or(co.email, NA), co_rep: or(co.rep, NA), co_rep_title: or(co.rep_title, 'Giám đốc'),
+      co_name: or(co.name, 'CÔNG TY TNHH KK-MALL'), co_tax: or(co.tax, '0111694057'), co_reg_no: or(co.reg_no, '0111694057'), co_reg_by: or(co.reg_by, CO.reg_by), co_reg_date: or(co.reg_date, CO.reg_date),
+      co_address: or(co.address, CO.address), co_phone: or(co.phone, NA), co_email: or(co.email, NA), co_rep: or(co.rep, CO.rep), co_rep_title: or(co.rep_title, CO.rep_title),
       vat_rate: String(c.vat_rate === undefined || c.vat_rate === null ? 10 : c.vat_rate), voucher_cap: String(c.voucher_cap === undefined || c.voucher_cap === null ? 50 : c.voucher_cap),
       tolerance: vnd(c.tolerance === undefined ? 5000 : c.tolerance), order_days: String(c.order_days || 5), unpaid_hours: String(c.unpaid_hours || 24), return_days: String(c.return_days || 7),
       lines: (o.lines || []).map(function (l) { return { sku: or(l.sku, ''), name: or(l.name, ''), qty: String(l.qty || 1), unit_cost: vnd(l.unit_cost), line_cost: vnd(l.line_cost), line_fee: vnd(l.line_fee) }; }),

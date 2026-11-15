@@ -54,6 +54,8 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   const now = new Date().toISOString();
   const seed = Math.floor(Date.now() / (CYCLE_MIN * 60000));
   const meta = rj('meta.json');
+  /* thong tin phap nhan: nguon duy nhat collector/company.json (theo GCN DKDN) - gop moi lan chay de khong bi lan chay khac ghi de; giu so/ma xac nhan thong bao TMDT neu da co */
+  try { const CO = JSON.parse(fs.readFileSync(path.join(__dirname, 'company.json'), 'utf8')); delete CO._note; meta.company = Object.assign({}, meta.company || {}, CO, (meta.company && meta.company.moit) ? { moit: meta.company.moit } : {}, (meta.company && meta.company.moit_url) ? { moit_url: meta.company.moit_url } : {}); } catch (e) { console.log('Thong tin phap nhan: khong doc duoc collector/company.json'); }
   const full = rj('catalog-full.json');
   let seq = (meta.ledgerHead && meta.ledgerHead.seq) || 0;
   let changed = 0, outOfStock = 0;

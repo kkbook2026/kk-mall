@@ -3,7 +3,7 @@
 #  - Che do 'map' : suy nguoc tu ma model cua san pham KK-MALL -> tim dung trang trong sitemap cua website ban le trong danh ba (collector/hunt-sites.js).
 # Tuan thu robots.txt + Crawl-delay, tu nhan dien KK-MALL-PriceBot, may chu tu choi thi dung (khong vuot chan). Ket qua luu GitHub Actions cache
 # (khong commit); bo thu thap gia 3 gio/lan doc lai de dinh gia. Nhat ky chi co so lieu tong hop theo website, khong co ten / gia tung san pham.
-name: Price hunt by model code (1h)
+name: Price hunt by model code (lien tuc)
 on:
   schedule:
     - cron: '23 * * * *'
@@ -19,7 +19,7 @@ on:
         default: '150'
 permissions:
   contents: read
-  actions: write   # chi de goi chay bu bo thu thap gia (workflow_dispatch) khi lich cua GitHub bi tre
+  actions: write   # dieu phoi lich: doc lan chay gan nhat + goi chay (workflow_dispatch) cac quy trinh den han
 concurrency:
   group: hunt-crawl
   cancel-in-progress: false
@@ -34,6 +34,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
+      - name: Danh dau thoi diem bat dau (cho dieu phoi lich)
+        run: date +%s > "$RUNNER_TEMP/kk-start"
       - name: Nap bo nho dem truoc
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -60,18 +62,12 @@ jobs:
         with:
           path: collector/.hunt-cache
           key: hunt-${{ github.run_id }}
-      - name: Bu lich - goi bo thu thap gia neu da qua 3 gio chua chay (lich hen gio cua GitHub thuong bi tre/bo luot)
+      - name: Dieu phoi lich - noi tiep vong chay va goi cac quy trinh den han (cron cua GitHub bo / tre phan lon luot)
         if: always()
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -e
-          row=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow collect.yml --limit 1 --json createdAt,status -q '.[0] | "\(.createdAt) \(.status)"')
-          created=${row%% *}; status=${row##* }
-          [ -n "$created" ] || { echo "Khong doc duoc lan chay gan nhat"; exit 0; }
-          age=$(( $(date +%s) - $(date -d "$created" +%s) ))
-          echo "Bo thu thap gia: lan gan nhat cach day $((age/60)) phut, trang thai $status"
-          if [ "$status" = "completed" ] && [ "$age" -ge 10800 ]; then
-            gh workflow run collect.yml --repo "$GITHUB_REPOSITORY" --ref main -f trigger=bu-lich && echo "Da goi chay bu."
-          fi
+          KK_JOB_STATUS: ${{ job.status }}
+          SEARCH_CHAIN: ${{ vars.SEARCH_CHAIN }}
+          HUNT_VN_RUNNER: ${{ vars.HUNT_VN_RUNNER }}
+        run: KK_RUN_START=$(cat "$RUNNER_TEMP/kk-start" 2>/dev/null || echo 0) node collector/scheduler.js --self hunt-crawl.yml

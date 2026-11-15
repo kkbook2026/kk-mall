@@ -1,11 +1,11 @@
 # TIM GIA RE NHAT THEO TU KHOA TREN SAN (TikTok Shop qua AccessTrade; Shopee Affiliate Open API khi co khoa) - moi luot toi da 110 phut.
-# NOI CHUOI: lich hen gio cua GitHub thuc te chi chay 5-7 gio/lan, nen moi luot chay xong se tu goi luot ke tiep (workflow_dispatch) - cron chi de khoi dong lai
-# khi chuoi dut. Vi chay lien tuc nen nhip hoi chi 15 truy van/phut = MOT NUA gioi han chinh thuc 30 yeu cau/phut cua AccessTrade. Tat noi chuoi: bien SEARCH_CHAIN=0.
+# NOI CHUOI: lich hen gio cua GitHub thuc te chi chay 5-7 gio/lan, nen moi luot chay xong buoc "Dieu phoi lich" (collector/scheduler.js) goi luot ke tiep
+# va cac quy trinh den han - cron chi de khoi dong lai khi chuoi dut. Vi chay lien tuc nen nhip hoi chi 15 truy van/phut = MOT NUA gioi han chinh thuc 30 yeu cau/phut cua AccessTrade. Tat noi chuoi: bien SEARCH_CHAIN=0.
 # Trong luc chay, tien trinh nay cung giu nhip 3 gio/lan cho bo thu thap gia (collector/kick.js).
 # CHI dung API chinh thuc, co gioi han toc do (Shopee 2.000 truy van/gio) nen chay xoay vong:
 # moi lan hoi ~1.600 san pham; uu tien lam moi san pham DANG co gia tu san, roi san pham chua kiem tra, roi kiem tra lau nhat. Ket qua luu GitHub Actions cache (khong commit -
 # gia nguon la bi mat kinh doanh), bo thu thap gia 3 gio/lan doc lai va ghep bang bo ghep cheo truoc khi dung dinh gia.
-name: Marketplace price search (1h)
+name: Marketplace price search (lien tuc)
 on:
   schedule:
     - cron: '23 * * * *'
@@ -17,7 +17,7 @@ on:
         default: '110'
 permissions:
   contents: read
-  actions: write   # chi de goi chay bu bo thu thap gia (workflow_dispatch) khi lich cua GitHub bi tre
+  actions: write   # dieu phoi lich: doc lan chay gan nhat + goi chay (workflow_dispatch) cac quy trinh den han
 concurrency:
   group: search-crawl
   cancel-in-progress: false
@@ -55,33 +55,12 @@ jobs:
         with:
           path: collector/.search-cache
           key: search-${{ github.run_id }}
-      - name: Bu lich - goi bo thu thap gia neu da qua 3 gio chua chay (lich hen gio cua GitHub thuong bi tre/bo luot)
+      - name: Dieu phoi lich - noi tiep vong chay va goi cac quy trinh den han (cron cua GitHub bo / tre phan lon luot)
         if: always()
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -e
-          row=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow collect.yml --limit 1 --json createdAt,status -q '.[0] | "\(.createdAt) \(.status)"')
-          created=${row%% *}; status=${row##* }
-          [ -n "$created" ] || { echo "Khong doc duoc lan chay gan nhat"; exit 0; }
-          age=$(( $(date +%s) - $(date -d "$created" +%s) ))
-          echo "Bo thu thap gia: lan gan nhat cach day $((age/60)) phut, trang thai $status"
-          if [ "$status" = "completed" ] && [ "$age" -ge 10800 ]; then
-            gh workflow run collect.yml --repo "$GITHUB_REPOSITORY" --ref main -f trigger=bu-lich && echo "Da goi chay bu."
-          fi
-      - name: Noi chuoi - goi luot tim gia ke tiep (chi khi luot nay chay du >= 30 phut va chua co luot nao dang cho)
-        # KHONG so sanh truc tiep `vars.X != '0'` trong `if:`: bien chua dat la null, GitHub ep ca hai ve so (null -> 0, '0' -> 0) nen dieu kien thanh SAI
-        # va buoc nay bi bo qua (da xay ra o luot dau 14/11/2026). Dua bien qua env roi kiem tra trong shell.
-        if: success()
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CHAIN: ${{ vars.SEARCH_CHAIN }}
-        run: |
-          set -e
-          if [ "$CHAIN" = "0" ]; then echo "Noi chuoi dang tat (bien SEARCH_CHAIN=0)."; exit 0; fi
-          ran=$(( $(date +%s) - $(cat "$RUNNER_TEMP/kk-start" 2>/dev/null || date +%s) ))
-          if [ "$ran" -lt 1800 ]; then echo "Luot nay chi chay $((ran/60)) phut (dung som) - khong noi chuoi, cho lich hen gio."; exit 0; fi
-          wait=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow search-crawl.yml --limit 10 --json status -q '[.[] | select(.status=="queued" or .status=="pending" or .status=="waiting" or .status=="requested")] | length')
-          if [ "$wait" = "0" ]; then gh workflow run search-crawl.yml --repo "$GITHUB_REPOSITORY" --ref main && echo "Da goi luot ke tiep."; else echo "Da co $wait luot dang cho - khong goi them."; fi
+          KK_JOB_STATUS: ${{ job.status }}
+          SEARCH_CHAIN: ${{ vars.SEARCH_CHAIN }}
+          HUNT_VN_RUNNER: ${{ vars.HUNT_VN_RUNNER }}
+        run: KK_RUN_START=$(cat "$RUNNER_TEMP/kk-start" 2>/dev/null || echo 0) node collector/scheduler.js --self search-crawl.yml

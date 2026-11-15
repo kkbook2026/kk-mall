@@ -34,6 +34,8 @@ jobs:
         run: node tests/collector/hunt.test.js
       - name: Kiem thu bang gia dai ly doi tac (ma hoa tuong thich trinh duyet, CSV/XLSX, ghep trung ma 100%)
         run: node tests/collector/partners.test.js
+      - name: Kiem thu dieu phoi lich (giu nhip quy trinh tu dong khi cron cua GitHub bo luot)
+        run: node tests/collector/scheduler.test.js
       - name: Tim kiem KK-SEARCH - nDCG@10 bo kiem tra
         run: node tests/search/eval.js --test | tail -8
   browser:

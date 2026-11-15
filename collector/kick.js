@@ -1,6 +1,6 @@
 'use strict';
 /*
- * BU LICH TRONG LUC CHAY - giu nhip "3 gio/lan" cua bo thu thap gia.
+ * BU LICH TRONG LUC CHAY - giu nhip "3 gio/lan" cua bo thu thap gia va "30 phut/lan" cua giam sat (xem them collector/scheduler.js).
  * Lich hen gio (cron) cua GitHub Actions thuong tre/bo luot: thuc te 5-7 gio moi chay 1 lan. Cac tien trinh thu thap nen (tim gia theo tu khoa,
  * gia ban le) chay keo dai 2-2,5 gio -> trong luc chay, moi KICK_EVERY_MIN phut hoi GitHub: lan thu thap gia gan nhat da bat dau qua
  * KICK_AFTER_MIN phut va khong co lan nao dang chay/cho -> goi collect.yml (workflow_dispatch, trigger=bu-lich).
@@ -11,7 +11,7 @@ function make(env = process.env, log = console.log) {
   const token = env.GH_TOKEN || env.GITHUB_TOKEN || '', repo = env.GITHUB_REPOSITORY || '';
   const every = Math.max(0.01, parseFloat(env.KICK_EVERY_MIN || '10')) * 60e3, after = Math.max(1, parseFloat(env.KICK_AFTER_MIN || '180')) * 60e3;
   const wf = env.KICK_WORKFLOW || 'collect.yml', base = (env.KICK_API || 'https://api.github.com').replace(/\/$/, '');
-  let lastCheck = 0, lastKick = 0, busy = false;
+  let lastCheck = 0, lastKick = 0, busy = false, lastMon = 0;
   const call = async (p, opt = {}) => { const ac = new AbortController(), t = setTimeout(() => ac.abort(), 15000);
     try { return await fetch(base + '/repos/' + repo + p, { ...opt, signal: ac.signal, headers: { authorization: 'Bearer ' + token, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28', 'user-agent': 'kk-mall-collector', ...(opt.headers || {}) } }); } finally { clearTimeout(t); } };
   /* Goi thuong xuyen trong vong lap thu thap; tu gian nhip. Tra ve: null (chua den luot) | 'fresh' | 'running' | 'kicked' | 'recent' | 'http<ma>' | 'err' */
@@ -29,7 +29,20 @@ function make(env = process.env, log = console.log) {
       const d = await call('/actions/workflows/' + wf + '/dispatches', { method: 'POST', body: JSON.stringify({ ref: env.KICK_REF || 'main', inputs: { trigger: 'bu-lich' } }), headers: { 'content-type': 'application/json' } });
       if (d.status === 204) { lastKick = now; log(`Bu lich: lan thu thap gia gan nhat cach day ${Math.round(age / 60e3)} phut -> da goi chay bu.`); return 'kicked'; }
       return 'http' + d.status;
-    } catch (e) { return 'err'; } finally { busy = false; }
+    } catch (e) { return 'err'; } finally { await monitor(now); busy = false; }
+  }
+  /* Giam sat 30 phut/lan cung bi cron cua GitHub bo luot (do 15/11/2026: 5/48 luot) -> giu nhip trong luc tien trinh dai dang chay. Loi bo qua im lang. */
+  async function monitor(now) {
+    if (env.KICK_MONITOR === '0' || (lastMon && now - lastMon < 25 * 60e3)) return;
+    try {
+      const r = await call('/actions/workflows/monitor.yml/runs?per_page=5'); if (!r.ok) return;
+      const runs = (await r.json()).workflow_runs || [];
+      if (runs.some(x => x.status !== 'completed')) return;
+      const age = runs.length ? now - Date.parse(runs[0].run_started_at || runs[0].created_at) : Infinity;
+      if (age < 27 * 60e3) return;
+      const d = await call('/actions/workflows/monitor.yml/dispatches', { method: 'POST', body: JSON.stringify({ ref: env.KICK_REF || 'main' }), headers: { 'content-type': 'application/json' } });
+      if (d.status === 204) { lastMon = now; log(`Bu lich: giam sat gan nhat cach day ${Number.isFinite(age) ? Math.round(age / 60e3) + ' phut' : '(chua co)'} -> da goi chay.`); }
+    } catch { }
   }
   return { tick };
 }

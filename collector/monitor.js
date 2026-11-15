@@ -61,6 +61,20 @@ async function main() {
   const sm = await get(SITE + '/sitemap.xml'); add('Sitemap', sm.status === 200 && /<(urlset|sitemapindex)/.test(sm.body), 'HTTP ' + sm.status);
   const legal = await get(SITE + '/phap-ly.html'); add('Trang pháp lý / chính sách', legal.status === 200, 'HTTP ' + legal.status);
   const days = await certDays(new URL(SITE).hostname); add('Chứng chỉ HTTPS', days > 14, days < 0 ? 'không đọc được' : 'còn ' + days + ' ngày');
+  /* Quy trinh tu dong con giu nhip? (cron cua GitHub bo / tre phan lon luot - nhip duoc giu boi collector/scheduler.js). Chi chay khi co token (tren GitHub). */
+  const tok = process.env.GH_TOKEN || '', repo = process.env.GITHUB_REPOSITORY || '';
+  if (tok && repo) {
+    const LIM = [['collect.yml', 'Thu thập giá', 5], ['hunt-crawl.yml', 'Săn giá theo mã', 6], ['search-crawl.yml', 'Tìm giá trên sàn', 6], ['retail-crawl.yml', 'Giá bán lẻ', 9]], parts = []; let ok = true;
+    for (const [wf, name, h] of LIM) {
+      const r = await get(`https://api.github.com/repos/${repo}/actions/workflows/${wf}/runs?per_page=5`, { headers: { authorization: 'Bearer ' + tok, accept: 'application/vnd.github+json', 'user-agent': 'KK-MALL-Monitor/1.0' } });
+      const runs = (json(r.body) || {}).workflow_runs; if (!Array.isArray(runs)) { parts.push(name + ': không đọc được'); continue; }
+      const live = runs.some(x => x.status !== 'completed'), last = runs[0] ? (Date.now() - Date.parse(runs[0].run_started_at || runs[0].created_at)) / 36e5 : Infinity;
+      const fails = runs.slice(0, 3).filter(x => x.status === 'completed' && x.conclusion === 'failure').length;
+      const bad = (!live && last > h) || fails >= 3; if (bad) ok = false;
+      parts.push(`${name}: ${live ? 'đang chạy' : 'lượt gần nhất ' + (Number.isFinite(last) ? last.toFixed(1) + ' giờ trước' : 'chưa có')}${fails >= 3 ? ', 3 lượt lỗi liên tiếp' : ''}${bad ? ' ⚠' : ''}`);
+    }
+    add('Quy trình tự động giữ nhịp (điều phối lịch)', ok, parts.join(' · '));
+  }
   const bad = checks.filter(c => !c.ok);
   const md = `## ${bad.length ? '🚨 ' + bad.length + ' kiểm tra lỗi' : '✅ Hệ thống bình thường'} - ${new Date().toISOString()}\n\n| | Kiểm tra | Chi tiết |\n|---|---|---|\n` + checks.map(c => `| ${c.ok ? '✅' : '❌'} | ${c.name} | ${c.detail.replace(/\|/g, '/')} |`).join('\n') + '\n';
   fs.writeFileSync(process.env.MONITOR_REPORT || 'monitor-report.md', md);
