@@ -62,9 +62,16 @@ Xem `docs/PHAP-LY.md` mục 0. Nguồn dữ liệu duy nhất `collector/company
 | CI: backend, tiện ích, tìm kiếm, trình duyệt, Lighthouse | đạt |
 | Triển khai GitHub Pages | đạt |
 
-## 7. Việc của chủ sở hữu
+## 7. Cảnh báo về điện thoại
 
-1. Triển khai lại Apps Script (`backend/Code.gs` - COMPANY_DEFAULT mới).
-2. Cấp hotline + email CSKH riêng → điền `collector/company.json` hoặc Admin → Hệ thống.
-3. Nộp thông báo nền tảng TMĐT tại Cổng DVC quốc gia (UBND TP Hà Nội), nhập số/mã hồ sơ khi có.
-4. Gửi 3 thư nháp đối tác trong Gmail + biểu mẫu Synnex; xóa nhánh `audit-tmp`.
+Khi giám sát phát hiện lỗi, Issue cảnh báo được **giao cho chủ kho mã** - GitHub gửi email và đẩy thông báo qua ứng dụng GitHub Mobile. Chỉ báo lại khi danh sách lỗi THAY ĐỔI (không lặp mỗi 30 phút); hết lỗi thì bình luận và tự đóng.
+
+## 8. Trạng thái việc của chủ sở hữu (cập nhật 15/11/2026)
+
+| Việc | Trạng thái |
+|---|---|
+| Triển khai lại Apps Script | **Xong** - Version 11 (15/11/2026 18:07), cùng URL; kiểm tra ?a=config trả về đủ thông tin công ty, bank_ready = true |
+| Thông báo nền tảng TMĐT | Đang làm - thủ tục 1.115417 (QĐ 1617/QĐ-BCT), DVC toàn trình, cơ quan: **Sở Công Thương Thành phố Hà Nội**, 3 ngày làm việc; chờ chủ sở hữu đăng nhập VNeID (tài khoản tổ chức) |
+| Hotline + email CSKH | Chờ chủ sở hữu cấp (biểu mẫu thông báo TMĐT cũng cần) |
+| Cài GitHub Mobile, bật thông báo | Chủ sở hữu (để nhận cảnh báo đẩy) |
+| Gửi 3 thư nháp đối tác, biểu mẫu Synnex, xóa nhánh audit-tmp | Chủ sở hữu |
