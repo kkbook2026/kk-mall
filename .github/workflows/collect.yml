@@ -4,6 +4,9 @@ name: Auto collect prices (3h)
 on:
   schedule:
     - cron: '17 */3 * * *'   # 3 gio/lan, phut 17 (UTC) - tranh dinh tai cron :00 cua GitHub
+  push:   # quan tri vua tai len / cap nhat bang gia dai ly cua doi tac (tep ma hoa) -> tinh lai gia ngay
+    branches: [main]
+    paths: ['collector/partners/**']
   workflow_dispatch:
     inputs:
       indexnow_all:

@@ -234,4 +234,4 @@ function verifyProof(sku, head, proof, root) {
   return h === root;
 }
 
-module.exports = { cleanText, sha, fold, isUsed, isAccessory, isCombo, looksMain, FLOOR, FL, median, histRef, filterOffers, evaluate, seedD90, updateD90, packD90, histDays, histVals, dayOf, merkle, merkleChunks, verifyChunk, chunkNode, MERKLE_CHUNK, verifyProof, leafHash };
+module.exports = { RETAIL_TRUSTED, cleanText, sha, fold, isUsed, isAccessory, isCombo, looksMain, FLOOR, FL, median, histRef, filterOffers, evaluate, seedD90, updateD90, packD90, histDays, histVals, dayOf, merkle, merkleChunks, verifyChunk, chunkNode, MERKLE_CHUNK, verifyProof, leafHash };

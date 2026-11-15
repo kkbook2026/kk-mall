@@ -70,7 +70,7 @@ const head = ({ title, desc, url, img, ld, type = 'website' }) => `<!doctype htm
 <header><div class="w"><a href="/" aria-label="KK-MALL trang chủ"><img src="/logo.svg" alt="KK-MALL - Đại siêu thị trực tuyến"></a><form action="/" method="get" role="search"><input name="q" placeholder="Tìm trong ${(meta.totalProducts || full.length).toLocaleString('vi-VN')}+ mặt hàng..." aria-label="Tìm kiếm"></form><a class="cta s" href="/">🛒 Vào KK-MALL</a></div></header><main>`;
 const foot = `</main><footer><div class="w"><p><b>KK-MALL - Đại siêu thị trực tuyến</b> · Giá hiển thị là giá cuối cùng: đã gồm thuế GTGT và giao hàng tận cửa, không phụ phí. Lịch sử giá được niêm phong SHA-256 + Merkle, tự kiểm chứng tại <a href="/?ledger=1">Sổ cái giá</a>.</p>
 <p>${cats.map(c => `<a href="/c/${c.id}.html">${esc(c.name)}</a>`).join(' · ')}</p><p><a href="/phap-ly#dieu-khoan">Điều khoản</a> · <a href="/phap-ly#bao-mat">Bảo vệ dữ liệu cá nhân</a> · <a href="/phap-ly#doi-tra">Đổi trả & bảo hành</a></p><p>© 2026 CÔNG TY TNHH KK-MALL (KK-MALL COMPANY LIMITED) - Mã số doanh nghiệp/MST: 0111694057 - đơn vị chủ quản và vận hành website. Bản quyền thiết kế, mã nguồn, nội dung và thương hiệu KK-MALL thuộc về tác giả Nguyễn Duy Điển. Dịch vụ mua hộ, không áp dụng COD.</p></div></footer></body></html>`;
-const footP = `</main><footer><div class="w">KK-MALL · Giá cuối cùng đã gồm giao hàng, không phụ phí · <a href="/?ledger=1">Sổ cái giá</a> · <a href="/phap-ly">Chính sách</a> · © 2026 CÔNG TY TNHH KK-MALL - MSDN/MST 0111694057 · Bản quyền: Nguyễn Duy Điển</div></footer></body></html>`;
+const footP = `</main><footer><div class="w">KK-MALL · Giá cuối cùng đã gồm giao hàng, không phụ phí · <a href="/?ledger=1">Sổ cái giá</a> · <a href="/phap-ly">Chính sách</a> · <a href="/doi-tac.html">Hợp tác nhà cung cấp</a> · © 2026 CÔNG TY TNHH KK-MALL - MSDN/MST 0111694057 · Bản quyền: Nguyễn Duy Điển</div></footer></body></html>`;
 /* TRANG SAN PHAM - ban gon (~5 KB thay vi ~8,5 KB): moi byte nhan voi so SP (80.000 SP x 1 KB = 80 MB tren gioi han 1 GB cua GitHub Pages).
  * Giu nguyen noi dung cho nguoi doc va du lieu co cau truc cho may tim kiem; bo phan lap lai: CSP dai cua trang ung dung (trang nay khong chay ma ngoai),
  * the referrer trung (anh da co referrerpolicy rieng), og:title/og:url/og:description (mang xa hoi tu lay <title>, canonical, meta description),
@@ -145,7 +145,7 @@ try {
 } catch { }
 
 /* ---------- trang nganh & nhom ---------- */
-const pages = [`<url><loc>${ORIGIN}/</loc><changefreq>hourly</changefreq><priority>1.0</priority></url>`, `<url><loc>${ORIGIN}/phap-ly</loc><changefreq>monthly</changefreq></url>`];
+const pages = [`<url><loc>${ORIGIN}/</loc><changefreq>hourly</changefreq><priority>1.0</priority></url>`, `<url><loc>${ORIGIN}/phap-ly</loc><changefreq>monthly</changefreq></url>`, `<url><loc>${ORIGIN}/doi-tac.html</loc><changefreq>monthly</changefreq></url>`];
 let nC = 0, nN = 0;
 for (const c of cats) {
   const rows = full.filter(r => r.category_id === c.id).sort((a, b) => (b.in_stock - a.in_stock) || (b.sold - a.sold));

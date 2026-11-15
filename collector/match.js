@@ -324,7 +324,7 @@ function linkValid(fa, fb, sameKey) {
  * so luong goi, phu kien/combo, thong so dung luong/kich thuoc, hau to mau/vung; va diem ghep >= 0.6. Thieu 1 dieu kien -> van la "ghep theo ten". */
 function codeTwin(a, b) {
   const A = typeof a === 'string' ? features(a) : a, B = typeof b === 'string' ? features(b) : b;
-  const eq = (x, y) => x.size === y.size && [...x].every(t => y.has(t)), st = o => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, Object.keys(o[k] || {}).sort()]));
+  const eq = (x, y) => x.size === y.size && [...x].every(t => y.has(t)), st = o => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, [...(o[k] || [])].sort()]));   // gia tri thong so la Set
   if (!A.brands.size || !eq(A.brands, B.brands)) return false;
   const id = f => new Set([...f.ids, ...f.strong.map(c => c.full), ...f.cids]), ia = id(A), ib = id(B);
   if (!ia.size || !eq(ia, ib)) return false;

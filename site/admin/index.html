@@ -142,6 +142,7 @@ tr:hover td{background:#F8FAFC}
 <nav id="nav">
   <button data-t="dash" class="on" onclick="go('dash')">📊 Tổng quan</button>
   <button data-t="cmp" onclick="go('cmp')">⚖️ So sánh giá nguồn</button>
+  <button data-t="partner" onclick="go('partner')">🤝 Đối tác giá đại lý</button>
   <button data-t="stats" onclick="go('stats')">📈 Thống kê tổng hợp</button>
   <button data-t="orders" onclick="go('orders')">📦 Đơn hàng</button>
   <button data-t="rev" onclick="go('rev')">💰 Doanh thu</button>
@@ -170,7 +171,7 @@ tr:hover td{background:#F8FAFC}
     <select id="fSrc" onchange="page=1;renderCmp()"><option value="">Nguồn rẻ nhất: tất cả</option></select>
     <select id="fPos" onchange="page=1;renderCmp()" title="Rà soát vị thế giá: so giá KK-MALL với giá niêm yết rẻ nhất của các offer TRÙNG MÃ ở mọi nguồn (cập nhật mỗi lần thu thập)">
       <option value="">Vị thế giá: tất cả</option><option value="act">⚡ Có nguồn trùng mã rẻ hơn (cần xử lý)</option><option value="reg">· chỉ giao theo vùng / chưa xác minh giao hàng</option><option value="pend">· chờ duyệt (rẻ bất thường)</option><option value="held">· bộ lọc tin cậy đang giữ</option>
-      <option value="single">Chỉ 1 nguồn trùng mã (chưa đối chứng)</option><option value="name">Giá theo ghép tên (chưa có nguồn trùng mã)</option><option value="struct">Đang dùng nguồn trùng mã rẻ nhất</option><option value="cheap">KK-MALL rẻ nhất thị trường</option><option value="oos">Hết hàng</option>
+      <option value="single">Chỉ 1 nguồn trùng mã (chưa đối chứng)</option><option value="ptonly">Giá đại lý, chưa có giá bán lẻ để so</option><option value="pt">🤝 Đang lấy giá đại lý đối tác</option><option value="lt">✓ Rẻ hơn mọi giá bán lẻ trùng mã</option><option value="name">Giá theo ghép tên (chưa có nguồn trùng mã)</option><option value="struct">Đang dùng nguồn trùng mã rẻ nhất</option><option value="cheap">KK-MALL rẻ nhất thị trường</option><option value="oos">Hết hàng</option>
     </select>
     <select id="fSort" onchange="page=1;renderCmp()">
       <option value="margin-">Phí DV cao → thấp</option><option value="margin+">Phí DV thấp → cao</option>
@@ -186,6 +187,43 @@ tr:hover td{background:#F8FAFC}
   </div>
   <div class="card" style="padding:0;max-height:72vh;overflow:auto"><table id="cmpTbl" class="mx"></table></div>
   <div class="pg" id="cmpPg"></div>
+</section>
+
+<section class="sec" id="t-partner">
+  <h2>Đối tác giá đại lý <span style="font-weight:600;font-size:12px;color:var(--muted)">(nhà phân phối / hãng - bảng giá mã hóa, chỉ hiển thị tại đây)</span></h2>
+  <div class="note">Giá đại lý đi vào <b>cùng công thức giá</b>: giá thực trả tại đối tác (đã gồm VAT và phí giao theo điều khoản) + phí dịch vụ theo bậc. Chỉ dòng <b>trùng mã 100%</b> với sản phẩm KK-MALL (mã model + thương hiệu, không lệch màu / dung lượng / tình trạng) hoặc dòng ghi thẳng <b>KK SKU</b> mới được dùng; dòng chỉ trùng tên hoặc đối tác chỉ giao theo vùng vào tab Duyệt. Giá bán lẻ tối thiểu theo hợp đồng (nếu có) luôn được tôn trọng.</div>
+  <div class="cards" id="ptCards"></div>
+  <div class="card" id="ptBody"><b style="color:var(--ink)">Danh sách đối tác</b><table id="ptTbl" style="margin-top:8px"></table></div>
+  <div class="card" id="ptForm"><b style="color:var(--ink)">Thêm / cập nhật bảng giá đối tác</b>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px 14px;margin-top:10px;font-size:12.5px">
+      <label>Đối tác<select id="ptId" onchange="this.value?ptEdit(this.value):0"></select></label>
+      <label>Tên đối tác *<input id="ptName" placeholder="Công ty TNHH ..."></label>
+      <label>Người liên hệ<input id="ptPerson"></label>
+      <label>Email nhận đơn đặt hàng *<input id="ptEmail" type="email" placeholder="don-hang@doitac.vn"></label>
+      <label>Điện thoại<input id="ptPhone"></label>
+      <label>Phạm vi giao hàng<select id="ptReach"><option value="vn">Giao thẳng tới khách toàn quốc</option><option value="region">Chỉ giao theo vùng (vào tab Duyệt)</option></select></label>
+      <label>Mô tả vùng giao (nếu theo vùng)<input id="ptRegion" placeholder="miền Bắc, Hà Nội và lân cận..."></label>
+      <label>Giá trong bảng<select id="ptVatInc"><option value="0">Chưa gồm VAT</option><option value="1">Đã gồm VAT</option></select></label>
+      <label>VAT % (nếu chưa gồm)<input id="ptVat" type="number" value="10" min="0" max="10"></label>
+      <label>Miễn phí giao từ (đ, để trống = luôn tính phí)<input id="ptFreeFrom" placeholder="vd 0 = miễn phí mọi đơn"></label>
+      <label>Phí giao mỗi sản phẩm dưới mức đó (đ)<input id="ptFee" value="0"></label>
+      <label>Phí hàng cồng kềnh (đ)<input id="ptBulky" value="0"></label>
+      <label>Giá bán lẻ tối thiểu<select id="ptFloor"><option value="0">Không ràng buộc (theo cột "giá tối thiểu" nếu có)</option><option value="1">Không bán dưới giá bán lẻ đề xuất trong bảng</option></select></label>
+      <label>Hiệu lực bảng giá đến<input id="ptValid" type="date"></label>
+      <label>Thương hiệu mặc định (bảng giá của 1 hãng)<input id="ptBrand" placeholder="vd Sunhouse"></label>
+      <label>Dòng không ghi tồn kho<select id="ptStock"><option value="1">Coi là còn hàng</option><option value="0">Coi là hết hàng</option></select></label>
+      <label style="grid-column:1/-1">Đường dẫn bảng giá trực tiếp (tùy chọn - Google Sheets chia sẻ "bất kỳ ai có liên kết", CSV/XLSX/JSON): mỗi lần thu thập đọc lại<input id="ptUrl" placeholder="https://docs.google.com/spreadsheets/d/..."></label>
+      <label style="grid-column:1/-1">Ghi chú điều khoản (thanh toán, công nợ, thời gian giao...)<input id="ptNote"></label>
+      <label style="grid-column:1/-1">Tệp bảng giá (CSV, XLSX, JSON)<input id="ptFileIn" type="file" accept=".csv,.tsv,.txt,.xlsx,.json" onchange="ptFile(event)"></label>
+    </div>
+    <div id="ptMap"></div><div id="ptPrev"></div>
+    <div class="row" style="margin-top:12px"><button class="btn2 pri" onclick="ptBuild(true)">🔐 Mã hóa &amp; tải tệp bảng giá</button><button class="btn2" onclick="if(confirm('Tạo tệp TẠM DỪNG đối tác này? Bảng giá cũ sẽ không còn được dùng sau khi tải lên.'))ptBuild(false)">⏸ Tạm dừng đối tác</button><button class="btn2" onclick="ptDelete()">🗑 Xóa tệp đối tác trên GitHub</button><a class="btn2" href="../doi-tac/mau-bang-gia-doi-tac.csv" download>⬇ Mẫu bảng giá</a></div>
+    <div id="ptOut" style="margin-top:10px"></div>
+  </div>
+  <div class="card" id="ptPO"><b style="color:var(--ink)">Lập đơn đặt hàng (PO) gửi đối tác</b>
+    <div class="row" style="margin-top:8px"><select id="ptPOSel" style="max-width:320px" onchange="ptPORender()"></select><button class="btn2" onclick="ptPORender()">🔄 Lấy lệnh mua đang chờ đặt</button></div>
+    <div id="ptPOOut"></div>
+  </div>
 </section>
 
 <section class="sec" id="t-stats">
@@ -330,7 +368,8 @@ async function unlock(e){
     DATA=JSON.parse(enc.z==='gzip'?await new Response(new Blob([pt]).stream().pipeThrough(new DecompressionStream('gzip'))).text():new TextDecoder().decode(pt));   // goi moi: nen gzip truoc khi ma hoa
     sessionStorage.setItem('kk_admin_email',email);
     try{const bk=await crypto.subtle.importKey('raw',te.encode(key),'PBKDF2',false,['deriveBits']);const h=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:te.encode('kk-stats-v2'),iterations:300000},bk,256);sessionStorage.setItem('kk_stats_key',[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join(''));
-      const h2=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:te.encode('kk-approve-v1'),iterations:300000},bk,256);sessionStorage.setItem('kk_appr_key',[...new Uint8Array(h2)].map(b=>b.toString(16).padStart(2,'0')).join(''))}catch{}  // khoa duyet gia (dan xuat, khong luu khoa goc)  // khoa thong ke ship (dan xuat, khong luu khoa goc)
+      const h2=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:te.encode('kk-approve-v1'),iterations:300000},bk,256);sessionStorage.setItem('kk_appr_key',[...new Uint8Array(h2)].map(b=>b.toString(16).padStart(2,'0')).join(''));
+      const h3=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:te.encode('kk-partner-v1'),iterations:300000},bk,256);sessionStorage.setItem('kk_partner_key',[...new Uint8Array(h3)].map(b=>b.toString(16).padStart(2,'0')).join(''))}catch{}  // khoa duyet gia (dan xuat, khong luu khoa goc)  // khoa thong ke ship (dan xuat, khong luu khoa goc)
     boot();
   }catch(ex){
     err.textContent='Khóa quản trị không đúng hoặc gói dữ liệu bị thay đổi. Vui lòng thử lại.';
@@ -348,7 +387,7 @@ function boot(){
   const cats=[...new Set(DATA.rows.map(r=>r.catName))].sort();
   $('#fCat').innerHTML='<option value="">Tất cả ngành hàng</option>'+cats.map(c=>`<option>${esc(c)}</option>`).join('');
   $('#fSrc').innerHTML='<option value="">Nguồn rẻ nhất: tất cả</option>'+Object.entries(SRC).map(([k,v])=>`<option value="${k}">${v[0]}</option>`).join('');
-  renderDash();renderCmp();renderStats();renderOrders();renderRev();renderCust();renderInv();renderContent();initUpd();renderSys();logAdmin('Đăng nhập cổng quản trị');
+  renderDash();renderCmp();if(typeof renderPartners==='function')renderPartners();renderStats();renderOrders();renderRev();renderCust();renderInv();renderContent();initUpd();renderSys();logAdmin('Đăng nhập cổng quản trị');
 }
 function go(t){document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   document.querySelectorAll('.sec').forEach(s=>s.classList.toggle('on',s.id==='t-'+t))}
@@ -461,20 +500,21 @@ function tierLabel(r){
 /* ===== RA SOAT VI THE GIA (so voi gia niem yet re nhat cua offer TRUNG MA o moi nguon) ===== */
 const POS={cheap:['KK-MALL rẻ nhất thị trường','#166534','#DCFCE7'],struct:['Đang dùng nguồn trùng mã rẻ nhất','#1E40AF','#DBEAFE'],single:['Chỉ 1 nguồn trùng mã','#92400E','#FEF3C7'],
   reg:['Có nguồn rẻ hơn - giao theo vùng','#9A3412','#FFEDD5'],pend:['Có nguồn rẻ hơn - chờ duyệt','#9A3412','#FFEDD5'],held:['Có nguồn rẻ hơn - bộ lọc giữ','#9A3412','#FFEDD5'],
-  name:['Giá theo ghép tên','#6B21A8','#F3E8FF'],none:['Không có giá trùng mã','#475569','#F1F5F9'],oos:['Hết hàng','#475569','#F1F5F9']};
+  ptonly:['Giá đại lý (chưa có giá bán lẻ để so)','#5B21B6','#EDE9FE'],name:['Giá theo ghép tên','#6B21A8','#F3E8FF'],none:['Không có giá trùng mã','#475569','#F1F5F9'],oos:['Hết hàng','#475569','#F1F5F9']};
 function posBadge(r){const m=r.mk;if(!m||!POS[m.c])return '';const P=POS[m.c],n=v=>Number(v).toLocaleString('vi-VN');
   const t=m.m?`Giá niêm yết rẻ nhất của offer trùng mã: ${n(m.m)} đ ở ${m.n} nguồn · KK-MALL ${m.g>=0?'cao hơn':'thấp hơn'} ${n(Math.abs(m.g))} đ (${(Math.abs(m.g)/m.m*100).toFixed(1)}%)${m.sv?' · duyệt nguồn rẻ hơn thì giá KK-MALL giảm '+n(m.sv)+' đ':''}`:'Không có offer trùng mã còn hàng';
-  return ` <span class="badge" style="background:${P[2]};color:${P[1]}" title="${esc(t)}">${P[0]}${m.sv?' · -'+n(m.sv)+' đ':''}</span>`}
-function renderPos(){const el=$('#posChart');if(!el)return;const c={};let sv=0,svN=0;for(const r of DATA.rows){const k=r.mk?r.mk.c:'';if(!k)continue;c[k]=(c[k]||0)+1;if(r.mk.sv){sv+=r.mk.sv;svN++}}
+  return ` <span class="badge" style="background:${P[2]};color:${P[1]}" title="${esc(t)}">${P[0]}${m.sv?' · -'+n(m.sv)+' đ':''}</span>`+(m.lt&&m.c!=='cheap'?' <span class="badge" style="background:#DCFCE7;color:#166534">rẻ hơn mọi giá bán lẻ</span>':'')+(m.pt?' <span class="badge" style="background:#EDE9FE;color:#5B21B6">🤝 giá đại lý'+(m.fl?' (giữ giá tối thiểu HĐ)':'')+'</span>':'')}
+function renderPos(){const el=$('#posChart');if(!el)return;const c={};let sv=0,svN=0,lt=0,pt=0;for(const r of DATA.rows){const k=r.mk?r.mk.c:'';if(!k)continue;c[k]=(c[k]||0)+1;if(r.mk.sv){sv+=r.mk.sv;svN++}if(r.mk.lt)lt++;if(r.mk.pt)pt++}
   const tot=Object.values(c).reduce((a,b)=>a+b,0);if(!tot){el.innerHTML='<span style="color:var(--muted);font-size:12.5px">Chưa có dữ liệu rà soát (cần 1 lần thu thập giá sau bản cập nhật 15/11/2026).</span>';return}
   const mx=Math.max(...Object.values(c),1);
   el.innerHTML=Object.keys(POS).filter(k=>c[k]).map(k=>`<div class="bwrap" style="cursor:pointer" onclick="go('cmp');$('#fPos').value='${k}';page=1;renderCmp()"><span>${POS[k][0]}</span><div class="bar" style="width:${(c[k]/mx*100).toFixed(1)}%;background:${POS[k][1]}"></div><b>${c[k].toLocaleString('vi-VN')} <small style="font-weight:500;color:var(--muted)">(${(c[k]/tot*100).toFixed(1)}%)</small></b></div>`).join('')
+    +`<div style="font-size:12.5px;margin-top:8px">✓ <b>${lt.toLocaleString('vi-VN')}</b> mặt hàng rẻ hơn mọi giá bán lẻ trùng mã đang có (<a href="#" onclick="event.preventDefault();go('cmp');$('#fPos').value='lt';page=1;renderCmp()">xem</a>)${pt?` · 🤝 <b>${pt.toLocaleString('vi-VN')}</b> mặt hàng đang lấy giá đại lý đối tác (<a href="#" onclick="event.preventDefault();go('partner')">tab Đối tác</a>)`:''}</div>`
     +(svN?`<div style="font-size:12.5px;margin-top:6px">⚡ <b>${svN.toLocaleString('vi-VN')}</b> mặt hàng có nguồn trùng mã rẻ hơn chưa dùng - duyệt trong tab Duyệt thì giá KK-MALL giảm tổng cộng <b>${Math.round(sv/1e6).toLocaleString('vi-VN')} triệu đ</b> (1 đơn vị/mặt hàng).</div>`:'')
     +'<div style="font-size:11.5px;color:var(--muted);margin-top:6px">Giá KK-MALL = giá thực trả tại nguồn rẻ nhất (niêm yết + ship dự phòng) + phí dịch vụ, nên không thể thấp hơn chính nguồn đó; "Chỉ 1 nguồn trùng mã" = chưa đối chứng được, cần thêm nguồn. Bấm 1 dòng để lọc bảng So sánh giá.</div>'}
 /* ===== SO SANH GIA ===== */
 function filtered(){
   const q=$('#q').value.trim().toLowerCase(),cat=$('#fCat').value,src=$('#fSrc').value,sort=$('#fSort').value,pos=($('#fPos')||{}).value||'';
-  const posOk=r=>!pos||(r.mk&&(pos==='act'?['reg','pend','held'].includes(r.mk.c):r.mk.c===pos));
+  const posOk=r=>!pos||(r.mk&&(pos==='act'?['reg','pend','held'].includes(r.mk.c):pos==='pt'?!!r.mk.pt:pos==='lt'?!!r.mk.lt:r.mk.c===pos));
   let R=DATA.rows.filter(r=>(!cat||r.catName===cat)&&(!src||(r.best&&r.best.s===src))&&posOk(r)&&(!q||(r.name+' '+r.sku+' '+r.brand).toLowerCase().includes(q)));
   const spread=r=>r.offers.length?Math.max(...r.offers.map(o=>o.p))-Math.min(...r.offers.map(o=>o.p)):0;
   const key={['margin-']:(a,b)=>(b.margin??-1)-(a.margin??-1),['margin+']:(a,b)=>(a.margin??1e12)-(b.margin??1e12),['kk-']:(a,b)=>b.kk-a.kk,['kk+']:(a,b)=>a.kk-b.kk,['spread-']:(a,b)=>spread(b)-spread(a),['save-']:(a,b)=>((b.mk&&b.mk.sv)||0)-((a.mk&&a.mk.sv)||0),['gap-']:(a,b)=>((b.mk&&b.mk.m?b.mk.g/b.mk.m:0))-((a.mk&&a.mk.m?a.mk.g/a.mk.m:0))}[sort];
@@ -916,6 +956,7 @@ async function renderSys(){
 }
 </script>
 <script src="../config.js?v=2610260422"></script>
-<script src="ops.js?v=2611141200"></script>
+<script src="ops.js?v=2611151500"></script>
+<script src="partners.js?v=2611151500"></script>
 </body>
 </html>
