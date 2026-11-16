@@ -71,6 +71,7 @@ Khi giám sát phát hiện lỗi, Issue cảnh báo được **giao cho chủ k
 | Việc | Trạng thái |
 |---|---|
 | Triển khai lại Apps Script | **Xong** - Version 11 (15/11/2026 18:07), cùng URL; kiểm tra ?a=config trả về đủ thông tin công ty, bank_ready = true |
+| Tạm gỡ tài khoản nhận tiền (16/11/2026) | **Đang tạm gỡ** - máy chủ Version 12, BANK_PAUSED = 1: trang thanh toán, email, hợp đồng không hiện STK / mã QR; khách vẫn đặt đơn, KK-MALL liên hệ gửi thông tin chuyển khoản. Số đã lưu được giữ nguyên. Mở lại: Quản trị - Hệ thống bỏ chọn "Tạm gỡ tài khoản nhận tiền", hoặc chạy hàm moLaiTaiKhoanNhanTien trong trình soạn thảo Apps Script |
 | Thông báo nền tảng TMĐT | Đang làm - thủ tục 1.115417 (QĐ 1617/QĐ-BCT), DVC toàn trình, cơ quan: **Sở Công Thương Thành phố Hà Nội**, 3 ngày làm việc; chờ chủ sở hữu đăng nhập VNeID (tài khoản tổ chức) |
 | Hotline + email CSKH | Chờ chủ sở hữu cấp (biểu mẫu thông báo TMĐT cũng cần) |
 | Cài GitHub Mobile, bật thông báo | Chủ sở hữu (để nhận cảnh báo đẩy) |
