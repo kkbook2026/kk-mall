@@ -36,7 +36,7 @@ async function main() {
     const h = json((await get(be + '?a=health', { timeout: 40000 })).body);
     add('Máy chủ đơn hàng', h && h.ok, h ? 'phiên bản ' + h.version : 'không phản hồi');
     const c = json((await get(be + '?a=config', { timeout: 40000 })).body);
-    add('Tài khoản nhận tiền VietQR', c && c.bank_ready === true, c ? (c.bank_ready ? 'sẵn sàng' : 'CHƯA cấu hình - khách không thấy mã QR') : 'không đọc được');
+    add('Tài khoản nhận tiền VietQR', c && (c.bank_ready === true || c.bank_paused === true), c ? (c.bank_ready ? 'sẵn sàng' : c.bank_paused ? 'ĐANG TẠM GỠ theo chủ sở hữu - khách chưa thấy mã QR, KK-MALL liên hệ gửi thông tin chuyển khoản' : 'CHƯA cấu hình - khách không thấy mã QR') : 'không đọc được');
     const pack = json((await get(SITE + '/api/catalog-pack.json?t=' + Date.now())).body);
     const row = pack && pack.rows ? pack.rows.find(r => r[7] && r[6] > 50000 && !(r[11] & 33)) : null;
     if (row) {

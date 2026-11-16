@@ -315,7 +315,13 @@ function payBox_(o) {
   var b = bank_(); if (!b.ready) return '<p>KK-MALL sẽ liên hệ để gửi thông tin thanh toán chuyển khoản.</p>';
   return '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;margin:12px 0"><b>Chuyển khoản VietQR</b><br>Ngân hàng: <b>' + esc_(b.label) + '</b><br>Số tài khoản: <b>' + esc_(b.acc) + '</b><br>Chủ tài khoản: <b>' + esc_(b.name) + '</b><br>Số tiền: <b style="color:#DC2626">' + vnd_(o.total) + '</b><br>Nội dung: <b>' + o.code + '</b><br><img src="' + qrUrl_(o) + '" width="220" style="margin-top:8px"></div>';
 }
-function bank_() { var bin = cfg_('BANK_BIN'), acc = cfg_('BANK_ACC'); return { ready: !!(bin && acc), bin: bin, acc: acc, name: cfg_('BANK_NAME'), label: cfg_('BANK_LABEL') || bin }; }
+function bank_() { if (cfg_('BANK_PAUSED') === '1') return { ready: false, paused: true, bin: '', acc: '', name: '', label: '' }; // tam go: khong lo STK o bat ky dau (QR, email, hop dong)
+  var bin = cfg_('BANK_BIN'), acc = cfg_('BANK_ACC'); return { ready: !!(bin && acc), bin: bin, acc: acc, name: cfg_('BANK_NAME'), label: cfg_('BANK_LABEL') || bin }; }
+/* TAM GO / MO LAI TAI KHOAN NHAN TIEN - chi chay tay trong trinh soan thao Apps Script (khong mo ra web).
+ * Giu nguyen so tai khoan da luu; khi tam go: trang thanh toan, email, hop dong khong hien STK / ma QR,
+ * khach van dat duoc don va duoc bao "KK-MALL se lien he gui thong tin chuyen khoan". Cung bat/tat duoc tai Quan tri - He thong. */
+function tamGoTaiKhoanNhanTien() { P_().setProperty('BANK_PAUSED', '1'); log_('bank_pause', 'editor', 'Tam go tai khoan nhan tien'); Logger.log('Da tam go tai khoan nhan tien - bank_ready = ' + bank_().ready); }
+function moLaiTaiKhoanNhanTien() { P_().deleteProperty('BANK_PAUSED'); log_('bank_resume', 'editor', 'Mo lai tai khoan nhan tien'); Logger.log('Da mo lai tai khoan nhan tien - bank_ready = ' + bank_().ready); }
 function qrUrl_(o) { var b = bank_(); return 'https://img.vietqr.io/image/' + encodeURIComponent(b.bin) + '-' + encodeURIComponent(b.acc) + '-compact2.png?amount=' + o.total + '&addInfo=' + encodeURIComponent(o.code) + '&accountName=' + encodeURIComponent(b.name); }
 
 /* =========================== THÀNH VIÊN & OTP =========================== */
@@ -1341,7 +1347,7 @@ function adminList_(b, name, outFn) { session_(b.token, true); return { rows: ro
 function adminConfig_(b) {
   var s = session_(b.token, true);
   if (b.set) {
-    var allow = ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'VOUCHER_FEE_CAP_PCT', 'STATS_KEY', 'POLICY_JSON', 'AUTONOMY_ENABLED', 'BOT_REQUIRE_SIG', 'SEPAY_API_TOKEN', 'TERMS_EFFECTIVE'];
+    var allow = ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'BANK_PAUSED', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'VOUCHER_FEE_CAP_PCT', 'STATS_KEY', 'POLICY_JSON', 'AUTONOMY_ENABLED', 'BOT_REQUIRE_SIG', 'SEPAY_API_TOKEN', 'TERMS_EFFECTIVE'];
     var kept = [];
     Object.keys(b.set).forEach(function (k) {
       if (allow.indexOf(k) < 0) return;
@@ -1349,7 +1355,7 @@ function adminConfig_(b) {
       if (k === 'COMPANY_JSON' && v) { try { var cj = JSON.parse(v); if (!cj || typeof cj !== 'object' || Array.isArray(cj)) throw new Error('phải là đối tượng JSON'); } catch (e) { throw err_('COMPANY_JSON không hợp lệ: ' + e.message, 400); } }
       if (k === 'TERMS_EFFECTIVE' && v) { if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw err_('Ngày áp dụng điều khoản phải dạng YYYY-MM-DD', 400); if (v < vnToday_(Date.now() + 7 * 86400e3)) throw err_('Ngày áp dụng phải cách hôm nay ít nhất 7 ngày (phải công bố trước khi áp dụng - Điều khoản mục 12)', 400); }
       if (k === 'POLICY_JSON' && v) { try { var pj = JSON.parse(v); if (!pj || typeof pj !== 'object' || Array.isArray(pj)) throw new Error('phải là đối tượng JSON'); v = JSON.stringify(pj); } catch (e) { throw err_('POLICY_JSON không hợp lệ: ' + e.message, 400); } }
-      if (k === 'AUTONOMY_ENABLED' || k === 'BOT_REQUIRE_SIG') { v = v === '1' || v === 'true' ? '1' : '0'; if (k === 'AUTONOMY_ENABLED' && v === '1') P_().setProperty('BOT_FAIL_STREAK', '0'); }
+      if (k === 'AUTONOMY_ENABLED' || k === 'BOT_REQUIRE_SIG' || k === 'BANK_PAUSED') { v = v === '1' || v === 'true' ? '1' : '0'; if (k === 'AUTONOMY_ENABLED' && v === '1') P_().setProperty('BOT_FAIL_STREAK', '0'); }
       // BAO VE TAI KHOAN NHAN TIEN: khong cho ghi de trong (form cu/tab cu) - muon xoa phai gui clear_bank: true
       if (!v && ['BANK_ACC', 'BANK_NAME', 'BANK_BIN'].indexOf(k) >= 0 && cfg_(k) && b.clear_bank !== true) { kept.push(k); return; }
       if (k === 'SEPAY_API_TOKEN') { if (!v && b.clear_sepay !== true) return; if (v && !/^[\w.\-]{20,200}$/.test(v)) throw err_('Token API SePay không hợp lệ'); P_().setProperty(k, v); return; } // chi ghi, khong bao gio tra ve
@@ -1357,7 +1363,7 @@ function adminConfig_(b) {
     });
     log_('admin_config', s.email, Object.keys(b.set).join(',') + (kept.length ? ' | GIU NGUYEN (gia tri trong): ' + kept.join(',') : ''));
   }
-  var out = {}; ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'ADMIN_EMAILS', 'VOUCHER_FEE_CAP_PCT', 'POLICY_JSON', 'AUTONOMY_ENABLED', 'BOT_REQUIRE_SIG'].forEach(function (k) { out[k] = cfg_(k); });
+  var out = {}; ['BANK_BIN', 'BANK_ACC', 'BANK_NAME', 'BANK_LABEL', 'BANK_PAUSED', 'VAT_RATE', 'TOLERANCE', 'UNPAID_HOURS', 'RETURN_DAYS', 'COMPANY_JSON', 'ADMIN_EMAILS', 'VOUCHER_FEE_CAP_PCT', 'POLICY_JSON', 'AUTONOMY_ENABLED', 'BOT_REQUIRE_SIG'].forEach(function (k) { out[k] = cfg_(k); });
   out.POLICY_EFFECTIVE = policy_(); out.POLICY_DEFAULT = POLICY_DEFAULT; out.SEPAY_VERIFY = !!P_().getProperty('SEPAY_API_TOKEN'); out.CHAIN = chainHead_();
   out.TERMS = termsList_(); out.TERMS_ACTIVE = termsActive_().version; out.TERMS_EFFECTIVE = cfg_('TERMS_EFFECTIVE') || ''; out.CONTRACTS = rows_('Contracts').length; out.INCIDENTS_OPEN = rows_('Incidents').filter(function (r) { return r.status !== 'closed'; }).length;
   out.WEBHOOK_URL = ScriptApp.getService().getUrl() + '?a=webhook&key=' + P_().getProperty('WEBHOOK_KEY');
@@ -1607,7 +1613,7 @@ function doGet(e) {
 function publicConfig_() {
   var c = company_(), b = bank_();
   var T = termsActive_();
-  return { version: VERSION, consent_version: T.version, terms: { active: T.version, label: T.label, kind: T.kind, effective: T.effective || '', url: T.url, contract_url: T.contract_url, versions: termsList_().map(function (x) { return { version: x.version, label: x.label, effective: x.effective || '', published: x.published }; }) }, company: c, bank_ready: b.ready, fee_table: feeTable_(), vat_rate: Number(cfg_('VAT_RATE')), return_days: Number(cfg_('RETURN_DAYS')), unpaid_hours: Number(cfg_('UNPAID_HOURS')), vouchers: VOUCHERS.map(function (v) { return { code: v.code, title: v.title }; }), voucher_fee_cap_pct: Number(cfg_('VOUCHER_FEE_CAP_PCT')) };
+  return { version: VERSION, consent_version: T.version, terms: { active: T.version, label: T.label, kind: T.kind, effective: T.effective || '', url: T.url, contract_url: T.contract_url, versions: termsList_().map(function (x) { return { version: x.version, label: x.label, effective: x.effective || '', published: x.published }; }) }, company: c, bank_ready: b.ready, bank_paused: !!b.paused, fee_table: feeTable_(), vat_rate: Number(cfg_('VAT_RATE')), return_days: Number(cfg_('RETURN_DAYS')), unpaid_hours: Number(cfg_('UNPAID_HOURS')), vouchers: VOUCHERS.map(function (v) { return { code: v.code, title: v.title }; }), voucher_fee_cap_pct: Number(cfg_('VOUCHER_FEE_CAP_PCT')) };
 }
 function doPost(e) {
   var b = {}, a = (e && e.parameter && e.parameter.a) || '';
