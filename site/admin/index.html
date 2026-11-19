@@ -630,7 +630,7 @@ function renderOrders(){
 }
 
 /* ===== HOA DON (lap tu danh sach khach hang) ===== */
-const SELLER_DEF={name:'CÔNG TY TNHH KK-MALL',tax:'0000000000',addr:'Hà Nội, Việt Nam',contact:'1900 0000 · hotro@kk-mall.vn',serial:'1C'+String(new Date().getFullYear()).slice(2)+'TKK',bank:'',vat:'10'};
+const SELLER_DEF={name:'CÔNG TY TNHH KK-MALL',tax:'0000000000',addr:'Hà Nội, Việt Nam',contact:'1900 0000 · info@kk-mall.com',serial:'1C'+String(new Date().getFullYear()).slice(2)+'TKK',bank:'',vat:'10'};
 function getSeller(){let s={};try{s=JSON.parse(localStorage.getItem('kk_seller'))||{}}catch{}return Object.assign({},SELLER_DEF,s)}
 function saveSeller(){
   const s={name:$('#sName').value,tax:$('#sTax').value,addr:$('#sAddr').value,contact:$('#sContact').value,serial:$('#sSerial').value,bank:$('#sBank').value,vat:$('#vatRate').value};
