@@ -34,8 +34,9 @@ if (KKB.on) {
     KKB.cfg = c;
     try {
       const co = c.company || {};
-      if (co.name) { $('#coName').textContent = co.name; } if (co.address) $('#coAddr').textContent = co.address;
-      if (co.name_en) $('#coNameEn').textContent = co.name_en; if (/^\d{10}(-\d{3})?$/.test(co.tax || '')) $('#coTax').textContent = co.tax; if (co.email) $('#coEmail').textContent = co.email; if (co.phone) $('#hotline').textContent = co.phone;
+      // Chan trang cong khai chi gom: ten cong ty (tieng Viet), MST, email lien he (theo yeu cau chu so huu 20/11/2026)
+      if (/^CÔNG TY/i.test(co.name || '') && $('#coName')) $('#coName').textContent = co.name; if (/^\d{10}(-\d{3})?$/.test(co.tax || '') && $('#coTax')) $('#coTax').textContent = co.tax;
+      if (/^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(co.email || '')) [['#coEmail', 1], ['#coEmail2', 0], ['#topEmail', 1]].forEach(([s, l]) => { const e = $(s); if (!e) return; if (s === '#topEmail') e.innerHTML = '<b></b>', e.firstChild.textContent = co.email; else e.textContent = co.email; if (l) e.href = 'mailto:' + co.email; });
       if (typeof kkLegal === 'function') kkLegal(co);
     } catch { }
     document.querySelectorAll('#grid .card,.shelf .card').length && typeof reload === 'function';
