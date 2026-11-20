@@ -659,7 +659,7 @@ async function init(){
   META=await api('/api/meta');
   $('#syncMin').textContent=META.syncMinutes; $('#lastSync').textContent=META.lastSync?new Date(META.lastSync).toLocaleTimeString('vi-VN'):'-';
   $('#ledgerSeq').textContent=(META.ledgerHead&&META.ledgerHead.seq||0).toLocaleString('vi-VN');
-  $('#totalProducts').textContent=META.totalProducts.toLocaleString('vi-VN');try{$('#vfactN').textContent=(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN');$('#q').placeholder=`Tìm tức thời trong ${(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN')}+ mặt hàng (chạy ngay trên máy bạn, 0ms)...`}catch{} $('#hotline').textContent=META.company.phone;
+  $('#totalProducts').textContent=META.totalProducts.toLocaleString('vi-VN');try{$('#vfactN').textContent=(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN');$('#q').placeholder=`Tìm tức thời trong ${(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN')}+ mặt hàng (chạy ngay trên máy bạn, 0ms)...`}catch{} 
   if(/^CÔNG TY/i.test(META.company.name||''))$('#coName').textContent=META.company.name;if(/^\d{10}(-\d{3})?$/.test(META.company.taxCode||''))$('#coTax').textContent=META.company.taxCode;if(/^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(META.company.email||'')){$('#coEmail').textContent=META.company.email;$('#coEmail').href='mailto:'+META.company.email;$('#coEmail2').textContent=META.company.email;$('#topEmail').href='mailto:'+META.company.email;$('#topEmail').firstChild.textContent=META.company.email;}
   kkLegal(META.company);
   renderNav();
