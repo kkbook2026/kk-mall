@@ -16,12 +16,13 @@ Tài liệu này giải thích vì sao hệ thống được thiết kế như h
 | Vốn điều lệ | 2.000.000.000 đồng |
 | Người đại diện theo pháp luật | Nguyễn Duy Điển - Giám đốc |
 | Website | www.kk-mall.com |
-| Hotline, email CSKH | **chờ chủ sở hữu cấp** (chưa công khai số/email cá nhân trên GCN) |
+| Email liên hệ | info@kk-mall.com |
+| Hotline | chưa công khai |
 | Số/mã hồ sơ xác nhận thông báo nền tảng TMĐT (UBND TP Hà Nội) | chờ bổ sung sau khi được xác nhận |
 
 **Nguồn dữ liệu duy nhất:** `collector/company.json` - bộ thu thập gộp vào `site/api/meta.json` mỗi lượt chạy, nên không lượt xuất bản nào ghi đè mất. Hợp đồng điện tử (`site/kk-hop-dong.js` → `backend/Code.gs` qua `tools/build-terms.js`) và `COMPANY_DEFAULT` của máy chủ dùng cùng nội dung.
 
-**Đã hiển thị:** chân trang mọi trang (gồm trang SEO tĩnh), bảng "Thông tin doanh nghiệp" tại /phap-ly, trang /doi-tac, mẫu hợp đồng ủy thác / dịch vụ / điều khoản (Bên B), dữ liệu có cấu trúc Google (legalName, taxID, foundingDate, PostalAddress).
+**Hiển thị công khai (theo yêu cầu chủ sở hữu 20/11/2026):** chân trang mọi trang, thanh trên cùng, trang /doi-tac, trang SEO tĩnh và dữ liệu có cấu trúc chỉ còn **tên công ty tiếng Việt, MST, email liên hệ info@kk-mall.com** (bỏ tên tiếng Anh, trụ sở, người đại diện theo pháp luật, điện thoại). Bảng "Thông tin doanh nghiệp" đầy đủ vẫn giữ tại /phap-ly để đáp ứng nghĩa vụ công khai thông tin chủ sở hữu nền tảng (Luật TMĐT 122/2025/QH15, NĐ 248/2026/NĐ-CP); hợp đồng điện tử, hóa đơn vẫn ghi đủ thông tin pháp nhân.
 
 **Không bao giờ công khai:** số định danh cá nhân, ngày sinh, địa chỉ liên lạc cá nhân của người đại diện; số điện thoại và email cá nhân ghi trên GCN.
 
