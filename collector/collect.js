@@ -13,6 +13,7 @@ const crypto = require('crypto');
 const ULOG = require('./update-log'); // nhat ky cap nhat (ma hoa trong goi quan tri)
 const FEEDS = require('./feeds');      // datafeed chinh thuc (affiliate/doi tac) - nap song song
 const TRUST = require('./trust');      // Bo loc Tin cay gia (anomaly detection) + Merkle
+const QUALITY = require('./quality');  // "Hang that - gia re nhat da kiem chung": diem tin cay nguon (con hang, dat mua online, kenh ban, trung ma, do moi, uy tin)
 const { publish } = require('./publish');
 
 const SITE = path.join(__dirname, '..', 'site');
@@ -243,14 +244,14 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     /* (5) Offer tim theo tu khoa (da gan san cho 1 SKU): xac nhan lai bang bo ghep hien hanh roi moi dung */
     for (const r of SROWS) { const sku = fullBySku.has(r.sku) ? r.sku : ((fidx.merged[r.sku] || {}).to || ''), p = fullBySku.get(sku); if (!p) continue;   // ket qua tim cua ma da gop -> dung cho ma chuan
       const m = IDX.find(r.name, p.grp, MIN_FZ).find(m => m.id === sku); if (!m) continue;
-      pushM(fzBySku, sku, { o: { src: r.src, price: r.price, stock: 1, url: r.url, image: r.image, name: r.name, stale: r.stale }, sc: m.score }); }
+      pushM(fzBySku, sku, { o: { src: r.src, price: r.price, stock: 1, url: r.url, image: r.image, name: r.name, stale: r.stale, shop: r.shop || '', sd: r.sold || 0, ah: r.ageH }, sc: m.score }); }
     /* (5b) Offer SAN THEO MA MODEL (hunt.js, da gan san cho SKU): chi nhan khi bo ghep xep vao muc TRUNG MA (>= 0,90) voi chinh san pham do.
      *      Pham vi giao hang: nguon giao toan quoc moi duoc dung dinh gia; nguon theo vung / chua xac minh -> chi liet ke cho quan tri duyet tay (reg). */
     { const by = {};
       for (const r of HROWS) { const sku = fullBySku.has(r.sku) ? r.sku : ((fidx.merged[r.sku] || {}).to || ''), p = fullBySku.get(sku); if (!p) continue;
         const m = IDX.find(r.name, p.grp, 0.9).find(m => m.id === sku); if (!m) continue;
         const reg = HUNT.reachNote(r.reach, r.region, LANDEDM.isBulky(p.grp, p.name));
-        pushM(fzBySku, sku, { o: { src: r.src, price: r.price, stock: r.stock, url: r.url, image: r.image, name: r.name, stale: r.stale, hunt: 1, reg }, sc: m.score });
+        pushM(fzBySku, sku, { o: { src: r.src, price: r.price, stock: r.stock, url: r.url, image: r.image, name: r.name, stale: r.stale, hunt: 1, reg, ah: r.ageH }, sc: m.score });
         HSTAT.map++; if (reg) HSTAT.reg++; (by[r.src] = by[r.src] || []).push(r.ageH || 0); }
       const per = feed.stat.per = feed.stat.per || {}, SS = HUNT.siteStat(process.env);
       for (const [src, v] of Object.entries(SS)) if (v.mode !== 'feed') { const a = by[src] || []; per[src] = { total: v.targets, n: a.length, age: a.length ? +(medOf(a) / 24).toFixed(1) : null }; }
@@ -347,6 +348,8 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
   const APK = CURATE.apprKeys(AKEY);
   let prevUpdates = null; const apprPriv = {}, prevSeen = new Map(), apprStat = { ok: 0, no: 0, stale: 0, pend: 0 };
   const MKT = { n: {}, gap: [], save: [], src: {} };   // vi the gia so voi thi truong (chi ghi vao goi quan tri ma hoa)
+  const VQ_MIN = QUALITY.qmin(process.env), VQS = { ok: 0, lt: 0, low: 0, switched: 0, held: 0, up: [], tier: { A: 0, B: 0, C: 0 } };   // hang that - gia re nhat da kiem chung
+  const SRC_AGE_D = {}; for (const [k, v] of Object.entries(feed.stat.per || {})) if (v && Number.isFinite(v.age)) SRC_AGE_D[k] = v.age;   // tuoi datafeed tung nguon (ngay)
   if (AKEY) { const prev = ULOG.decryptFile(ENC, AKEY);
     if (prev) { prevUpdates = prev.updates || null;
       for (const sku of Object.keys(BOOK.items)) if (prev.appr && prev.appr[sku]) apprPriv[sku] = prev.appr[sku];
@@ -369,7 +372,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     const regOffers = fzAll.filter(x => x.o.stock && isReg(x.o) && decOf(x.o.src, x.o.url, x.o.price) !== 'no');
     if (exOffers.length || fzOffers.length || fidx.origin[p.sku]) {
       // GIA THAT tu kenh chinh thuc (san pham tu feed khong co gia mo phong; mat khoi feed => tam het hang)
-      const toState = (o, extra) => ({ source: o.src, price: o.price, in_stock: o.stock ? 1 : 0, url: o.url, image: o.image, name: o.name, fetched_at: now, fs: FS_RE.test(o.name || '') ? 1 : 0, st: o.stale ? 1 : 0, ...(o.live ? { lv: 1 } : {}), ...(o.pt ? { pt: 1, fl: o.floor || 0, pc: o.pc || '' } : {}), ...(o.reg ? { ap: 'ok' } : {}), ...extra });   // offer co o.reg den duoc day = quan tri da duyet tay (xem isReg)
+      const toState = (o, extra) => ({ source: o.src, price: o.price, in_stock: o.stock ? 1 : 0, url: o.url, image: o.image, name: o.name, fetched_at: now, fs: FS_RE.test(o.name || '') ? 1 : 0, st: o.stale ? 1 : 0, ...(o.live ? { lv: 1 } : {}), ...(o.shop ? { shop: o.shop } : {}), ...(o.sd ? { sd: o.sd } : {}), ...(Number.isFinite(o.ah) ? { ah: o.ah } : {}), ...(o.pt ? { pt: 1, fl: o.floor || 0, pc: o.pc || '' } : {}), ...(o.reg ? { ap: 'ok' } : {}), ...extra });   // offer co o.reg den duoc day = quan tri da duyet tay (xem isReg)
       /* Offer ghep mo phai qua 2 chot truoc khi duoc so gia:
        *  - NGUOI BAN: chuoi ban le / 1 shop chi niem yet moi SP 1 lan -> offer ghep mo tu chinh nguoi ban da co offer chinh xac la SP KHAC -> bo
        *  - DAI GIA : so voi gia neo (trung vi offer chinh xac; khong co thi gia nguon ky truoc), toi da 160% gia neo. San duoi:
@@ -442,7 +445,13 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     /* gia ban hieu luc cua tung offer = cong thuc A (thuc tra + phi dich vu); offer doi tac co GIA BAN LE TOI THIEU theo hop dong (fl) thi khong ban duoi muc do.
      * Khong co fl: thu tu chon trung voi "thuc tra thap nhat" nhu truoc. */
     const effOf = o => { const v = PRICING.ok ? PRICING.sell(o.landed) : o.landed; return o.fl > 0 && PRICING.ok ? Math.max(v, o.fl) : v; };
-    for (const o of flt.valid) if (o.in_stock) { const ev = effOf(o); if (!best || ev < bestEff || (ev === bestEff && o.landed < best)) { best = o.landed; bestEff = ev; bestFloor = o.fl > 0 && ev === o.fl ? 1 : 0; bestListed = o.price; bestShip = o.ship; bestSrc = o.source; bestFz = o.fz || 0; } }
+    /* HANG THAT - GIA RE NHAT DA KIEM CHUNG (quality.js): re nhat trong cac offer DAT CHUAN tin cay (con hang, dat mua online, kenh ban, trung ma, do moi,
+     * uy tin). Offer re hon nhung chua dat chuan -> cho duyet tay (quan tri duyet thi lan sau duoc dung). Khong offer nao dat chuan -> cach chon cu, khong gan nhan. */
+    const SEL = QUALITY.pick(flt.valid, effOf, { qmin: VQ_MIN, brand: p.brand || d.brand || '', twin, srcAgeD: SRC_AGE_D });
+    if (SEL.low.length) { for (const o of SEL.low) o.why = `Rẻ hơn nhưng độ tin cậy nguồn chưa đạt chuẩn (điểm ${o._q.q}/100 < ${VQ_MIN}: kênh ${o._q.t}, trùng mã ${o._q.m}, độ mới ${o._q.f}) - chưa dùng định giá "hàng thật giá rẻ nhất", cần duyệt tay`;
+      flt.valid = flt.valid.filter(o => !SEL.low.includes(o)); flt.dropped = flt.dropped.concat(SEL.low); VQS.held++; }
+    if (SEL.best) { const o = SEL.best, ev = effOf(o); best = o.landed; bestEff = ev; bestFloor = o.fl > 0 && ev === o.fl ? 1 : 0; bestListed = o.price; bestShip = o.ship; bestSrc = o.source; bestFz = o.fz || 0;
+      if (SEL.legacy && SEL.legacy !== o) { const e0 = effOf(SEL.legacy); if (ev > e0) { VQS.switched++; VQS.up.push((ev - e0) / e0); } } }
     for (const o of flt.dropped) { o.x = o.why; if (o.in_stock && o.url && o.landed > 0 && (!best || o.landed < best)) o.pend = 1; }   // re hon gia dang dung -> vao danh sach cho duyet
     for (const o of lowOffers) if (o.pend && !(o.in_stock && o.url && o.landed > 0 && (!best || o.landed < best))) delete o.pend;
     for (const o of offerState.concat(lowOffers)) { if (o.pend) { apprStat.pend++; if (hasDec && decOf(o.source, o.url, o.price) === 'stale') { o.ap = 'stale'; apprStat.stale++; } } else if (o.ap === 'ok' && flt.valid.includes(o)) apprStat.ok++; else if (o.ap === 'no') apprStat.no++; }
@@ -493,6 +502,8 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
       MKT.n[c] = (MKT.n[c] || 0) + 1; MKT.src[Math.min(srcs.size, 4)] = (MKT.src[Math.min(srcs.size, 4)] || 0) + 1;
       if ((c === 'struct' || c === 'single') && mMin) MKT.gap.push((kk - mMin) / mMin);
       if (save > 0) MKT.save.push(save); }
+    { const pv = QUALITY.publicOf(SEL, mkt), okv = pv && inStock && !d.hold && fidx.origin[p.sku] && SEL.best && codeOk(SEL.best);
+      if (okv) { d.vq = pv; VQS.ok++; VQS.tier[pv.t]++; if (pv.lt) VQS.lt++; } else { delete d.vq; if (inStock && fidx.origin[p.sku]) VQS.low++; } }
 
     const priceChanged = kk !== d.kk_price || inStock !== d.in_stock;
     ULOG.track(run, p, d.kk_price, kk, d.in_stock, inStock);
@@ -519,6 +530,7 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     TRUST.updateD90(d, now);
     const ev = TRUST.evaluate(d);
     if (!(exOffers.length || fzOffers.length || fidx.origin[p.sku])) ev.fl |= TRUST.FL.NO_SOURCE;   // SP mo phong: khong co nguon mua ho that
+    if (d.vq && !(ev.fl & (TRUST.FL.HOLD | TRUST.FL.NO_SOURCE))) { ev.fl |= QUALITY.FLAG.VQ; if (d.vq.lt) ev.fl |= QUALITY.FLAG.LT; }   // nhan cong khai: 64 = gia re nhat da kiem chung, 128 = + re nhat thi truong
     if (!fidx.origin[p.sku] && (p.sold || d.sold)) { p.sold = 0; d.sold = 0; }   // so 'da ban' cua du lieu mau cu khong xac thuc -> 0
     /* danh gia: CHI tu nguoi da nhan hang (may chu); khong co danh gia -> khong hien sao. Bo ton kho gia dinh ("con 50 suat") */
     { const rv = REVIEWS ? REVIEWS[p.sku] : null;
@@ -571,6 +583,10 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     if (PSTAT.files) console.log(`Doi tac gia dai ly - ket qua dinh gia: ${PSTAT.used} SP dang lay gia dai ly (${PSTAT.cheap} SP re nhat so voi moi gia ban le trung ma)`);
     // nhat ky cong khai: CHI so dem (khong gia, khong ten nguon, khong ty le chenh)
     console.log(`Vi the gia so voi thi truong (gia niem yet re nhat cua offer trung ma, moi nguon): re nhat ${N.cheap || 0} (tong so SP re hon moi gia ban le trung ma: ${MKT.lt || 0}) · dung nguon re nhat ${N.struct || 0} · chi 1 nguon trung ma ${N.single || 0} · co nguon trung ma re hon: cho duyet ${N.pend || 0}, giao theo vung ${N.reg || 0}, bo loc giu ${N.held || 0} · gia dai ly doi tac chua co gia ban le de so ${N.ptonly || 0} · gia theo ghep ten (chua co nguon trung ma) ${N.name || 0} · khong co gia trung ma ${N.none || 0} · het hang ${N.oos || 0} · offer ghep ten bi chan ha gia duoi nguon trung ma: ${trustStat.nameHeld || 0} SP`); }
+  { const up = VQS.up.slice().sort((x, y) => x - y), upMed = up.length ? Math.round(up[up.length >> 1] * 1000) / 10 : 0;
+    feed.stat.vq = { min: VQ_MIN, ok: VQS.ok, lt: VQS.lt, low: VQS.low, switched: VQS.switched, upMed, held: VQS.held, tier: VQS.tier };
+    meta.vq = { min: VQ_MIN, ok: VQS.ok, lt: VQS.lt, low: VQS.low, at: now };   // cong khai: chi so dem
+    console.log(`Hang that - gia re nhat da kiem chung (diem tin cay >= ${VQ_MIN}): ${VQS.ok} SP dat chuan (kenh A ${VQS.tier.A} · B ${VQS.tier.B} · C ${VQS.tier.C}) · re nhat thi truong ${VQS.lt} · con hang chua dat chuan ${VQS.low} · doi sang nguon tin cay hon ${VQS.switched} SP (trung vi +${upMed}%) · ${VQS.held} SP co offer re hon nhung do tin cay thap -> cho duyet`); }
   feed.stat.appr = apprStat; if (feed.stat.lowVal) feed.stat.lowVal.wait = lowWait;
   if (apprStat.pend || apprStat.ok || apprStat.no) console.log(`Duyet tay: ${apprStat.pend} offer cho duyet · dang ap dung ${apprStat.ok} offer da duyet · ${apprStat.no} offer da tu choi · ${apprStat.stale} can duyet lai (gia da doi)`);
   if (SELL_MIN) console.log(`Hang gia tri thap (gia nguon < ${SELL_MIN.toLocaleString('vi-VN')} d): ${lowWait} SP dang duoi nguong · da go lan nay ${(feed.stat.lowVal || {}).removed || 0}`);

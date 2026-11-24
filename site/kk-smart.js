@@ -8,7 +8,7 @@
  * Ban quyen (c) Nguyen Duy Dien. All rights reserved.
  */
 'use strict';
-const KFL = { HOLD: 1, USED: 2, LOW: 4, COMBO: 8, REF_INFLATED: 16 };
+const KFL = { HOLD: 1, USED: 2, LOW: 4, COMBO: 8, REF_INFLATED: 16, VQ: 64, LT: 128 };   // VQ: hang that - gia re nhat da kiem chung · LT: + thap nhat moi nguon trung ma doi chieu
 const kFold = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
 const flOf = p => (p && (p.fl != null ? p.fl : p.trust ? p.trust.fl : 0)) || 0;
 const discOf = p => (p && (p.disc != null ? p.disc : p.trust ? p.trust.disc : 0)) || 0;
@@ -41,16 +41,29 @@ function proofLine(p, big) {
     ? `<div class="${cls}" title="${tip}">✓ Đã gồm Freeship · Đã trừ ${v.codes.join(' + ')} <b>→ ${vnd(v.after)}</b></div>`
     : `<div class="${cls}" title="${tip}">✓ Đã gồm Freeship · 0đ phụ phí</div>`;
 }
+const VQ_TIP = 'Giá thấp nhất trong các nguồn đạt chuẩn tin cậy KK-MALL đối chiếu: còn hàng, đặt mua online, trùng mã model 100%, giá vừa kiểm tra';
 function trustBadges(p) {
   const f = flOf(p); let h = '';
+  if ((f & KFL.VQ) && canBuy(p)) h += (f & KFL.LT) ? `<span class="tbadge vq lt" title="${VQ_TIP}; thấp nhất mọi nguồn trùng mã">🏆 Hàng thật · rẻ nhất mọi nguồn</span>` : `<span class="tbadge vq" title="${VQ_TIP}">✅ Hàng thật giá rẻ nhất</span>`;
   if (f & KFL.USED) h += '<span class="tbadge used">♻️ Đã qua sử dụng</span>';
   if (f & KFL.LOW) h += '<span class="tbadge low">📉 Đáy giá lịch sử</span>';
   return h;
+}
+/* Khung "Hang that - gia re nhat da kiem chung" tren trang chi tiet (p.vq: diem, hang kenh, do moi, so nguon - khong lo danh tinh nguon) */
+function vqPanel(p) {
+  const v = p && p.vq; if (!v || !(flOf(p) & KFL.VQ) || !canBuy(p)) return '';
+  const tier = { A: 'Chuỗi bán lẻ / nhà phân phối chính hãng', B: 'Gian hàng chính hãng trên sàn', C: 'Nhà bán đạt chuẩn tin cậy trên sàn' }[v.t] || 'Nguồn đạt chuẩn tin cậy';
+  const fresh = { 1: 'Giá vừa kiểm tra (trong 24 giờ)', 2: 'Giá kiểm tra trong 3 ngày', 3: 'Theo bảng giá niêm yết mới nhất của nguồn' }[v.f] || 'Giá đã kiểm tra';
+  const at = window.META && META.lastSync ? new Date(META.lastSync).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '';
+  return `<div class="vqbox"><div class="vqh">${v.lt ? '🏆 Hàng thật - giá thấp nhất mọi nguồn đối chiếu' : '✅ Hàng thật - giá rẻ nhất đã kiểm chứng'}<span class="vqs" title="Điểm tin cậy nguồn (0-100)">${Number(v.q) || 0}/100</span></div>
+  <ul><li>✓ Còn hàng tại nguồn</li><li>✓ Đặt mua online, giao tận nhà</li><li>✓ ${tier}</li><li>✓ Trùng mã model 100%${v.n > 1 ? ` · đã so sánh ${Number(v.n)} nguồn` : ''}</li><li>✓ ${fresh}${at ? ` · cập nhật ${at}` : ''}</li></ul>
+  <div class="vqn">KK-MALL chấm điểm tin cậy từng nguồn (kênh bán, trùng mã, độ mới của giá, uy tín nơi bán) và chỉ lấy giá thấp nhất trong các nguồn đạt chuẩn. Giá thấp hơn từ nguồn chưa đạt chuẩn được giữ lại để kiểm tra, không dùng để báo giá.</div></div>`;
 }
 const installmentOf = () => null;                            // tam bo tra gop
 
 /* ===================== 3. MENU HANH VI + MEGA MENU ===================== */
 const SMART_F = {
+  vq: { icon: '✅', label: 'Hàng Thật Giá Rẻ Nhất', title: '✅ Hàng thật - giá rẻ nhất đã kiểm chứng', desc: 'Còn hàng, đặt mua online, trùng mã model 100%, nguồn đạt chuẩn tin cậy (chuỗi bán lẻ / gian hàng chính hãng / nhà bán uy tín) và là giá thấp nhất trong các nguồn đạt chuẩn KK-MALL đối chiếu. Ưu tiên sản phẩm thấp nhất mọi nguồn. Giá đã gồm giao hàng.' },
   deal: { icon: '🔥', label: 'Săn Deal Lỗi Giá', title: '🔥 Săn Deal Lỗi Giá - giảm sâu ĐÃ XÁC MINH', desc: 'Chỉ các mức giảm ≥ 20% đã đối chiếu với giá tham chiếu tin cậy và lịch sử niêm phong. AI đã loại giá gốc ảo, phụ kiện đăng chung link, hàng cũ và lỗi giá.' },
   low: { icon: '📉', label: 'Đáy Giá Lịch Sử', title: '📉 Đáy Giá Lịch Sử - giá thấp nhất từng niêm phong', desc: 'Giá hiện tại thấp nhất trong toàn bộ lịch sử giá đã niêm phong SHA-256 của sản phẩm. Bấm vào sản phẩm để xem biểu đồ và tự kiểm chứng.' },
   clear: { icon: '⚡', label: 'Xả Kho Chính Hãng', title: '⚡ Xả Kho Chính Hãng - thương hiệu thật, giá xả thật', desc: 'Hàng thương hiệu chính hãng, đánh giá từ 4.5★, đang giảm ≥ 10% đã xác minh. Ưu tiên món giảm sâu và bán chạy.' },

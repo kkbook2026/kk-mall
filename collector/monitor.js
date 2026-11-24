@@ -30,6 +30,7 @@ async function main() {
   const meta = json((await get(SITE + '/api/meta.json?t=' + Date.now())).body);
   const age = meta && meta.lastSync ? (Date.now() - new Date(meta.lastSync)) / 36e5 : 1e9;
   add('Dữ liệu giá còn mới', age <= MAX_DATA_AGE_H, meta ? `cập nhật ${age.toFixed(1)} giờ trước · ${meta.totalProducts} SP` : 'không đọc được meta.json');
+  if (meta && meta.vq) add('Hàng thật - giá rẻ nhất đã kiểm chứng', !(meta.totalProducts > 1000 && !meta.vq.ok), `${(meta.vq.ok || 0).toLocaleString('vi-VN')} SP đạt chuẩn (${meta.totalProducts ? Math.round(100 * meta.vq.ok / meta.totalProducts) : 0}%) · thấp nhất mọi nguồn ${(meta.vq.lt || 0).toLocaleString('vi-VN')} · ngưỡng điểm ${meta.vq.min}`);
   const cfgJs = (await get(SITE + '/config.js?t=' + Date.now())).body, be = (cfgJs.match(/KK_BACKEND\s*=\s*'(https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec)'/) || [])[1];
   add('Cấu hình máy chủ (config.js)', !!be, be ? 'có địa chỉ máy chủ' : 'thiếu KK_BACKEND');
   if (be) {

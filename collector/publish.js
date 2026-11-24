@@ -74,11 +74,17 @@ function publish({ API, pub: pubIn, meta, now, seq, mk, recent, chain, keep, log
   /* ---- SDUI trang chu: ke "Giam sau" CHI lay deal da qua Bo loc Tin cay ---- */
   const sdui = rj('sdui-home.json');
   const ok = r => !((r.fl || 0) & (T.FL.HOLD | T.FL.NO_SOURCE));
+  /* Ke "Hang that - gia re nhat da kiem chung" (quality.js): dat ngay sau khoi tin cay; uu tien SP thap nhat moi nguon (bit 128), ban chay truoc */
+  { const VQT = '✅ Hàng thật - giá rẻ nhất đã kiểm chứng';
+    let sv = sdui.sections.find(x => x.type === 'shelf' && x.f === 'vq');
+    if (!sv) { sv = { type: 'shelf', title: VQT, f: 'vq', items: [] }; const at = sdui.sections.findIndex(x => x.type === 'shelf'); sdui.sections.splice(at < 0 ? sdui.sections.length : at, 0, sv); }
+    const vq = pub.filter(r => r.in_stock && ok(r) && ((r.fl || 0) & 64));
+    sv.items = vq.sort((a, b) => (((b.fl || 0) & 128) - ((a.fl || 0) & 128)) || (b.sold - a.sold) || ((b.disc || 0) - (a.disc || 0))).slice(0, 12); }
   for (const sct of sdui.sections) {
     if (sct.type !== 'shelf') continue;
     if (/Giảm sâu/.test(sct.title)) sct.items = pub.filter(isDeal).sort((a, b) => (b.disc - a.disc) || (b.sold - a.sold)).slice(0, 12);
     else if (/Bán chạy/.test(sct.title)) sct.items = pub.filter(r => r.in_stock && ok(r)).sort((a, b) => b.sold - a.sold).slice(0, 12);
-    else if (sct.cat) sct.items = pub.filter(r => r.category_id === sct.cat && ok(r)).sort((a, b) => (b.in_stock - a.in_stock) || (b.sold - a.sold)).slice(0, 12);
+    else if (sct.cat) sct.items = pub.filter(r => r.category_id === sct.cat && ok(r)).sort((a, b) => (b.in_stock - a.in_stock) || (((b.fl || 0) & 64) - ((a.fl || 0) & 64)) || (b.sold - a.sold)).slice(0, 12);   // ke nganh: uu tien hang that gia re nhat da kiem chung
   }
   sdui.v = now; wj('sdui-home.json', sdui);
 

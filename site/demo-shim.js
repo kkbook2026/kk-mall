@@ -128,6 +128,7 @@
   const NOISE_BRAND = /^(sandal|attp|vsattp|decal|sticker|xe|led|view|nam|nữ|tinh|cao|matcha|lifestyle|google|android|smart|mini|pro|plus|vnxk|hàng việt nam|việt nam)$|\d{3,}/i;   // gia tri nhieu trong truong thuong hieu cua nguon
   const BLOCK = 1 | 2 | 16 | 32; // tam giu | hang cu | gia goc ao | chua co nguon that
   const SMART = {
+    vq: { test: r => r.in_stock && (r.fl & 64) && !(r.fl & BLOCK), sort: (a, b) => (((b.fl & 128) - (a.fl & 128)) || (b.sold - a.sold) || (b.disc - a.disc)) },
     deal: { test: r => r.in_stock && r.disc >= 20 && !(r.fl & BLOCK), sort: (a, b) => (b.disc - a.disc) || (b.sold - a.sold) },
     low: { test: r => r.in_stock && (r.fl & 4) && !(r.fl & 3), sort: (a, b) => (b.sold - a.sold) },
     clear: { test: r => r.in_stock && r.disc >= 10 && !(r.fl & BLOCK) && !GENERIC.test(String(r.brand || '').trim()), sort: (a, b) => (b.disc * Math.log(b.sold + 2)) - (a.disc * Math.log(a.sold + 2)) },

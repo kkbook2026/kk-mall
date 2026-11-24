@@ -55,7 +55,7 @@ const PROVIDERS = {
         { headers: { Authorization: 'Token ' + String(env.ACCESSTRADE_KEY).trim(), 'Content-Type': 'application/json' } });
       const ps = (r.j && r.j.data && r.j.data.products) || [];
       return { status: r.status, items: ps.map(x => ({ n: String(x.title || ''), lo: num(x.sales_price && x.sales_price.minimum_amount), hi: num(x.sales_price && x.sales_price.maximum_amount),
-        u: String(x.detail_link || ''), i: String(x.main_image_url || ''), shop: String((x.shop && x.shop.name) || ''), inv: x.has_inventory ? 1 : 0 })) };
+        u: String(x.detail_link || ''), i: String(x.main_image_url || ''), shop: String((x.shop && x.shop.name) || ''), inv: x.has_inventory ? 1 : 0, sd: num(x.units_sold) })) };   // units_sold: chi co khi nha ban cho chia se so lieu
     },
   },
   shopee: {
@@ -77,7 +77,7 @@ const PROVIDERS = {
       // chi ghi ma loi + thong diep ngan (khong ghi nguyen van phan hoi) - nhat ky cua GitHub Actions la cong khai
       const msg = errs ? String((errs[0] && ((errs[0].extensions && errs[0].extensions.message) || errs[0].message)) || '').replace(/\s+/g, ' ').slice(0, 100) : '';
       return { status, code, fatal: SHOPEE_FATAL[code] || '', err: errs ? `ma ${code || '?'}${msg ? ' - ' + msg : ''}` : '', items: ns.map(x => ({ n: String(x.productName || ''), lo: num(x.priceMin), hi: num(x.priceMax),
-        u: String(x.productLink || ''), i: String(x.imageUrl || ''), shop: String(x.shopName || ''), inv: 1 })) };
+        u: String(x.productLink || ''), i: String(x.imageUrl || ''), shop: String(x.shopName || ''), inv: 1, sd: num(x.sales) })) };
     },
   },
 };
@@ -150,7 +150,7 @@ async function run(minutes = 110, env = process.env, log = console.log) {
         st.priced++;
         // loc so bo bang rang buoc cung cua bo ghep (chua co ngu lieu offer day du) - bo thu thap gia se xac nhan lai lan nua truoc khi dung
         const sc = MATCH.score(f, MATCH.features(it.n)); if (!(sc >= 0.6)) continue;
-        offers.push({ n: it.n.slice(0, 160), p: price, u: it.u, i: it.i, shop: it.shop.slice(0, 60), sc });
+        offers.push({ n: it.n.slice(0, 160), p: price, u: it.u, i: it.i, shop: it.shop.slice(0, 60), sc, ...(it.sd > 0 ? { sd: it.sd } : {}) });
       }
       offers.sort((a, b) => a.p - b.p);
       (C.items[p.sku] = C.items[p.sku] || {})[prov] = { at: Date.now(), q, offers: offers.slice(0, 3) };
@@ -166,12 +166,12 @@ async function run(minutes = 110, env = process.env, log = console.log) {
   return res;
 }
 
-/* Doc offer cho bo thu thap chinh: [{ sku, src, name, price, url, image, shop, stock, stale, ageH }]. Ket qua cu hon maxAgeH bi bo; > 12h cong du phong 1% */
+/* Doc offer cho bo thu thap chinh: [{ sku, src, name, price, url, image, shop, sold, stock, stale, ageH }]. Ket qua cu hon maxAgeH bi bo; > 12h cong du phong 1% */
 function rows(maxAgeH = 60) {
   const C = loadCache(), now = Date.now(), out = [];
   for (const [sku, v] of Object.entries(C.items || {})) for (const [src, e] of Object.entries(v)) {
     if (!e || !e.offers || !e.offers.length || now - e.at > maxAgeH * 3600e3) continue;
-    for (const o of e.offers) out.push({ sku, src, name: o.n, price: o.p, url: o.u, image: o.i, shop: o.shop, stock: 1, stale: now - e.at > 12 * 3600e3 ? 1 : 0, ageH: Math.round((now - e.at) / 3600e3) });
+    for (const o of e.offers) out.push({ sku, src, name: o.n, price: o.p, url: o.u, image: o.i, shop: o.shop, sold: o.sd || 0, stock: 1, stale: now - e.at > 12 * 3600e3 ? 1 : 0, ageH: Math.round((now - e.at) / 3600e3) });
   }
   return out;
 }
