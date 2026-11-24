@@ -286,13 +286,26 @@ const hash32 = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt
     /* GIU NGUYEN BAN DA XUAT BAN khi mat du lieu nguon lon: ngay 13/11/2026 API nguon tu choi vi goi qua nhanh, 3 feed khong tai duoc ->
      * 17.000 san pham bi chuyen "tam het hang" oan. Gia cu vai gio van tot hon mot nua cua hang het hang. Qua SHRINK_HOLD_H gio ma nguon
      * van mat thi moi chap nhan xuat ban thieu (san pham cua nguon do tam het hang; van khong bi go). */
-    { const HOLD_H = parseFloat(process.env.SHRINK_HOLD_H || '12'), lastOk = Date.parse(meta.lastSync || '') || 0;
-      if (shrunk.length && process.env.KK_FORCE !== '1' && lastOk && Date.now() - lastOk < HOLD_H * 3600e3) {
+    /* Moc giu = lan chay KHOE gan nhat (fidx.healthyAt), KHONG phai lan xuat ban gan nhat: truoc 24/11/2026 moc la lastSync nen sau moi lan
+     * xuat ban thieu lai giu tiep 12 gio -> du lieu chi xuat ban 12 gio/lan, giam sat bao "du lieu cu" va 3/4 luot thu thap that bai. */
+    { const HOLD_H = parseFloat(process.env.SHRINK_HOLD_H || '12'), lastOk = Date.parse(meta.lastSync || '') || 0, since = fidx.healthyAt != null ? fidx.healthyAt : lastOk;
+      if (shrunk.length && process.env.KK_FORCE !== '1' && since && Date.now() - since < HOLD_H * 3600e3) {
         console.error(`DUNG - GIU NGUYEN BAN DA XUAT BAN (lan xuat ban gan nhat ${meta.lastSync}): mat du lieu nguon ${shrunk.join(', ')}` + (feed.stat.fail.length ? ' · LOI: ' + feed.stat.fail.join('; ') : '') + ` · se tu xuat ban thieu neu qua ${HOLD_H} gio van chua co lai du lieu.`);
         process.exit(2);
       } }
+    if (shrunk.length && fidx.healthyAt == null) fidx.healthyAt = Date.parse(meta.lastSync || '') || 1;   // chua tung ghi moc khoe: lay lan xuat ban truoc
+    /* CHAP NHAN MUC MOI cua nguon: nguon tut so ban ghi LIEN TUC qua SHRINK_ACCEPT_H gio (mac dinh 48) va on dinh (dao dong <= 35%) ->
+     * coi la nha ban that su thu hep danh muc, lay so hien tai lam muc chuan (lan sau tinh la khoe; SP khong con nguon duoc go sau RETIRE_RUNS lan). */
+    { const ACCEPT_H = parseFloat(process.env.SHRINK_ACCEPT_H || '48'), seen = fidx.shrinkSeen = fidx.shrinkSeen || {}, now = Date.now(), acc = [];
+      for (const [src, n0] of Object.entries(fidx.srcN)) {
+        const cur = cntBySrc[src] || 0;
+        if (!(n0 >= 200 && cur < 0.5 * n0)) { delete seen[src]; continue; }
+        const e = seen[src] = seen[src] || { first: now, min: cur, max: cur }; e.min = Math.min(e.min, cur); e.max = Math.max(e.max, cur); e.last = cur;
+        if (cur > 0 && now - e.first >= ACCEPT_H * 3600e3 && e.max <= 1.35 * e.min) { fidx.srcN[src] = cur; delete seen[src]; acc.push(`${src} ${n0} -> ${cur}`); }
+      }
+      if (acc.length) console.log('CHAP NHAN MUC MOI cua nguon (thu hep on dinh qua ' + ACCEPT_H + ' gio): ' + acc.join(', ')); }
     const RETIRE_RUNS = Math.max(1, parseInt(process.env.RETIRE_RUNS || '8', 10)), rm = new Set();
-    if (healthy) fidx.srcN = cntBySrc;
+    if (healthy) { fidx.srcN = cntBySrc; fidx.healthyAt = Date.now(); fidx.shrinkSeen = {}; }
     if (healthy) for (const p of full) {
       if (!fidx.origin[p.sku]) continue;
       if (exBySku.has(p.sku) || (fzBySku.get(p.sku) || []).some(x => !x.o.reg) || (fzBySku.has(p.sku) && BOOK.items[p.sku])) { delete fidx.miss[p.sku]; continue; }   // offer san gia chi giao theo vung (chua duyet tay) khong tinh la nguon

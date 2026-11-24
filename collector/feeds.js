@@ -50,14 +50,20 @@ async function pool(items, n, fn) {
 function parseCSV(text) {
   const head = text.slice(0, 5000).split(/\r?\n/)[0];
   const d = (head.match(/\t/g) || []).length > (head.match(/,/g) || []).length ? '\t' : ((head.match(/;/g) || []).length > (head.match(/,/g) || []).length ? ';' : ',');
-  const rows = []; let row = [], f = '', q = false;
+  /* Doc khoan dung (20-24/11/2026: file datafeed CellphoneS co ten SP chua dau " chi inch, vd Man hinh 27" khong boc ngoac ->
+   * bo doc cu mo ngoac giua truong, nuot hang nghin dong -> chi con 2.700/10.300 ban ghi). Quy tac: dau " chi MO truong co ngoac khi
+   * dung o dau truong; trong truong co ngoac, " chi DONG khi theo sau la dau phan cach / xuong dong / het file, con lai la ky tu thuong. */
+  const rows = []; let row = [], f = '', q = false, start = true;
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
-    if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
-    else if (c === '"') q = true;
-    else if (c === d) { row.push(f); f = ''; }
-    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(f); f = ''; if (row.some(x => x !== '')) rows.push(row); row = []; }
-    else f += c;
+    if (q) {
+      if (c === '"') { const n = text[i + 1]; if (n === '"') { f += '"'; i++; } else if (n === undefined || n === d || n === '\n' || n === '\r') q = false; else f += '"'; }
+      else f += c;
+    }
+    else if (c === '"' && start) { q = true; start = false; }
+    else if (c === d) { row.push(f); f = ''; start = true; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(f); f = ''; start = true; if (row.some(x => x !== '')) rows.push(row); row = []; }
+    else { f += c; start = false; }
   }
   if (f !== '' || row.length) { row.push(f); rows.push(row); }
   const h = (rows.shift() || []).map(x => x.replace(/^\uFEFF/, '').trim());
@@ -332,14 +338,20 @@ async function accesstrade(env, stat, hint = {}) {
       out = rows.slice(0, maxPer).map(r => ({ ...normRow({ name: r.name, price: r.price, sale_price: r.discount, image: r.image, link: csvUrl(r.url), category: r.category }), src }));
       info.via = 'csv'; if (m.cached) info.total = Math.max(info.total, rows.length);
     } catch (e) { info.csvErr = String(e.message || e).slice(0, 60); }
-    if (!out && API_FALLBACK) {
+    /* File tinh THIEU nhieu so voi tong API bao (file loi / cat ngan): doc bo sung qua API phan trang (co gian cach) cho nha ban vua phai
+     * (<= ACCESSTRADE_API_TOPUP_MAX ban ghi, mac dinh 15.000 = ~75 trang) - chi dung ket qua API khi du trang VA nhieu hon file tinh. */
+    const short = out && m.total >= 400 && out.length < 0.5 * Math.min(m.total, maxPer) && Math.min(m.total, maxPer) <= parseInt(env.ACCESSTRADE_API_TOPUP_MAX || '15000', 10);
+    if ((!out || short) && API_FALLBACK) {
+      const csvOut = out; let api = [];
       try {
-        out = []; info.via = 'api';
         const d1 = m.d1 || ((await atPaced(`${AT_API}?domain=${encodeURIComponent(dom)}&page=1&limit=200`, key, env)) || {}).data || [];
-        for (const d of d1) out.push(toRow(d, dom));
+        for (const d of d1) api.push(toRow(d, dom));
         pages = Math.ceil(Math.min(m.total, maxPer) / 200);
-        for (let n = 2; n <= pages && d1.length >= 200; n++) { try { const j = await atPaced(`${AT_API}?domain=${encodeURIComponent(dom)}&page=${n}&limit=200`, key, env); for (const d of (j && j.data) || []) out.push(toRow(d, dom)); } catch (e) { failed++; if (failed >= 3) break; } }
-      } catch (e) { out = null; info.apiErr = String(e.message || e).slice(0, 60); }
+        for (let n = 2; n <= pages && d1.length >= 200; n++) { try { const j = await atPaced(`${AT_API}?domain=${encodeURIComponent(dom)}&page=${n}&limit=200`, key, env); for (const d of (j && j.data) || []) api.push(toRow(d, dom)); } catch (e) { failed++; if (failed >= 3) break; } }
+      } catch (e) { api = null; info.apiErr = String(e.message || e).slice(0, 60); }
+      if (!csvOut) { out = api; if (api) info.via = 'api'; }
+      else if (api && !failed && api.length > csvOut.length) { out = api; info.via = 'api'; info.topup = csvOut.length; }   // file tinh thieu -> dung API day du
+      else { failed = 0; pages = 0; }                                                                                         // API khong tot hon: giu file tinh nhu cu
     }
     const expect = Math.min(m.total, maxPer);
     if (!out) { stat.fail.push('AccessTrade ' + dom + ': khong tai duoc (file tinh: ' + (info.csvErr || '-') + '; API: ' + (info.apiErr || 'tat') + ')'); return []; }
@@ -378,4 +390,4 @@ async function collectFeeds(env, hint = {}) {
   return { offers, stat, dropKeys, unclassSample: sample };
 }
 
-module.exports = { collectFeeds, feedList, parsePrice, parseAny, normRow, inStockOf, classify, classifyPriority, normKey, SOURCES, csvUrl, AT_CSV };
+module.exports = { collectFeeds, feedList, parsePrice, parseAny, parseCSV, normRow, inStockOf, classify, classifyPriority, normKey, SOURCES, csvUrl, AT_CSV };

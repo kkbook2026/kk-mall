@@ -36,6 +36,8 @@ jobs:
         run: node tests/collector/partners.test.js
       - name: Kiem thu dieu phoi lich (giu nhip quy trinh tu dong khi cron cua GitHub bo luot)
         run: node tests/collector/scheduler.test.js
+      - name: Bo doc datafeed (CSV khoan dung dau inch)
+        run: node tests/collector/feeds.test.js
       - name: Tim kiem KK-SEARCH - nDCG@10 bo kiem tra
         run: node tests/search/eval.js --test | tail -8
   browser:
