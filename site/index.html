@@ -353,6 +353,7 @@ footer .legal{border-top:1px solid rgba(255,255,255,.12);margin-top:28px;padding
 h2.h3{font-size:inherit;margin:inherit}
 footer h3{font-size:14px;margin:0 0 10px;color:#fff}
 .card .im{width:100%;height:auto}
+body.in-shop #viewedSec{display:none!important} /* trang ket qua / nganh hang: khong chen 'Ban vua xem' len tren ket qua */
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"OnlineStore","name":"KK-MALL","alternateName":["Đại siêu thị trực tuyến KK-MALL"],"legalName":"CÔNG TY TNHH KK-MALL","taxID":"0111694057","identifier":{"@type":"PropertyValue","propertyID":"Mã số doanh nghiệp","value":"0111694057"},"url":"https://www.kk-mall.com","logo":"https://www.kk-mall.com/logo.svg","email":"info@kk-mall.com","foundingDate":"2026-11-09","areaServed":"VN","paymentAccepted":"Chuyển khoản ngân hàng (VietQR)"}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"KK-MALL","url":"https://www.kk-mall.com","potentialAction":{"@type":"SearchAction","target":"https://www.kk-mall.com/?q={search_term_string}","query-input":"required name=search_term_string"}}</script>
@@ -657,7 +658,7 @@ $('#mic').onclick=voiceSearch;
 
 async function init(){
   META=await api('/api/meta');
-  $('#syncMin').textContent=META.syncMinutes; $('#lastSync').textContent=META.lastSync?new Date(META.lastSync).toLocaleTimeString('vi-VN'):'-';
+  $('#syncMin').textContent=META.syncMinutes; {const d=META.lastSync?new Date(META.lastSync):null,t=new Date();$('#lastSync').textContent=d?(d.toDateString()===t.toDateString()?d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}):d.toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'})):'-';if(d)$('#lastSync').title='Lần cập nhật giá gần nhất: '+d.toLocaleString('vi-VN')}
   $('#ledgerSeq').textContent=(META.ledgerHead&&META.ledgerHead.seq||0).toLocaleString('vi-VN');
   $('#totalProducts').textContent=META.totalProducts.toLocaleString('vi-VN');try{$('#vfactN').textContent=(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN');$('#q').placeholder=`Tìm tức thời trong ${(Math.floor(META.totalProducts/1000)*1000).toLocaleString('vi-VN')}+ mặt hàng (chạy ngay trên máy bạn, 0ms)...`}catch{} 
   if(/^CÔNG TY/i.test(META.company.name||''))$('#coName').textContent=META.company.name;if(/^\d{10}(-\d{3})?$/.test(META.company.taxCode||''))$('#coTax').textContent=META.company.taxCode;if(/^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(META.company.email||'')){$('#coEmail').textContent=META.company.email;$('#coEmail').href='mailto:'+META.company.email;$('#coEmail2').textContent=META.company.email;$('#topEmail').href='mailto:'+META.company.email;$('#topEmail').firstChild.textContent=META.company.email;}
@@ -697,8 +698,8 @@ function revealObserve(){
   document.querySelectorAll('.reveal:not(.in)').forEach(el=>_ro.observe(el));
 }
 addEventListener('scroll',()=>{$('#top').classList.toggle('show',scrollY>700)},{passive:true});
-function goHome(){state.f='';$('#shop').style.display='none';$('#shelves').style.display='';$('#cats').style.display='';$('#home').style.display='';navMark('');try{if(location.search)history.replaceState({},'','./')}catch{}scrollTo({top:0,behavior:'smooth'})}
-function showShop(){$('#shop').style.display='';$('#shelves').style.display='none';$('#cats').style.display='none';$('#home').style.display='none'}
+function goHome(){state.f='';document.body.classList.remove('in-shop');$('#shop').style.display='none';$('#shelves').style.display='';$('#cats').style.display='';$('#home').style.display='';navMark('');try{if(location.search)history.replaceState({},'','./')}catch{}scrollTo({top:0,behavior:'smooth'})}
+function showShop(){document.body.classList.add('in-shop');$('#shop').style.display='';$('#shelves').style.display='none';$('#cats').style.display='none';$('#home').style.display='none'}
 function setCat(id,group=''){closeMega();state.f='';state.cat=id;state.group=group;state.q='';state.attr={};state.brandKey='';$('#q').value='';$('#brand').innerHTML='<option value="">Tất cả thương hiệu</option>';navMark('-cat');try{history.replaceState({},'','?c='+encodeURIComponent(id)+(group?'&g='+encodeURIComponent(group):''))}catch{}
   const c=META.categories.find(x=>x.id===id); $('#secTitle').textContent=c?c.icon+' '+c.name+(group?' › '+group:''):'Tất cả sản phẩm';
   $('#groups').innerHTML=c?c.groups.map(g=>`<button class="chip ${g===group?'on':''}" onclick="setCat(${esc(JSON.stringify(String(id)))},${esc(JSON.stringify(String(g)))})">${esc(g)}</button>`).join(''):'';
