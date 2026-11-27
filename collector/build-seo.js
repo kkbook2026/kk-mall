@@ -192,6 +192,27 @@ fs.writeFileSync(path.join(SITE, 'sitemap.xml'), `<?xml version="1.0" encoding="
 /* ---------- lien ket tinh trong trang chu (cho bot khong chay JS) ---------- */
 const IX = path.join(SITE, 'index.html'); let ix = fs.readFileSync(IX, 'utf8');
 ix = ix.replace(/<nav class="seolinks" id="seoLinks"([^>]*)>[\s\S]*?<\/nav>/, `<nav class="seolinks" id="seoLinks"$1><b>Danh mục:</b> ${cats.map(c => `<a href="./c/${c.id}.html">${esc(c.name)}</a>`).join(' · ')}</nav>`);
+
+/* ---------- so lieu tinh trong trang chu (27/11/2026) ----------
+ * Truoc day HTML goc ghi san "0 mat hang", "Cap nhat -", "--:--", "20.000+": bot, xem truoc lien ket va nguoi tat JavaScript
+ * thay so sai; 4 cach ghi so mat hang khac nhau. Nay dien so that tu meta.json luc trien khai; JavaScript van cap nhat lai khi nap /api/meta. */
+const dots = n => String(Math.max(0, Math.round(Number(n) || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const nTotal = Number(meta.totalProducts) || full.length || 0, nK = Math.floor(nTotal / 1000) * 1000;
+const vnHM = iso => { const d = new Date(iso); if (isNaN(d)) return ''; const v = new Date(d.getTime() + 7 * 3600e3), p = x => String(x).padStart(2, '0');
+  return `${p(v.getUTCHours())}:${p(v.getUTCMinutes())} ${p(v.getUTCDate())}/${p(v.getUTCMonth() + 1)}`; };
+const per = Number(meta.syncMinutes) || 180, perTxt = per % 60 === 0 ? `mỗi ${per / 60} giờ` : `mỗi ${per} phút`;
+if (nK > 0) {
+  const sub = (re, val) => { const before = ix; ix = ix.replace(re, val); if (ix === before) console.warn('build-seo: khong tim thay moc ' + re); };
+  sub(/(<b id="totalProducts">)[^<]*(<\/b>)/, `$1${dots(nTotal)}$2`);
+  sub(/(<span id="vfactN">)[^<]*(<\/span>)/, `$1${dots(nK)}$2`);
+  sub(/(placeholder="Tìm tức thời trong )[\d.]+(\+ mặt hàng)/, `$1${dots(nK)}$2`);
+  sub(/(<meta name="description" content="[^"]*?tổng hợp )(?:hàng nghìn|hơn [\d.]+)( mặt hàng)/, `$1hơn ${dots(nK)}$2`);
+  if (meta.ledgerHead && meta.ledgerHead.seq) sub(/(<span id="ledgerSeq">)[^<]*(<\/span>)/, `$1${dots(meta.ledgerHead.seq)}$2`);
+  if (vnHM(meta.lastSync)) sub(/(<span id="lastSync")[^>]*>[^<]*(<\/span>)/, `$1 title="Lần cập nhật giá gần nhất (giờ Việt Nam)">${vnHM(meta.lastSync)}$2`);
+  sub(/(<div class="fclock" id="syncClock">)[^<]*(<\/div>)/, `$1${perTxt}$2`);
+  const LL = path.join(SITE, 'llms.txt');
+  if (fs.existsSync(LL)) fs.writeFileSync(LL, fs.readFileSync(LL, 'utf8').replace(/tổng hợp hơn [\d.]+ mặt hàng/, `tổng hợp hơn ${dots(nK)} mặt hàng`));
+}
 fs.writeFileSync(IX, ix);
 
 if (DEPLOY) for (const f of NOT_PUBLIC) fs.rmSync(f, { force: true });
