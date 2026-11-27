@@ -60,6 +60,8 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Kiem thu trinh duyet (trang chu, Worker + IndexedDB, service worker, tim kiem, san pham, gio hang, dien thoai, JS/CSP)
         run: node tests/browser/smoke.js
+      - name: Service worker - khach quay lai thay du lieu gia moi, mang cham dung ban luu, mat mang van mo duoc
+        run: node tests/browser/sw-fresh.js
       - name: Dau-cuoi dat hang + hop dong dien tu (trinh duyet that + may chu gia lap trong tien trinh)
         run: node tests/browser/checkout.js
       - name: Ngan sach Lighthouse (hieu nang >= 80, tiep can >= 90, SEO >= 90, thuc hanh tot >= 80)
